@@ -13,6 +13,11 @@
     other: [],
     regionPresets: [],
   };
+  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX"];
+  const REGION_LABELS = {
+    HH: "Hamburg",
+    BENELUX: "BeNeLux",
+  };
 
   const ui = {
     view: "played",
@@ -402,19 +407,24 @@
   }
 
   function regionOptions() {
-    const cityCounts = countBy(data.played, (room) => room.city || "Ohne Stadt");
-    const cities = Object.entries(cityCounts)
-      .filter(([, count]) => count >= 4)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "de"))
-      .slice(0, 40);
-
     return [
       { value: "all", label: `Alle (${data.played.length})` },
-      ...data.regionPresets
-        .filter((preset) => preset.roomIds && preset.roomIds.length)
-        .map((preset) => ({ value: `preset:${preset.id}`, label: `${preset.name} (${preset.roomIds.length})` })),
-      ...cities.map(([city, count]) => ({ value: `city:${city}`, label: `${city} (${count})` })),
+      ...regionPresetOptions(),
     ];
+  }
+
+  function regionPresetOptions() {
+    return REGION_ORDER
+      .map((name) => data.regionPresets.find((preset) => preset.name === name))
+      .filter((preset) => preset?.roomIds?.length)
+      .map((preset) => ({
+        value: `preset:${preset.id}`,
+        name: preset.name,
+        label: `${REGION_LABELS[preset.name] || preset.name} (${preset.roomIds.length})`,
+        shortLabel: REGION_LABELS[preset.name] || preset.name,
+        count: preset.roomIds.length,
+        roomIds: preset.roomIds,
+      }));
   }
 
   function countBy(items, getter) {
@@ -570,16 +580,11 @@
   function renderKpis(rooms) {
     const averageScope = ui.selectedMembers.length ? getContextRooms() : rooms;
     const avgScore = averageOf(ratingValuesForRooms(averageScope, currentMembers()));
-    const cityCounts = countBy(rooms, (room) => room.city);
-    const topCity = Object.entries(cityCounts).sort((a, b) => b[1] - a[1])[0];
-    const highHorror = rooms.filter((room) => (room.scare ?? 0) >= 3).length;
 
     return `
-      <section class="kpi-grid" aria-label="Kennzahlen">
+      <section class="kpi-grid played-kpis" aria-label="Kennzahlen">
         ${kpi("Räume", rooms.length)}
         ${kpi(ui.selectedMembers.length ? "Ø Auswahl" : "Team Ø", formatAverage(avgScore))}
-        ${kpi("Top-Stadt", topCity ? `${topCity[0]} (${topCity[1]})` : "-")}
-        ${kpi("Horror 3+", highHorror)}
       </section>
     `;
   }
@@ -681,6 +686,10 @@
     const cityStats = Object.entries(countBy(data.played, (room) => room.city))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12);
+    const topCity = cityStats[0];
+    const highHorror = data.played.filter((room) => (room.scare ?? 0) >= 3).length;
+    const horrorAverage = averageOf(data.played.map((room) => room.scare).filter((value) => typeof value === "number"));
+    const difficultyAverage = averageOf(data.played.map((room) => room.difficulty).filter((value) => typeof value === "number"));
     const memberStats = data.members.map((member) => {
       const values = data.played.map((room) => room.ratings[member]).filter((value) => typeof value === "number");
       return {
@@ -715,6 +724,7 @@
       data.played.filter((room) => /^\d{4}-/.test(room.date)),
       (room) => room.date.slice(0, 4),
     )).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 10);
+    const regionStats = regionPresetOptions();
     const splitRooms = data.played
       .map((room) => {
         const ratings = ratingValuesForRooms([room]);
@@ -731,6 +741,7 @@
     const maxDifficulty = Math.max(1, ...difficultyStats.map(([, count]) => count));
     const maxTags = Math.max(1, ...tagStats.map(([, count]) => count));
     const maxYears = Math.max(1, ...yearStats.map(([, count]) => count));
+    const maxRegions = Math.max(1, ...regionStats.map((region) => region.count));
 
     return `
       <section class="stats-layout">
@@ -741,6 +752,10 @@
             ${kpi("Einzelbewertungen", ratingValuesForRooms(data.played).length)}
             ${kpi("Team Ø", formatAverage(averageOf(ratingValuesForRooms(data.played, data.members))))}
             ${kpi("Up Next", data.wishList.length)}
+            ${kpi("Top-Stadt", topCity ? `${topCity[0]} (${topCity[1]})` : "-")}
+            ${kpi("Horror 3+", highHorror)}
+            ${kpi("Ø Horror", `${formatAverage(horrorAverage)}/5`)}
+            ${kpi("Ø Difficulty", `${formatAverage(difficultyAverage)}/5`)}
           </section>
         </article>
         <article class="panel">
@@ -790,6 +805,18 @@
                 <strong>${escapeHtml(stat.provider)}</strong>
                 <small>${stat.count} Räume</small>
                 <b>${formatScore(stat.avg)}</b>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+        <article class="panel">
+          <h2>Regionen</h2>
+          <div class="bar-list">
+            ${regionStats.map((region) => `
+              <div class="bar-row">
+                <span>${escapeHtml(region.shortLabel)}</span>
+                <div><i style="width: ${(region.count / maxRegions) * 100}%"></i></div>
+                <b>${region.count}</b>
               </div>
             `).join("")}
           </div>

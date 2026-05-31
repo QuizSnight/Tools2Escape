@@ -45,6 +45,13 @@ try {
     Boolean,
     "played KPI",
   );
+  await assertEval(cdp, "document.querySelectorAll('.played-kpis .kpi').length", (value) => value === 2, "played KPI count");
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(.+\\)/, '')).join('|')",
+    (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux",
+    "region filter preset options only",
+  );
 
   await screenshot(cdp, path.join(qaDir, "desktop.png"));
 
@@ -89,6 +96,12 @@ try {
 
   await evalPage(cdp, "document.querySelector('[data-view=\"stats\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.panel').length", (value) => value >= 4, "stats panels");
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('.compact-kpis .kpi span')).map((node) => node.textContent).join('|')",
+    (value) => value.includes("Top-Stadt") && value.includes("Horror 3+") && value.includes("Ø Difficulty"),
+    "stats overview extended KPIs",
+  );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
 
   await cdp.send("Emulation.setDeviceMetricsOverride", {

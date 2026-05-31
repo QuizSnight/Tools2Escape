@@ -45,14 +45,14 @@ const REGION_TABS = [
 
 function doPost(e) {
   const payload = JSON.parse((e.postData && e.postData.contents) || "{}");
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const spreadsheet = getSpreadsheet_();
   setScriptWriteGuard_(20000);
   (payload.sheets || []).forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows || []));
   return jsonResponse_({ ok: true, updatedAt: new Date().toISOString() });
 }
 
 function installEditTrigger() {
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const spreadsheet = getSpreadsheet_();
   ScriptApp.getProjectTriggers()
     .filter((trigger) => trigger.getHandlerFunction() === "syncSheetToApp")
     .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
@@ -61,13 +61,19 @@ function installEditTrigger() {
 
 function syncSheetToApp(e) {
   if (isScriptWriteGuarded_()) return;
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const spreadsheet = getSpreadsheet_();
   const editedSheetName = e && e.range ? e.range.getSheet().getName() : "";
   const existingPayload = fetchCurrentPayload_();
   const payload = parseSpreadsheet_(spreadsheet, existingPayload, editedSheetName);
   updateSupabase_(payload);
   setScriptWriteGuard_(20000);
   sheetsForPayload_(payload).forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows));
+}
+
+function getSpreadsheet_() {
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
 function parseSpreadsheet_(spreadsheet, existingPayload, editedSheetName) {

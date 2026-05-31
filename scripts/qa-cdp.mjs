@@ -35,9 +35,9 @@ try {
   await assertEval(cdp, "document.title", (value) => value === "Tools2EscApp", "document title");
   await assertEval(
     cdp,
-    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker')",
+    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && Boolean(document.querySelector('.brand-logo')) && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker')",
     Boolean,
-    "single app heading",
+    "single app heading with logo",
   );
   await assertEval(
     cdp,
@@ -57,6 +57,12 @@ try {
     "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(.+\\)/, '')).join('|')",
     (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux",
     "region filter preset options only",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('BeNeLux'))?.textContent",
+    (value) => value === "BeNeLux (29)",
+    "benelux dynamic city count",
   );
   await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");
 
@@ -97,6 +103,7 @@ try {
 
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.wish-card').length", (value) => value === 35, "up next cards count");
+  await assertEval(cdp, "document.querySelector('[data-open-wish]')?.textContent", (value) => value === "Geplanten Raum ergänzen", "up next add button label");
   await evalPage(cdp, "document.querySelector('[data-open-wish]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#wish-form'))", Boolean, "wish modal opens");
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
@@ -132,7 +139,7 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Athen|Hamburg",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg|Athen",
     "regions sorted by rated rooms",
   );
   await assertEval(

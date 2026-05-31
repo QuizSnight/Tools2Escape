@@ -18,6 +18,36 @@
     HH: "Hamburg",
     BENELUX: "BeNeLux",
   };
+  const BENELUX_CITIES = new Set([
+    "amersfoort",
+    "amsterdam",
+    "as",
+    "baarn",
+    "bemmel",
+    "brugge",
+    "brussel",
+    "bruxelles",
+    "burgum",
+    "den haag",
+    "hilversum",
+    "katwijk",
+    "leiden",
+    "lier",
+    "luxembourg",
+    "luxemburg",
+    "maaseik",
+    "mechelen",
+    "moordrecht",
+    "naarden",
+    "retie",
+    "rijswijk",
+    "schijndel",
+    "utrecht",
+    "volkel",
+    "voorburg",
+    "waalwijk",
+    "zoersel",
+  ]);
 
   const ui = {
     view: "played",
@@ -292,6 +322,10 @@
       .trim();
   }
 
+  function normalizeCity(value) {
+    return normalize(value).replace(/\s+(be|belgien|lu|luxemburg|luxembourg|nl|niederlande)$/, "");
+  }
+
   function numberOrNull(value) {
     if (value === null || value === undefined || value === "") return null;
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -415,7 +449,7 @@
     if (ui.region.startsWith("preset:")) {
       const presetId = ui.region.slice(7);
       const preset = data.regionPresets.find((entry) => entry.id === presetId);
-      return Boolean(preset && preset.roomIds.includes(room.id));
+      return Boolean(preset && roomBelongsToPreset(room, preset));
     }
     if (ui.region.startsWith("city:")) {
       return normalize(room.city) === normalize(ui.region.slice(5));
@@ -434,14 +468,43 @@
     return REGION_ORDER
       .map((name) => data.regionPresets.find((preset) => preset.name === name))
       .filter((preset) => preset?.roomIds?.length)
-      .map((preset) => ({
-        value: `preset:${preset.id}`,
-        name: preset.name,
-        label: `${REGION_LABELS[preset.name] || preset.name} (${preset.roomIds.length})`,
-        shortLabel: REGION_LABELS[preset.name] || preset.name,
-        count: preset.roomIds.length,
-        roomIds: preset.roomIds,
-      }));
+      .map((preset) => {
+        const roomIds = regionRoomIds(preset);
+        return {
+          value: `preset:${preset.id}`,
+          name: preset.name,
+          label: `${REGION_LABELS[preset.name] || preset.name} (${roomIds.length})`,
+          shortLabel: REGION_LABELS[preset.name] || preset.name,
+          count: roomIds.length,
+          roomIds,
+        };
+      });
+  }
+
+  function regionRoomIds(preset) {
+    return data.played
+      .filter((room) => roomBelongsToPreset(room, preset))
+      .map((room) => room.id);
+  }
+
+  function roomBelongsToPreset(room, preset) {
+    if (preset.name === "BENELUX" && isBeneluxRoom(room)) return true;
+    if ((preset.roomIds || []).includes(room.id)) return true;
+    return regionCitiesForPreset(preset).has(normalizeCity(room.city));
+  }
+
+  function regionCitiesForPreset(preset) {
+    const presetIds = new Set(preset.roomIds || []);
+    return new Set(
+      data.played
+        .filter((room) => presetIds.has(room.id))
+        .map((room) => normalizeCity(room.city))
+        .filter(Boolean),
+    );
+  }
+
+  function isBeneluxRoom(room) {
+    return BENELUX_CITIES.has(normalizeCity(room.city));
   }
 
   function countBy(items, getter) {
@@ -514,7 +577,8 @@
   function renderHeader() {
     return `
       <header class="topbar">
-        <div>
+        <div class="brand">
+          <img class="brand-logo" src="icons/icon-192.png" alt="" aria-hidden="true">
           <h1>Tools2EscApp</h1>
         </div>
         <div class="top-actions">
@@ -667,7 +731,7 @@
             ${countries.map((country) => `<option value="${escapeHtml(country)}" ${ui.wishCountry === country ? "selected" : ""}>${escapeHtml(country === "all" ? `Alle (${data.wishList.length})` : country)}</option>`).join("")}
           </select>
         </label>
-        <button class="primary-action" data-open-wish type="button">Plan eintragen</button>
+        <button class="primary-action" data-open-wish type="button">Geplanten Raum ergänzen</button>
       </section>
       <section class="wish-grid">
         ${wishes.length ? wishes.map(renderWishCard).join("") : renderEmptyState("Keine Pläne gefunden.")}

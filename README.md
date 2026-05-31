@@ -6,34 +6,23 @@ Mobile-first Escape-Room-Tracker auf Basis der importierten Excel-Datei.
 
 `index.html` im Browser öffnen. Ohne Cloud-Konfiguration läuft die App lokal und speichert Änderungen im Browser unter `localStorage`.
 
-## Online-Sync
+## Online-Sync ohne Login
 
-Die App kann mit Supabase gemeinsam genutzt werden. Dafür gibt es:
+Die App kann mit Supabase gemeinsam genutzt werden. Es gibt bewusst keinen Team-Code und keine Anmeldung: Wer die veröffentlichte App-URL kennt, kann die Daten lesen und bearbeiten.
 
-- `database/supabase.sql` für die Datenbank, Rechte und den gemeinsamen Team-Code.
-- `src/config.js` für die Supabase-Projekt-URL, den öffentlichen anon key und die Team-ID.
+Dafür gibt es:
 
-### 1. Supabase-Projekt anlegen
+- `database/supabase.sql` für den gemeinsamen Online-Datensatz und die öffentlichen Lese-/Schreibrechte.
+- `src/config.js` für die Supabase-Projekt-URL, den Publishable Key und die Team-ID.
+
+### 1. Supabase-Projekt vorbereiten
 
 1. Auf https://supabase.com ein Projekt erstellen.
-2. Unter Authentication -> Providers den Provider `Anonymous Sign-Ins` aktivieren.
-3. Im Supabase Dashboard den SQL Editor öffnen.
-4. `database/supabase.sql` öffnen.
-5. Diese Stelle ersetzen:
+2. Im Supabase Dashboard den SQL Editor öffnen.
+3. `database/supabase.sql` öffnen.
+4. Die komplette SQL-Datei in den Supabase SQL Editor einfügen und ausführen.
 
-```sql
-crypt('BITTE-HIER-EUREN-TEAM-CODE-EINTRAGEN', gen_salt('bf')),
-```
-
-   Beispiel:
-
-```sql
-crypt('unser-geheimer-team-code', gen_salt('bf')),
-```
-
-6. Die komplette SQL-Datei in den Supabase SQL Editor einfügen und ausführen.
-
-Die Tabelle `team_state` speichert den kompletten App-Datenstand als JSON. Row Level Security ist aktiv; lesen und schreiben dürfen nur Browser, die einmal per Team-Code der Tabelle `team_members` beigetreten sind.
+Die Tabelle `team_state` speichert den kompletten App-Datenstand als JSON. Row Level Security bleibt aktiv, erlaubt aber für den Datensatz `ksch-spiele` öffentlichen Zugriff über den Supabase Publishable Key.
 
 ### 2. App konfigurieren
 
@@ -42,12 +31,18 @@ In `src/config.js` die Werte eintragen:
 ```js
 window.T2E_CONFIG = {
   supabaseUrl: "https://dein-projekt.supabase.co",
-  supabaseAnonKey: "dein-public-anon-key",
+  supabaseAnonKey: "dein-publishable-key",
   teamId: "ksch-spiele",
 };
 ```
 
-Die Werte findest du in Supabase unter Project Settings -> API.
+Die URL setzt sich aus der Supabase Project ID zusammen:
+
+```txt
+https://PROJECT-ID.supabase.co
+```
+
+Den Publishable Key findest du in Supabase unter Project Settings -> API Keys -> Publishable key.
 
 ### 3. Online deployen
 
@@ -61,28 +56,16 @@ Einfachster Weg:
 
 Alternativ kann der Ordner auch bei Netlify oder Firebase Hosting als statische Website veroeffentlicht werden.
 
-### 4. Erster Team-Code-Login
+### 4. Freunde einladen
 
-1. Die veroeffentlichte App-URL oeffnen.
-2. Oben auf `Team-Code` klicken.
-3. Euren gemeinsamen Code eingeben.
-4. Beim ersten erfolgreichen Verbinden speichert die App den aktuellen lokalen Datenstand in Supabase.
+Den Freunden nur die App-URL schicken. Die App verbindet sich beim Öffnen automatisch mit Supabase. Änderungen werden online gespeichert und an andere offene Tabs verteilt.
 
-Danach bleibt die Supabase-Session im Browser gespeichert. Man muss den Code nur erneut eingeben, wenn man sich abmeldet, Browserdaten loescht, den Inkognito-Modus nutzt oder ein neues Geraet verwendet.
-
-### 5. Freunde einladen
-
-Den Freunden nur zwei Dinge schicken:
-
-- App-URL
-- Team-Code
-
-Wer den Team-Code kennt, kann die Daten bearbeiten. Den Code also nicht oeffentlich posten.
+Wichtig: Ohne Login ist die URL praktisch der Zugang. Poste den Link also nicht öffentlich.
 
 ## Datengrundlage
 
 - `src/seed-data.js` enthält den Import aus `Ksch Spiele.xlsx`.
-- Sobald Supabase konfiguriert und ein Teammitglied angemeldet ist, werden Änderungen online gespeichert und per Realtime an andere offene Tabs verteilt.
+- Sobald Supabase konfiguriert ist, werden Änderungen online gespeichert und per Realtime an andere offene Tabs verteilt.
 - Der Importer kann erneut ausgeführt werden:
 
 ```powershell

@@ -29,13 +29,11 @@
   const cloud = {
     enabled: hasSupabaseConfig(),
     client: null,
-    user: null,
     loading: false,
     saving: false,
     error: "",
     lastSyncedAt: "",
     channel: null,
-    needsJoin: false,
   };
 
   let saveQueued = false;
@@ -139,26 +137,15 @@
     render();
 
     try {
-      cloud.client = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-      const { data: sessionData, error: sessionError } = await cloud.client.auth.getSession();
-      if (sessionError) throw sessionError;
-
-      cloud.user = sessionData.session?.user || null;
-      cloud.client.auth.onAuthStateChange((_event, session) => {
-        cloud.user = session?.user || null;
-        if (cloud.user) {
-          void loadCloudState();
-          subscribeToCloudChanges();
-        } else {
-          unsubscribeFromCloudChanges();
-          render();
-        }
+      cloud.client = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
       });
-
-      if (cloud.user) {
-        await loadCloudState();
-        subscribeToCloudChanges();
-      }
+      await loadCloudState();
+      subscribeToCloudChanges();
     } catch (error) {
       cloud.error = error.message || "Cloud konnte nicht verbunden werden.";
     } finally {
@@ -168,7 +155,7 @@
   }
 
   async function loadCloudState() {
-    if (!cloud.client || !cloud.user) return;
+    if (!cloud.client) return;
     cloud.loading = true;
     cloud.error = "";
     render();
@@ -188,12 +175,10 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         applyingRemoteData = false;
         cloud.lastSyncedAt = row.updated_at || "";
-        cloud.needsJoin = false;
       } else {
         await saveCloudState();
       }
     } catch (error) {
-      cloud.needsJoin = true;
       cloud.error = readableCloudError(error);
     } finally {
       applyingRemoteData = false;
@@ -203,7 +188,7 @@
   }
 
   function subscribeToCloudChanges() {
-    if (!cloud.client || !cloud.user || cloud.channel) return;
+    if (!cloud.client || cloud.channel) return;
 
     cloud.channel = cloud.client
       .channel(`tools2escape-${config.teamId}`)
@@ -236,7 +221,7 @@
   }
 
   function queueCloudSave() {
-    if (!cloud.enabled || !cloud.client || !cloud.user) return;
+    if (!cloud.enabled || !cloud.client) return;
     saveQueued = true;
     void flushCloudSave();
   }
@@ -251,7 +236,7 @@
   }
 
   async function saveCloudState() {
-    if (!cloud.client || !cloud.user) return;
+    if (!cloud.client) return;
 
     cloud.saving = true;
     cloud.error = "";
@@ -261,10 +246,7 @@
     try {
       const { data: row, error } = await cloud.client
         .from("team_state")
-        .update({
-          payload,
-          updated_by: cloud.user.id,
-        })
+        .update({ payload })
         .eq("id", config.teamId)
         .select("updated_at")
         .single();
@@ -279,60 +261,14 @@
     }
   }
 
-  async function joinWithTeamCode(teamCode) {
-    if (!cloud.client) return;
-
-    cloud.loading = true;
-    cloud.error = "";
-    render();
-
-    try {
-      if (!cloud.user) {
-        const { data: authData, error: authError } = await cloud.client.auth.signInAnonymously();
-        if (authError) throw authError;
-        cloud.user = authData.user || authData.session?.user || null;
-      }
-
-      const { error: joinError } = await cloud.client.rpc("join_team", {
-        invite_team_id: config.teamId,
-        invite_code: teamCode,
-      });
-      if (joinError) throw joinError;
-
-      cloud.needsJoin = false;
-      ui.modal = null;
-      await loadCloudState();
-      subscribeToCloudChanges();
-      setNotice("Team verbunden.");
-    } catch (error) {
-      cloud.error = readableCloudError(error);
-    } finally {
-      cloud.loading = false;
-      render();
-    }
-  }
-
-  async function signOut() {
-    if (!cloud.client) return;
-    await cloud.client.auth.signOut();
-    cloud.user = null;
-    cloud.needsJoin = false;
-    unsubscribeFromCloudChanges();
-    setNotice("Abgemeldet. Lokale Daten bleiben auf diesem Gerät.");
-  }
-
   function readableCloudError(error) {
     const message = error?.message || String(error);
-    if (message.includes("invalid_invite_code")) return "Team-Code stimmt nicht.";
     if (message.includes("team_not_found")) return "Team nicht gefunden. Prüfe die Team-ID in src/config.js.";
-    if (message.includes("Anonymous sign-ins are disabled")) {
-      return "Anonymous Sign-Ins sind in Supabase noch nicht aktiviert.";
-    }
     if (message.includes("JWT") || message.includes("row-level security") || message.includes("permission")) {
-      return "Kein Zugriff. Bitte Team-Code eingeben.";
+      return "Kein Zugriff. Bitte database/supabase.sql in Supabase ausführen.";
     }
     if (message.includes("JSON object requested") || message.includes("0 rows")) {
-      return "Bitte Team-Code eingeben.";
+      return "Team-Datensatz fehlt. Bitte database/supabase.sql in Supabase ausführen.";
     }
     return message;
   }
@@ -524,10 +460,9 @@
   function renderCloudBadge() {
     if (!cloud.enabled) return `<span class="sync-pill is-local">Lokal</span>`;
     if (cloud.loading) return `<span class="sync-pill">Synchronisiert...</span>`;
-    if (!cloud.user || cloud.needsJoin) return `<button class="sync-button" data-open-login type="button">Team-Code</button>`;
     if (cloud.saving) return `<span class="sync-pill">Speichert...</span>`;
     if (cloud.error) return `<button class="sync-button is-warning" data-refresh-cloud type="button">Sync prüfen</button>`;
-    return `<button class="sync-button is-online" data-sign-out type="button">Online</button>`;
+    return `<button class="sync-button is-online" data-refresh-cloud type="button">Online</button>`;
   }
 
   function tabButton(view, label) {
@@ -890,32 +825,7 @@
     if (!ui.modal) return "";
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
-    if (ui.modal.type === "login") return renderLoginModal();
     return "";
-  }
-
-  function renderLoginModal() {
-    return `
-      <div class="modal-backdrop" data-close-modal>
-        <section class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
-          <form id="login-form">
-            <div class="modal-head">
-              <h2 id="login-modal-title">Team-Code</h2>
-              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
-            </div>
-            <label class="full-field">
-              <span>Code</span>
-              <input name="teamCode" type="password" autocomplete="current-password" required>
-            </label>
-            ${cloud.error ? `<div class="sync-error">${escapeHtml(cloud.error)}</div>` : ""}
-            <div class="modal-actions">
-              <button type="button" data-close-modal>Abbrechen</button>
-              <button class="primary-action" type="submit">Verbinden</button>
-            </div>
-          </form>
-        </section>
-      </div>
-    `;
   }
 
   function renderRoomModal(room = {}, wishId = "") {
@@ -1015,13 +925,6 @@
       });
     });
 
-    app.querySelectorAll("[data-open-login]").forEach((button) => {
-      button.addEventListener("click", () => {
-        ui.modal = { type: "login" };
-        render();
-      });
-    });
-
     app.querySelectorAll("[data-refresh-cloud]").forEach((button) => {
       button.addEventListener("click", () => {
         void loadCloudState();
@@ -1031,12 +934,6 @@
     app.querySelectorAll("[data-save-cloud]").forEach((button) => {
       button.addEventListener("click", () => {
         void saveCloudState();
-      });
-    });
-
-    app.querySelectorAll("[data-sign-out]").forEach((button) => {
-      button.addEventListener("click", () => {
-        void signOut();
       });
     });
 
@@ -1167,13 +1064,6 @@
 
     const wishForm = app.querySelector("#wish-form");
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
-
-    const loginForm = app.querySelector("#login-form");
-    if (loginForm) loginForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      void joinWithTeamCode(clean(form.get("teamCode")));
-    });
 
   }
 

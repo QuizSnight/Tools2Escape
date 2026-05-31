@@ -1,6 +1,5 @@
 window.T2E_CONFIG = {
   supabaseUrl: "https://dein-projekt.supabase.co",
-  supabaseAnonKey: "dein-public-anon-key",
+  supabaseAnonKey: "dein-publishable-key",
   teamId: "ksch-spiele",
 };
-

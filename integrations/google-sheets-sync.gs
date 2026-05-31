@@ -52,10 +52,11 @@ function doPost(e) {
 }
 
 function installEditTrigger() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
   ScriptApp.getProjectTriggers()
     .filter((trigger) => trigger.getHandlerFunction() === "syncSheetToApp")
     .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
-  ScriptApp.newTrigger("syncSheetToApp").forSpreadsheet(SPREADSHEET_ID).onEdit().create();
+  ScriptApp.newTrigger("syncSheetToApp").forSpreadsheet(spreadsheet).onEdit().create();
 }
 
 function syncSheetToApp(e) {

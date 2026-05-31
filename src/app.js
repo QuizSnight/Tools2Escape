@@ -748,14 +748,22 @@
       .sort((a, b) => b.count - a.count || a.shortLabel.localeCompare(b.shortLabel, "de"));
     const splitRooms = data.played
       .map((room) => {
-        const ratings = ratingValuesForRooms([room]);
+        const ratings = data.members
+          .map((member) => ({ member, value: room.ratings[member] }))
+          .filter((rating) => typeof rating.value === "number")
+          .sort((a, b) => a.value - b.value || a.member.localeCompare(b.member, "de"));
+        const lowest = ratings[0] || null;
+        const highest = ratings[ratings.length - 1] || null;
+        const spread = ratings.length >= 2 && lowest && highest ? highest.value - lowest.value : null;
         return {
           room,
           count: ratings.length,
-          spread: ratings.length >= 3 ? Math.max(...ratings) - Math.min(...ratings) : null,
+          lowest,
+          highest,
+          spread,
         };
       })
-      .filter((item) => typeof item.spread === "number" && item.spread > 0)
+      .filter((item) => typeof item.spread === "number" && item.spread >= 2.5)
       .sort((a, b) => b.spread - a.spread || b.count - a.count)
       .slice(0, 10);
     const maxCity = Math.max(1, ...cityStats.map(([, count]) => count));
@@ -895,13 +903,13 @@
         </article>
         <article class="panel">
           <h2>Kontrovers</h2>
-          <p class="panel-help">Räume mit mindestens 3 Einzelbewertungen; die Zahl zeigt die Spanne zwischen höchster und niedrigster Bewertung.</p>
-          <div class="rank-list">
-            ${splitRooms.map(({ room, spread }, index) => `
-              <div class="rank-row">
+          <p class="panel-help">Nur Räume mit mindestens 2,5 Punkten Unterschied zwischen höchster und niedrigster Einzelbewertung.</p>
+          <div class="rank-list controversy-list">
+            ${splitRooms.map(({ room, spread, lowest, highest }, index) => `
+              <div class="rank-row controversy-row">
                 <span>${index + 1}</span>
                 <strong>${escapeHtml(room.title)}</strong>
-                <small>${escapeHtml(room.city)}</small>
+                <small>${escapeHtml(`${lowest.member} ${formatScore(lowest.value)} · ${highest.member} ${formatScore(highest.value)}`)}</small>
                 <b>${formatScore(spread)}</b>
               </div>
             `).join("")}

@@ -454,6 +454,10 @@ h2 {
   color: var(--muted);
 }
 
+.controversy-row {
+  grid-template-columns: 32px minmax(0, 1fr) minmax(150px, auto) 56px;
+}
+
 .bar-row {
   display: grid;
   grid-template-columns: minmax(90px, 150px) 1fr 36px;

@@ -135,6 +135,21 @@ try {
     (value) => value === "DE|NRW|BeNeLux|Athen|Hamburg",
     "regions sorted by rated rooms",
   );
+  await assertEval(
+    cdp,
+    `
+      (() => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find((entry) => entry.querySelector('h2')?.textContent === 'Kontrovers');
+        const rows = Array.from(panel.querySelectorAll('.controversy-row')).map((row) => ({
+          detail: row.querySelector('small')?.textContent || '',
+          spread: Number(row.querySelector('b')?.textContent?.replace(',', '.')),
+        }));
+        return rows.length > 0 && rows.every((row) => row.spread >= 2.5 && /\\b\\d+(\\.\\d)?\\b · .*\\b\\d+(\\.\\d)?\\b/.test(row.detail));
+      })()
+    `,
+    Boolean,
+    "controversy threshold and rating details",
+  );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
 
   await cdp.send("Emulation.setDeviceMetricsOverride", {

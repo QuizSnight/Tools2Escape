@@ -169,8 +169,8 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Athen|Spanien|Polen|Ungarn|Frankreich|Tschechien",
-    "regions sorted by rated rooms",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Spanien|Athen|Polen|Ungarn|Frankreich|Tschechien",
+    "regions sorted by played rooms",
   );
   await assertEval(
     cdp,
@@ -188,6 +188,13 @@ try {
     "controversy threshold and rating details",
   );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
+  await assertEval(cdp, "document.querySelector('.member-table span').textContent", (value) => value === "237 gespielt · 230 Bewertungen", "team stats include unrated played rooms");
+  await assertEval(
+    cdp,
+    "window.T2E_SEED_DATA.played.find((room) => room.title === 'Mission Zeitreise')?.playedBy?.join('|')",
+    (value) => value === "Sebi|Elisa|Lara|Nikolai|Ari",
+    "dash ratings imported as played",
+  );
 
   await evalPage(cdp, `
     (() => {

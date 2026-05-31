@@ -60,6 +60,10 @@ function numberOrNull(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isPlayedValue(value) {
+  return typeof numberOrNull(value) === "number" || clean(value) === "-";
+}
+
 function parseDate(value) {
   if (value instanceof Date && !Number.isNaN(value.valueOf())) {
     return value.toISOString().slice(0, 10);
@@ -206,6 +210,9 @@ function parsePlayedSheet(sheetName) {
     const ratings = Object.fromEntries(
       memberColumns.map(({ member, column }) => [member, numberOrNull(row[column])]),
     );
+    const playedBy = memberColumns
+      .filter(({ column }) => isPlayedValue(row[column]))
+      .map(({ member }) => member);
     const computedRatings = Object.values(ratings).filter((value) => typeof value === "number");
     const importedAverage = numberOrNull(row[columns.average]);
     const computedAverage = computedRatings.length
@@ -224,6 +231,7 @@ function parsePlayedSheet(sheetName) {
       scare: numberOrNull(row[columns.scare]),
       difficulty: numberOrNull(row[columns.difficulty]),
       ratings,
+      playedBy,
       average: computedAverage === null ? null : Number(computedAverage.toFixed(2)),
       importedAverage,
       date: parseDate(row[columns.date]),

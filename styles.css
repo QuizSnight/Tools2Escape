@@ -369,6 +369,10 @@ h2 {
   color: #8b9493;
 }
 
+.rating-pill.is-unplayed {
+  opacity: 0.45;
+}
+
 .tag-row span {
   background: #fff6e3;
   color: #604113;
@@ -565,6 +569,24 @@ h2 {
 
 .ratings-form {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.member-rating-field {
+  gap: 7px;
+}
+
+.unrated-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.unrated-toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 .full-field {

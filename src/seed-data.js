@@ -1,7 +1,7 @@
 window.T2E_SEED_DATA = {
   "version": 2,
   "sourceFile": "Ksch Spiele.xlsx",
-  "importedAt": "2026-05-31T13:55:10.072Z",
+  "importedAt": "2026-05-31T16:41:46.477Z",
   "members": [
     "Sebi",
     "Elisa",
@@ -24,6 +24,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "2023-01-22",
@@ -48,6 +51,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 7.5,
       "importedAverage": 7.5,
       "date": "2023-01-26",
@@ -72,6 +78,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "2023-02-28",
@@ -96,6 +105,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "2023-03-01",
@@ -120,6 +132,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 7,
       "importedAverage": 7,
       "date": "2023-03-02",
@@ -144,6 +159,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "2023-03-04",
@@ -168,6 +186,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "2023-03-19",
@@ -192,6 +215,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "2023-03-25",
@@ -219,6 +245,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "2023-03-25",
@@ -246,6 +275,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 1.5,
       "importedAverage": 1.5,
       "date": "2023-03-25",
@@ -273,6 +305,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "2023-03-25",
@@ -300,6 +335,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "2023-03-25",
@@ -327,6 +365,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.3,
       "importedAverage": 8.3,
       "date": "2023-04-08",
@@ -354,6 +399,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "2023-05-17",
@@ -381,6 +433,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.2,
       "importedAverage": 9.2,
       "date": "2023-05-18",
@@ -408,6 +467,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.7,
       "importedAverage": 7.7,
       "date": "2023-05-18",
@@ -435,6 +501,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.1,
       "importedAverage": 7.1,
       "date": "2023-05-19",
@@ -462,6 +535,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 10
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.6,
       "importedAverage": 9.6,
       "date": "2023-05-19",
@@ -489,6 +569,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.5,
       "importedAverage": 8.5,
       "date": "2023-05-19",
@@ -516,6 +603,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.6,
       "importedAverage": 8.6,
       "date": "2023-05-20",
@@ -543,6 +637,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9.5,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.3,
       "importedAverage": 9.3,
       "date": "2023-05-21",
@@ -570,6 +671,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9.5,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.3,
       "importedAverage": 9.3,
       "date": "2023-05-21",
@@ -597,6 +705,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.8,
       "importedAverage": 8.8,
       "date": "2023-05-21",
@@ -624,6 +739,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.9,
       "importedAverage": 6.9,
       "date": "2023-05-22",
@@ -651,6 +773,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.7,
       "importedAverage": 9.7,
       "date": "2023-05-22",
@@ -678,6 +807,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.3,
       "importedAverage": 8.3,
       "date": "2023-05-22",
@@ -705,6 +841,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.5,
       "importedAverage": 9.5,
       "date": "2023-05-23",
@@ -732,6 +875,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "2023-05-23",
@@ -759,6 +909,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "2023-08-18",
@@ -788,6 +945,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.9,
       "importedAverage": 8.9,
       "date": "2023-10-28",
@@ -815,6 +979,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "2023-10-28",
@@ -842,6 +1013,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.6,
       "importedAverage": 8.6,
       "date": "2023-10-29",
@@ -869,6 +1047,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.8,
       "importedAverage": 8.8,
       "date": "2023-10-29",
@@ -896,6 +1081,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.6,
       "importedAverage": 7.6,
       "date": "2024-04-21",
@@ -923,6 +1115,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.8,
       "importedAverage": 8.8,
       "date": "2024-05-07",
@@ -947,6 +1146,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.7,
       "importedAverage": 8.7,
       "date": "2024-05-07",
@@ -971,6 +1177,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.9,
       "importedAverage": 7.9,
       "date": "2024-05-07",
@@ -995,6 +1208,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9.5,
         "Ari": 10
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.5,
       "importedAverage": 9.5,
       "date": "2024-05-08",
@@ -1019,6 +1239,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Elisa"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "2024-07-23",
@@ -1043,6 +1266,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "2024-07-23",
@@ -1067,6 +1294,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7,
       "importedAverage": 7,
       "date": "2024-11-23",
@@ -1091,6 +1325,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.4,
       "importedAverage": 8.4,
       "date": "2024-11-23",
@@ -1115,6 +1356,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.4,
       "importedAverage": 4.4,
       "date": "2024-11-23",
@@ -1139,6 +1387,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.9,
       "importedAverage": 6.9,
       "date": "2024-11-24",
@@ -1163,6 +1418,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.4,
       "importedAverage": 7.4,
       "date": "2024-11-24",
@@ -1187,6 +1449,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.38,
       "importedAverage": 5.375,
       "date": "2024-11-27",
@@ -1211,6 +1479,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.2,
       "importedAverage": null,
       "date": "2025-02-01",
@@ -1238,6 +1513,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.5,
       "importedAverage": 7.5,
       "date": "2025-05-24",
@@ -1262,6 +1544,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "2025-05-24",
@@ -1286,6 +1575,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "2025-05-25",
@@ -1310,6 +1606,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.6,
       "importedAverage": 7.6,
       "date": "2025-06-18",
@@ -1334,6 +1637,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Elisa"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "2025-08-14",
@@ -1358,6 +1664,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.1,
       "importedAverage": 6.1,
       "date": "2025-09-28",
@@ -1382,6 +1695,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.9,
       "importedAverage": 7.9,
       "date": "2025-09-29",
@@ -1406,6 +1726,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "2025-09-29",
@@ -1430,6 +1757,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.3,
       "importedAverage": 8.3,
       "date": "2025-09-30",
@@ -1454,6 +1788,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.6,
       "importedAverage": 6.6,
       "date": "2025-09-30",
@@ -1478,6 +1819,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.8,
       "importedAverage": 6.8,
       "date": "2025-09-30",
@@ -1502,6 +1850,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "2025-10-01",
@@ -1526,6 +1881,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.1,
       "importedAverage": 5.1,
       "date": "2025-12-20",
@@ -1550,6 +1912,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.1,
       "importedAverage": 6.1,
       "date": "2026-04-24",
@@ -1574,6 +1943,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.8,
       "importedAverage": 6.8,
       "date": "2026-05-29",
@@ -1598,6 +1974,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.6,
       "importedAverage": 8.6,
       "date": "2026-05-30",
@@ -1622,6 +2005,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -1646,6 +2036,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -1675,6 +2068,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -1704,6 +2100,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.9,
       "importedAverage": 5.9,
       "date": "",
@@ -1728,6 +2131,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -1752,6 +2158,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.4,
       "importedAverage": 4.4,
       "date": "",
@@ -1779,6 +2192,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -1808,6 +2225,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -1835,6 +2259,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.3,
       "importedAverage": 4.375,
       "date": "",
@@ -1862,6 +2293,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.8,
       "importedAverage": 7.8,
       "date": "",
@@ -1889,6 +2327,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -1918,6 +2363,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": null
       },
+      "playedBy": [
+        "Nikolai"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -1942,6 +2390,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.2,
       "importedAverage": 6.2,
       "date": "",
@@ -1969,6 +2424,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.75,
       "importedAverage": 6.75,
       "date": "",
@@ -1998,6 +2457,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -2027,6 +2491,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2.75,
       "importedAverage": 2.75,
       "date": "",
@@ -2056,6 +2524,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 7
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 7.25,
       "importedAverage": 7.25,
       "date": "",
@@ -2080,6 +2552,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.25,
       "importedAverage": 5.25,
       "date": "",
@@ -2104,6 +2580,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -2133,6 +2616,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9,
       "importedAverage": 9,
       "date": "",
@@ -2160,6 +2650,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9,
       "importedAverage": 9,
       "date": "",
@@ -2187,6 +2684,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.4,
       "importedAverage": 6.4,
       "date": "",
@@ -2226,6 +2730,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 1.75,
       "importedAverage": 1.75,
       "date": "",
@@ -2255,6 +2763,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.6,
       "importedAverage": 9.6,
       "date": "",
@@ -2279,6 +2794,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -2308,6 +2830,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.3,
       "importedAverage": 7.3,
       "date": "",
@@ -2335,6 +2864,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.6,
       "importedAverage": 7.6,
       "date": "",
@@ -2362,6 +2898,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -2391,6 +2933,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -2420,6 +2965,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -2449,6 +3001,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.8,
       "importedAverage": 4.8,
       "date": "",
@@ -2478,6 +3037,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 6.63,
       "importedAverage": 6.625,
       "date": "",
@@ -2507,6 +3072,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -2536,6 +3104,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.2,
       "importedAverage": 8.2,
       "date": "",
@@ -2583,6 +3158,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.4,
       "importedAverage": 5.4,
       "date": "",
@@ -2612,6 +3194,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Lara"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -2641,6 +3227,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -2670,6 +3263,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.3,
       "importedAverage": 4.3,
       "date": "",
@@ -2703,6 +3303,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 1.5,
       "importedAverage": 1.5,
       "date": "",
@@ -2730,6 +3333,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 4.17,
       "importedAverage": 4.166666667,
       "date": "",
@@ -2759,6 +3367,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -2788,6 +3399,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.4,
       "importedAverage": 7.4,
       "date": "",
@@ -2817,6 +3435,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -2846,6 +3467,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "",
@@ -2875,6 +3503,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1
       },
+      "playedBy": [
+        "Ari"
+      ],
       "average": 1,
       "importedAverage": 1,
       "date": "",
@@ -2902,6 +3533,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -2931,6 +3566,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.67,
       "importedAverage": 5.666666667,
       "date": "",
@@ -2960,6 +3600,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 3.8,
       "importedAverage": 3.8,
       "date": "",
@@ -2989,6 +3636,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2.75,
       "importedAverage": 2.75,
       "date": "",
@@ -3018,6 +3669,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -3047,6 +3702,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -3076,6 +3734,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -3105,6 +3766,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 4.75,
       "importedAverage": 4.75,
       "date": "",
@@ -3134,6 +3799,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -3158,6 +3826,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -3185,6 +3856,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -3214,6 +3888,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.1,
       "importedAverage": 7.1,
       "date": "",
@@ -3243,6 +3924,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -3270,6 +3955,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -3299,6 +3991,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 3,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 2.9,
       "importedAverage": 2.9,
       "date": "",
@@ -3328,6 +4027,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Sebi",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -3357,6 +4060,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 2,
         "Ari": 2
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 1.9,
       "importedAverage": 1.9,
       "date": "",
@@ -3384,6 +4094,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -3413,6 +4127,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -3442,6 +4160,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.7,
       "importedAverage": 5.7,
       "date": "",
@@ -3471,6 +4196,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 1.75,
       "importedAverage": 1.75,
       "date": "",
@@ -3500,6 +4229,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.67,
       "importedAverage": 5.666666667,
       "date": "",
@@ -3529,6 +4263,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 3.5,
         "Ari": 2
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "",
@@ -3558,6 +4299,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -3587,6 +4332,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.3,
       "importedAverage": 7.3,
       "date": "",
@@ -3630,6 +4382,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4.25,
       "importedAverage": 4.25,
       "date": "",
@@ -3659,6 +4417,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -3688,6 +4453,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -3717,6 +4485,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.2,
       "importedAverage": 7.2,
       "date": "",
@@ -3760,6 +4535,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.4,
       "importedAverage": 6.4,
       "date": "",
@@ -3803,6 +4585,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 0.5,
       "importedAverage": 0.5,
       "date": "",
@@ -3830,6 +4615,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -3859,6 +4647,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "",
@@ -3888,6 +4680,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -3917,6 +4712,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "",
@@ -3946,6 +4746,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.75,
       "importedAverage": 5.75,
       "date": "",
@@ -3970,6 +4774,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.7,
       "importedAverage": 6.7,
       "date": "",
@@ -3994,6 +4805,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -4023,6 +4837,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "",
@@ -4052,6 +4870,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 1.17,
       "importedAverage": 1.166666667,
       "date": "",
@@ -4081,6 +4904,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -4110,6 +4937,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.8,
       "importedAverage": 5.8,
       "date": "",
@@ -4149,6 +4983,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.2,
       "importedAverage": 8.2,
       "date": "",
@@ -4176,6 +5017,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 2.75,
       "importedAverage": 2.75,
       "date": "",
@@ -4205,6 +5052,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -4234,6 +5084,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.8,
       "importedAverage": 8.8,
       "date": "",
@@ -4261,6 +5118,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.7,
       "importedAverage": 7.7,
       "date": "",
@@ -4290,6 +5154,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.8,
       "importedAverage": 4.8,
       "date": "",
@@ -4328,6 +5199,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4.88,
       "importedAverage": 4.875,
       "date": "",
@@ -4357,6 +5234,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.7,
       "importedAverage": 5.7,
       "date": "",
@@ -4384,6 +5268,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -4423,6 +5314,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.75,
       "importedAverage": 3.75,
       "date": "",
@@ -4447,6 +5342,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 7,
       "importedAverage": 7,
       "date": "",
@@ -4474,6 +5373,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -4503,6 +5405,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.75,
       "importedAverage": 6.75,
       "date": "",
@@ -4532,6 +5440,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Nikolai"
+      ],
       "average": 6.33,
       "importedAverage": 6.333333333,
       "date": "",
@@ -4561,6 +5474,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -4590,6 +5506,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 6.83,
       "importedAverage": 6.833333333,
       "date": "",
@@ -4619,6 +5540,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.2,
       "importedAverage": 5.2,
       "date": "",
@@ -4646,6 +5574,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.4,
       "importedAverage": 7.4,
       "date": "",
@@ -4670,6 +5605,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -4699,6 +5641,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "",
@@ -4728,6 +5677,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.2,
       "importedAverage": 7.2,
       "date": "",
@@ -4752,6 +5708,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.1,
       "importedAverage": 6.1,
       "date": "",
@@ -4781,6 +5744,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 7
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 7.25,
       "importedAverage": 7.25,
       "date": "",
@@ -4805,6 +5772,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -4834,6 +5804,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -4863,6 +5840,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "",
@@ -4892,6 +5874,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.25,
       "importedAverage": 6.25,
       "date": "",
@@ -4921,6 +5909,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -4950,6 +5941,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -4979,6 +5976,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.8,
       "importedAverage": 4.8,
       "date": "",
@@ -5008,6 +6012,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 6.63,
       "importedAverage": 6.625,
       "date": "",
@@ -5032,6 +6042,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.2,
       "importedAverage": 8.2,
       "date": "",
@@ -5056,6 +6073,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 9
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.6,
       "importedAverage": 8.6,
       "date": "",
@@ -5080,6 +6104,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -5107,6 +6134,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.3,
       "importedAverage": 9.3,
       "date": "",
@@ -5134,6 +6168,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.7,
       "importedAverage": 5.7,
       "date": "",
@@ -5163,6 +6204,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.9,
       "importedAverage": 6.9,
       "date": "",
@@ -5190,6 +6238,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Elisa"
+      ],
       "average": 2.5,
       "importedAverage": 2.5,
       "date": "",
@@ -5217,6 +6268,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.1,
       "importedAverage": 5.1,
       "date": "",
@@ -5246,6 +6304,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -5275,6 +6340,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4.88,
       "importedAverage": 4.875,
       "date": "",
@@ -5304,6 +6375,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 7.38,
       "importedAverage": 7.375,
       "date": "",
@@ -5331,6 +6408,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.1,
       "importedAverage": 6.1,
       "date": "",
@@ -5358,6 +6442,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -5382,6 +6469,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 2,
         "Ari": 2
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 2.4,
       "importedAverage": 2.4,
       "date": "",
@@ -5411,6 +6505,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -5435,6 +6532,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -5464,6 +6565,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 9.5,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.9,
       "importedAverage": 8.9,
       "date": "",
@@ -5488,6 +6596,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.25,
       "importedAverage": 5.25,
       "date": "",
@@ -5517,6 +6629,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -5546,6 +6663,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -5570,6 +6691,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 1.5,
       "importedAverage": 1.5,
       "date": "",
@@ -5599,6 +6724,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -5628,6 +6760,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -5657,6 +6792,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.4,
       "importedAverage": 6.4,
       "date": "",
@@ -5686,6 +6828,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 10
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 10,
       "importedAverage": 10,
       "date": "",
@@ -5728,6 +6877,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.7,
       "importedAverage": 4.7,
       "date": "",
@@ -5755,6 +6911,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "",
@@ -5782,6 +6945,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -5811,6 +6977,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -5840,6 +7011,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -5864,6 +7039,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 1,
       "importedAverage": 1,
       "date": "",
@@ -5888,6 +7066,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "",
@@ -5917,6 +7099,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.3,
       "importedAverage": 5.3,
       "date": "",
@@ -5941,6 +7130,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.2,
       "importedAverage": 4.2,
       "date": "",
@@ -5970,6 +7166,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.25,
       "importedAverage": 6.25,
       "date": "",
@@ -5994,6 +7194,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.6,
       "importedAverage": 4.6,
       "date": "",
@@ -6023,6 +7230,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -6050,6 +7264,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.7,
       "importedAverage": 9.7,
       "date": "",
@@ -6074,6 +7295,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 8.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.8,
       "importedAverage": 8.8,
       "date": "",
@@ -6120,6 +7348,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.63,
       "importedAverage": 5.625,
       "date": "",
@@ -6149,6 +7383,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.9,
       "importedAverage": 7.9,
       "date": "",
@@ -6173,6 +7414,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.1,
       "importedAverage": 6.1,
       "date": "",
@@ -6197,6 +7445,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8.2,
       "importedAverage": 8.2,
       "date": "",
@@ -6226,6 +7481,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -6255,6 +7514,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -6282,6 +7544,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -6306,6 +7571,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.25,
       "importedAverage": 5.25,
       "date": "",
@@ -6330,6 +7599,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.13,
       "importedAverage": 5.125,
       "date": "",
@@ -6359,6 +7634,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -6388,6 +7667,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 3.5,
         "Ari": 3
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 3.8,
       "importedAverage": 3.8,
       "date": "",
@@ -6417,6 +7703,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 6.88,
       "importedAverage": 6.875,
       "date": "",
@@ -6441,6 +7733,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -6470,6 +7769,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -6499,6 +7804,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": null
       },
+      "playedBy": [
+        "Nikolai"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -6528,6 +7836,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 6.5,
       "importedAverage": 6.5,
       "date": "",
@@ -6552,6 +7864,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -6581,6 +7900,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa"
+      ],
       "average": 4.25,
       "importedAverage": 4.25,
       "date": "",
@@ -6610,6 +7933,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.75,
       "importedAverage": 3.75,
       "date": "",
@@ -6639,6 +7966,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 3.83,
       "importedAverage": 3.833333333,
       "date": "",
@@ -6668,6 +8000,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -6695,6 +8030,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 3
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "",
@@ -6724,6 +8063,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 8
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 8.25,
       "importedAverage": 8.25,
       "date": "",
@@ -6748,6 +8091,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": 3.5,
         "Ari": 3.5
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 3.63,
       "importedAverage": 3.625,
       "date": "",
@@ -6777,6 +8126,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -6806,6 +8161,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 10
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 10,
       "importedAverage": 10,
       "date": "",
@@ -6853,6 +8215,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2.25,
       "importedAverage": 2.25,
       "date": "",
@@ -6882,6 +8248,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4.5,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -6911,6 +8284,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4,
       "importedAverage": 4,
       "date": "",
@@ -6938,6 +8314,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 2.75,
       "importedAverage": 2.75,
       "date": "",
@@ -6967,6 +8349,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -6996,6 +8381,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 2.5,
         "Ari": 3
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 2.4,
       "importedAverage": 2.4,
       "date": "",
@@ -7023,6 +8415,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.83,
       "importedAverage": 5.833333333,
       "date": "",
@@ -7052,6 +8449,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -7081,6 +8485,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": null,
       "importedAverage": null,
       "date": "",
@@ -7110,6 +8521,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 2,
       "importedAverage": 2,
       "date": "",
@@ -7139,6 +8554,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 4.25,
       "importedAverage": 4.25,
       "date": "",
@@ -7163,6 +8582,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 1.5,
         "Ari": 1.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 1.5,
       "importedAverage": 1.5,
       "date": "",
@@ -7190,6 +8616,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.6,
       "importedAverage": 5.6,
       "date": "",
@@ -7226,6 +8659,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8.5,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "",
@@ -7255,6 +8695,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 10
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 10,
       "importedAverage": 10,
       "date": "",
@@ -7282,6 +8729,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 10,
         "Ari": 9.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 9.8,
       "importedAverage": 9.8,
       "date": "",
@@ -7326,6 +8780,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.6,
       "importedAverage": 7.6,
       "date": "",
@@ -7367,6 +8828,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7.5,
         "Ari": 7
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.3,
       "importedAverage": 7.3,
       "date": "",
@@ -7404,6 +8872,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.7,
       "importedAverage": 7.7,
       "date": "",
@@ -7431,6 +8906,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.25,
       "importedAverage": 6.25,
       "date": "",
@@ -7460,6 +8941,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",
@@ -7484,6 +8969,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.4,
       "importedAverage": 5.4,
       "date": "",
@@ -7513,6 +9005,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.4,
       "importedAverage": 7.4,
       "date": "",
@@ -7540,6 +9039,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 1.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 1.5,
       "importedAverage": 1.5,
       "date": "",
@@ -7569,6 +9072,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -7593,6 +9100,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -7617,6 +9131,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6.5,
         "Ari": 4.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -7641,6 +9162,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.6,
       "importedAverage": 7.6,
       "date": "",
@@ -7668,6 +9196,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5.5,
       "importedAverage": 5.5,
       "date": "",
@@ -7692,6 +9224,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 8,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "",
@@ -7719,6 +9258,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.2,
       "importedAverage": 6.2,
       "date": "",
@@ -7756,6 +9302,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 3.83,
       "importedAverage": 3.833333333,
       "date": "",
@@ -7785,6 +9336,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 7
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 7,
       "importedAverage": 7,
       "date": "",
@@ -7814,6 +9369,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 1.67,
       "importedAverage": 1.666666667,
       "date": "",
@@ -7843,6 +9403,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 5,
       "importedAverage": 5,
       "date": "",
@@ -7872,6 +9436,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 6,
         "Ari": 6
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "",
@@ -7899,6 +9470,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 2.83,
       "importedAverage": 2.833333333,
       "date": "",
@@ -7928,6 +9504,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 4,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 4.4,
       "importedAverage": 4.4,
       "date": "",
@@ -7957,6 +9540,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 6,
       "importedAverage": 6,
       "date": "",
@@ -7981,6 +9567,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 2,
         "Ari": 2.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 2.2,
       "importedAverage": 2.2,
       "date": "",
@@ -8010,6 +9603,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -8034,6 +9630,10 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Lara",
+        "Ari"
+      ],
       "average": 3.75,
       "importedAverage": 3.75,
       "date": "",
@@ -8058,6 +9658,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 7,
         "Ari": 7.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 7.3,
       "importedAverage": 7.3,
       "date": "",
@@ -8087,6 +9694,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 4
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 3.5,
       "importedAverage": 3.5,
       "date": "",
@@ -8116,6 +9729,12 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 8
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Ari"
+      ],
       "average": 8,
       "importedAverage": 8,
       "date": "",
@@ -8145,6 +9764,11 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": 5
       },
+      "playedBy": [
+        "Sebi",
+        "Lara",
+        "Ari"
+      ],
       "average": 5.67,
       "importedAverage": 5.666666667,
       "date": "",
@@ -8174,6 +9798,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Elisa"
+      ],
       "average": 3,
       "importedAverage": 3,
       "date": "",
@@ -8203,6 +9830,13 @@ window.T2E_SEED_DATA = {
         "Nikolai": 5.5,
         "Ari": 6.5
       },
+      "playedBy": [
+        "Sebi",
+        "Elisa",
+        "Lara",
+        "Nikolai",
+        "Ari"
+      ],
       "average": 6.3,
       "importedAverage": 6.3,
       "date": "2026-05-30",
@@ -8227,6 +9861,9 @@ window.T2E_SEED_DATA = {
         "Nikolai": null,
         "Ari": null
       },
+      "playedBy": [
+        "Sebi"
+      ],
       "average": 4.5,
       "importedAverage": 4.5,
       "date": "",

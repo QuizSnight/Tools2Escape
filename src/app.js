@@ -297,6 +297,7 @@
 
   function normalizeData(input) {
     const base = clone(seed);
+    const seedRoomsById = new Map(base.played.map((room) => [room.id, room]));
     const merged = {
       ...base,
       ...input,
@@ -307,22 +308,30 @@
       regionPresets: Array.isArray(input.regionPresets) ? input.regionPresets : [],
     };
 
-    merged.played = merged.played.map((room) => ({
-      id: room.id || makeId("room"),
-      title: clean(room.title),
-      provider: clean(room.provider),
-      city: clean(room.city),
-      scare: numberOrNull(room.scare),
-      difficulty: numberOrNull(room.difficulty),
-      ratings: normalizeRatings(room.ratings, merged.members),
-      average: numberOrNull(room.average),
-      importedAverage: numberOrNull(room.importedAverage),
-      date: clean(room.date),
-      notes: clean(room.notes),
-      tags: Array.isArray(room.tags) ? room.tags.map(clean).filter(Boolean) : splitTags(room.tags),
-      sourceSheets: Array.isArray(room.sourceSheets) ? room.sourceSheets : [],
-      regions: Array.isArray(room.regions) ? room.regions : [],
-    }));
+    merged.played = merged.played.map((room) => {
+      const id = room.id || makeId("room");
+      const ratings = normalizeRatings(room.ratings, merged.members);
+      const seedRoom = seedRoomsById.get(id);
+      const fallbackPlayedBy = Array.isArray(room.playedBy) ? [] : seedRoom?.playedBy;
+
+      return {
+        id,
+        title: clean(room.title),
+        provider: clean(room.provider),
+        city: clean(room.city),
+        scare: numberOrNull(room.scare),
+        difficulty: numberOrNull(room.difficulty),
+        ratings,
+        playedBy: normalizePlayedBy(room.playedBy, ratings, merged.members, fallbackPlayedBy),
+        average: numberOrNull(room.average),
+        importedAverage: numberOrNull(room.importedAverage),
+        date: clean(room.date),
+        notes: clean(room.notes),
+        tags: Array.isArray(room.tags) ? room.tags.map(clean).filter(Boolean) : splitTags(room.tags),
+        sourceSheets: Array.isArray(room.sourceSheets) ? room.sourceSheets : [],
+        regions: Array.isArray(room.regions) ? room.regions : [],
+      };
+    });
 
     merged.wishList = merged.wishList.map((entry) => ({
       id: entry.id || makeId("wish"),
@@ -343,6 +352,19 @@
   function normalizeRatings(ratings, members) {
     const source = ratings && typeof ratings === "object" ? ratings : {};
     return Object.fromEntries(members.map((member) => [member, numberOrNull(source[member])]));
+  }
+
+  function normalizePlayedBy(playedBy, ratings, members, fallback = []) {
+    const played = new Set([
+      ...(Array.isArray(fallback) ? fallback : []),
+      ...(Array.isArray(playedBy) ? playedBy : []),
+    ].map(clean));
+
+    members.forEach((member) => {
+      if (typeof ratings[member] === "number") played.add(member);
+    });
+
+    return members.filter((member) => played.has(member));
   }
 
   function saveData() {
@@ -560,12 +582,24 @@
 
   function averageFor(room, members = currentMembers()) {
     const ratings = members.map((member) => room.ratings[member]).filter((value) => typeof value === "number");
-    if (!ratings.length) return numberOrNull(room.average);
+    if (!ratings.length) return isTeamScope(members) ? numberOrNull(room.average) : null;
     return ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
   }
 
   function ratingValuesForRooms(rooms, members = data.members) {
     return rooms.flatMap((room) => members.map((member) => room.ratings[member]).filter((value) => typeof value === "number"));
+  }
+
+  function isTeamScope(members) {
+    return members.length === data.members.length && data.members.every((member) => members.includes(member));
+  }
+
+  function memberPlayedRoom(room, member) {
+    return (room.playedBy || []).includes(member) || typeof room.ratings[member] === "number";
+  }
+
+  function playedMembersForRoom(room) {
+    return data.members.filter((member) => memberPlayedRoom(room, member));
   }
 
   function averageOf(values) {
@@ -608,7 +642,7 @@
 
   function getPlayedRooms() {
     const rooms = data.played.filter((room) => {
-      const memberMatch = ui.selectedMembers.every((member) => typeof room.ratings[member] === "number");
+      const memberMatch = ui.selectedMembers.every((member) => memberPlayedRoom(room, member));
       return matchesRegion(room) && matchesSearch(room) && memberMatch;
     });
 
@@ -917,7 +951,9 @@
     const score = averageFor(room);
     const memberScores = alphabeticalMembers().map((member) => {
       const rating = room.ratings[member];
-      return `<span class="rating-pill ${rating === null ? "is-muted" : ""}">${escapeHtml(member)} ${formatScore(rating)}</span>`;
+      const played = memberPlayedRoom(room, member);
+      const label = typeof rating === "number" ? formatScore(rating) : played ? "-" : "–";
+      return `<span class="rating-pill ${typeof rating !== "number" ? "is-muted" : ""} ${played ? "" : "is-unplayed"}">${escapeHtml(member)} ${label}</span>`;
     }).join("");
     const tags = room.tags.slice(0, 5).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
 
@@ -994,6 +1030,7 @@
 
   function renderStatsView() {
     const roomsWithRatings = data.played.filter((room) => ratingValuesForRooms([room]).length);
+    const roomsWithoutRatings = data.played.length - roomsWithRatings.length;
     const ratedRooms = data.played
       .map((room) => ({ room, score: averageFor(room, data.members) }))
       .filter((item) => typeof item.score === "number");
@@ -1006,12 +1043,14 @@
     const difficultyAverage = averageOf(data.played.map((room) => room.difficulty).filter((value) => typeof value === "number"));
     const memberStats = data.members.map((member) => {
       const values = data.played.map((room) => room.ratings[member]).filter((value) => typeof value === "number");
+      const playedCount = data.played.filter((room) => memberPlayedRoom(room, member)).length;
       return {
         member,
-        count: values.length,
+        count: playedCount,
+        ratedCount: values.length,
         avg: averageOf(values),
       };
-    }).sort((a, b) => b.count - a.count || (b.avg ?? 0) - (a.avg ?? 0));
+    }).sort((a, b) => b.count - a.count || b.ratedCount - a.ratedCount || (b.avg ?? 0) - (a.avg ?? 0));
     const providerStats = Object.entries(
       data.played.reduce((groups, room) => {
         const provider = room.provider || "Ohne Anbieter";
@@ -1040,9 +1079,7 @@
     )).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 10);
     const regionStats = regionPresetOptions()
       .map((region) => {
-        const regionRoomIds = new Set(region.roomIds);
-        const rooms = data.played.filter((room) => regionRoomIds.has(room.id) && ratingValuesForRooms([room]).length);
-        return { ...region, count: rooms.length };
+        return { ...region, count: region.roomIds.length };
       })
       .sort((a, b) => b.count - a.count || a.shortLabel.localeCompare(b.shortLabel, "de"));
     const splitRooms = data.played
@@ -1076,7 +1113,9 @@
         <article class="panel panel-wide">
           <h2>Überblick</h2>
           <section class="kpi-grid compact-kpis" aria-label="Statistik-Kennzahlen">
-            ${kpi("Räume mit Bewertung", roomsWithRatings.length)}
+            ${kpi("Gespielte Räume", data.played.length)}
+            ${kpi("Bewertete Räume", roomsWithRatings.length)}
+            ${kpi("Ohne Wertung", roomsWithoutRatings)}
             ${kpi("Einzelbewertungen", ratingValuesForRooms(data.played).length)}
             ${kpi("Team Ø", formatAverage(averageOf(ratingValuesForRooms(data.played, data.members))))}
             ${kpi("Top-Stadt", topCity ? `${topCity[0]} (${topCity[1]})` : "-")}
@@ -1115,7 +1154,7 @@
             ${memberStats.map((stat) => `
               <div>
                 <strong>${escapeHtml(stat.member)}</strong>
-                <span>${stat.count} Bewertungen</span>
+                <span>${stat.count} gespielt · ${stat.ratedCount} Bewertungen</span>
                 <b>${formatAverage(stat.avg)}</b>
               </div>
             `).join("")}
@@ -1231,6 +1270,7 @@
 
   function renderRoomModal(room = {}, wishId = "") {
     const ratings = normalizeRatings(room.ratings || {}, data.members);
+    const playedBy = normalizePlayedBy(room.playedBy, ratings, data.members);
     return `
       <div class="modal-backdrop" data-close-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="room-modal-title">
@@ -1250,7 +1290,7 @@
               ${field("scare", "Horror", room.scare ?? 0, "number", false, "0", "5", "0.5")}
             </div>
             <div class="ratings-form">
-              ${alphabeticalMembers().map((member) => field(`rating-${member}`, member, ratings[member] ?? "", "number", false, "0", "10", "0.5")).join("")}
+              ${alphabeticalMembers().map((member) => memberRatingField(member, ratings[member], playedBy.includes(member))).join("")}
             </div>
             <label class="full-field">
               <span>Tags</span>
@@ -1313,6 +1353,19 @@
           ${min !== "" ? `min="${escapeHtml(min)}"` : ""}
           ${max !== "" ? `max="${escapeHtml(max)}"` : ""}
           ${step !== "" ? `step="${escapeHtml(step)}"` : ""}>
+      </label>
+    `;
+  }
+
+  function memberRatingField(member, value = "", played = false) {
+    return `
+      <label class="member-rating-field">
+        <span>${escapeHtml(member)}</span>
+        <input name="rating-${escapeHtml(member)}" type="number" value="${escapeHtml(value ?? "")}" min="0" max="10" step="0.5">
+        <span class="unrated-toggle">
+          <input name="played-${escapeHtml(member)}" type="checkbox" ${played ? "checked" : ""}>
+          gespielt
+        </span>
       </label>
     `;
   }
@@ -1475,6 +1528,9 @@
     const ratings = Object.fromEntries(
       data.members.map((member) => [member, numberOrNull(form.get(`rating-${member}`))]),
     );
+    const playedBy = data.members.filter((member) => (
+      typeof ratings[member] === "number" || form.get(`played-${member}`) === "on"
+    ));
     const values = Object.values(ratings).filter((value) => typeof value === "number");
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     const existing = data.played.find((room) => room.id === id);
@@ -1489,6 +1545,7 @@
       difficulty: numberOrNull(form.get("difficulty")),
       scare: numberOrNull(form.get("scare")),
       ratings,
+      playedBy,
       average: average === null ? null : Number(average.toFixed(2)),
       importedAverage: existing?.importedAverage ?? null,
       notes: clean(form.get("notes")),

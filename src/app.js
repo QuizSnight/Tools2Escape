@@ -15,10 +15,11 @@
   };
   const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN"];
   const REGION_LABELS = {
-    HH: "Hamburg",
+    HH: "Hamburg (HH)",
     BENELUX: "BeNeLux",
     SPAIN: "Spanien",
   };
+  const HAMBURG_CITIES = new Set(["hamburg"]);
   const BENELUX_CITIES = new Set([
     "amersfoort",
     "amsterdam",
@@ -345,7 +346,7 @@
   }
 
   function normalizeCity(value) {
-    return normalize(value).replace(/\s+(be|belgien|lu|luxemburg|luxembourg|nl|niederlande)$/, "");
+    return normalize(value).replace(/\s+(be|belgien|de|deutschland|hh|lu|luxemburg|luxembourg|nl|niederlande)$/, "");
   }
 
   function numberOrNull(value) {
@@ -537,6 +538,7 @@
   }
 
   function roomBelongsToPreset(room, preset) {
+    if (preset.name === "HH" && isHamburgRoom(room)) return true;
     if (preset.name === "BENELUX" && isBeneluxRoom(room)) return true;
     if (preset.name === "SPAIN" && isSpainRoom(room)) return true;
     if ((preset.roomIds || []).includes(room.id)) return true;
@@ -555,6 +557,11 @@
 
   function isBeneluxRoom(room) {
     return BENELUX_CITIES.has(normalizeCity(room.city));
+  }
+
+  function isHamburgRoom(room) {
+    const city = normalizeCity(room.city);
+    return HAMBURG_CITIES.has(city) || city.startsWith("hamburg ");
   }
 
   function isSpainRoom(room) {

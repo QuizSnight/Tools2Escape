@@ -54,9 +54,15 @@ try {
   await assertEval(cdp, "document.querySelectorAll('.played-kpis .kpi').length", (value) => value === 2, "played KPI count");
   await assertEval(
     cdp,
-    "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(.+\\)/, '')).join('|')",
-    (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux|Spanien",
+    "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(\\d+\\)$/, '')).join('|')",
+    (value) => value === "Alle|DE|Athen|NRW|Hamburg (HH)|BeNeLux|Spanien",
     "region filter preset options only",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('Hamburg'))?.textContent",
+    (value) => value === "Hamburg (HH) (17)",
+    "hamburg state region count",
   );
   await assertEval(
     cdp,
@@ -145,7 +151,7 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Hamburg|Athen|Spanien",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Athen|Spanien",
     "regions sorted by rated rooms",
   );
   await assertEval(

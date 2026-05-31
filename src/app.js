@@ -134,6 +134,7 @@
   const SPAIN_CITIES = new Set([
     "alicante",
     "barcelona",
+    "berga",
     "bilbao",
     "cordoba",
     "girona",
@@ -170,7 +171,6 @@
     "bad steben",
     "balingen",
     "bamberg",
-    "berga",
     "berlin",
     "braunschweig",
     "bremen",

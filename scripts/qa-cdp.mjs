@@ -61,7 +61,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('DE'))?.textContent",
-    (value) => value === "DE (194)",
+    (value) => value === "DE (192)",
     "germany city count",
   );
   await assertEval(
@@ -85,7 +85,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('Spanien'))?.textContent",
-    (value) => value === "Spanien (14)",
+    (value) => value === "Spanien (16)",
     "spain dynamic city count",
   );
   await assertEval(

@@ -964,7 +964,20 @@
 
   function coordsForCity(city) {
     const key = normalizeCity(city);
-    return CITY_COORDS[key] || mapState.geocodeCache[key] || null;
+    return CITY_COORDS[key] || cachedCityInfo(key).coords || null;
+  }
+
+  function cachedCityInfo(cityOrKey) {
+    const key = normalizeCity(cityOrKey);
+    const cached = mapState.geocodeCache[key];
+    if (Array.isArray(cached)) return { coords: cached, regions: [] };
+    if (cached && typeof cached === "object") {
+      return {
+        coords: Array.isArray(cached.coords) ? cached.coords : null,
+        regions: Array.isArray(cached.regions) ? cached.regions : [],
+      };
+    }
+    return { coords: null, regions: [] };
   }
 
   function regionOptions() {
@@ -1043,7 +1056,10 @@
   function detectedRegionNamesForCity(value) {
     const city = normalizeCity(value);
     if (!city) return [];
-    return REGION_ORDER.filter((regionName) => cityBelongsToRegion(city, regionName));
+    return unique([
+      ...REGION_ORDER.filter((regionName) => cityBelongsToRegion(city, regionName)),
+      ...cachedCityInfo(city).regions,
+    ]);
   }
 
   function cityBelongsToRegion(city, regionName) {
@@ -1055,6 +1071,10 @@
   function cityMatchesSet(city, cities) {
     if (cities.has(city)) return true;
     return [...cities].some((entry) => entry.length >= 4 && city.startsWith(`${entry} `));
+  }
+
+  function unique(values) {
+    return [...new Set(values.filter(Boolean))];
   }
 
   function countBy(items, getter) {
@@ -1607,13 +1627,21 @@
   }
 
   async function geocodeCity(city, key = normalizeCity(city)) {
+    if (!key) return;
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(city)}`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(city)}`);
       if (!response.ok) throw new Error(response.statusText);
       const result = (await response.json())[0];
       if (result?.lat && result?.lon) {
-        mapState.geocodeCache[key] = [Number(result.lat), Number(result.lon)];
+        const regions = regionsFromNominatimResult(result, city);
+        mapState.geocodeCache[key] = {
+          coords: [Number(result.lat), Number(result.lon)],
+          regions,
+          countryCode: clean(result.address?.country_code).toUpperCase(),
+          state: clean(result.address?.state),
+        };
         saveGeocodeCache();
+        updateRegionsForCity(key, regions);
         if (ui.view === "map") render();
       }
     } catch (error) {
@@ -1621,6 +1649,46 @@
     } finally {
       mapState.pendingGeocodes.delete(key);
     }
+  }
+
+  function regionsFromNominatimResult(result, city) {
+    const address = result.address || {};
+    const country = clean(address.country_code).toLowerCase();
+    const state = normalize(address.state || address.region || address.county);
+    const cityName = normalizeCity(address.city || address.town || address.village || city);
+    const regions = [];
+
+    if (country === "de") regions.push("DE");
+    if (country === "de" && (state.includes("nordrhein westfalen") || state === "nrw")) regions.push("NRW");
+    if (country === "de" && state.includes("hamburg")) regions.push("HH");
+    if (["be", "nl", "lu"].includes(country)) regions.push("BENELUX");
+    if (country === "es") regions.push("SPAIN");
+    if (country === "pl") regions.push("POLAND");
+    if (country === "hu") regions.push("HUNGARY");
+    if (country === "cz") regions.push("CZECHIA");
+    if (country === "fr") regions.push("FRANCE");
+    if (country === "ie") regions.push("IRELAND");
+    if (["gb", "uk"].includes(country)) regions.push("UK");
+    if (country === "pt") regions.push("PORTUGAL");
+    if (country === "it") regions.push("ITALY");
+    if (country === "fi") regions.push("FINLAND");
+    if (country === "hr") regions.push("CROATIA");
+    if (["athen", "athens"].includes(cityName)) regions.push("Athen");
+
+    return unique(regions);
+  }
+
+  function updateRegionsForCity(cityKey, regions) {
+    if (!regions.length) return;
+    let changed = false;
+    data.played = data.played.map((room) => {
+      if (normalizeCity(room.city) !== cityKey) return room;
+      const nextRegions = unique([...(room.regions || []), ...regions]);
+      if (nextRegions.length === (room.regions || []).length) return room;
+      changed = true;
+      return { ...room, regions: nextRegions };
+    });
+    if (changed) saveData();
   }
 
   function renderStatsView() {
@@ -2233,6 +2301,7 @@
     if (wishId) data.wishList = data.wishList.filter((entry) => entry.id !== wishId);
 
     saveData();
+    void geocodeCity(city);
     ui.modal = null;
     setNotice("Raum gespeichert.");
   }

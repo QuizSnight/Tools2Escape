@@ -3,6 +3,7 @@ const SUPABASE_URL = "https://iasvzuadtjdqrfdilyun.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_30t1T306Yq-vSOVUNLKdsw_rcYQgjTm";
 const TEAM_ID = "ksch-spiele";
 const SCRIPT_WRITE_GUARD_KEY = "tools2escapp_script_write_until";
+const CITY_REGION_CACHE_KEY = "tools2escapp_city_region_cache";
 const MEMBERS = ["Sebi", "Elisa", "Lara", "Nikolai", "Ari"];
 
 const REGION_TABS = [
@@ -475,11 +476,93 @@ function averageForSheet_(room, members) {
 
 function roomInRegion_(room, region) {
   const city = normalizeCity_(room.city);
-  return (room.regions || []).includes(region.name) || region.cities.some((entry) => city === entry || city.startsWith(`${entry} `));
+  return (room.regions || []).includes(region.name)
+    || region.cities.some((entry) => city === entry || city.startsWith(`${entry} `))
+    || dynamicRegionsForCity_(room.city).includes(region.name);
 }
 
 function regionsForCity_(city) {
-  return REGION_TABS.filter((region) => roomInRegion_({ city, regions: [] }, region)).map((region) => region.name);
+  return unique_([
+    ...REGION_TABS.filter((region) => {
+      const normalizedCity = normalizeCity_(city);
+      return region.cities.some((entry) => normalizedCity === entry || normalizedCity.startsWith(`${entry} `));
+    }).map((region) => region.name),
+    ...dynamicRegionsForCity_(city),
+  ]);
+}
+
+function dynamicRegionsForCity_(city) {
+  const info = geocodeInfoForCity_(city);
+  return Array.isArray(info.regions) ? info.regions : [];
+}
+
+function geocodeInfoForCity_(city) {
+  const key = normalizeCity_(city);
+  if (!key) return { regions: [] };
+  const cache = cityRegionCache_();
+  if (cache[key]) return cache[key];
+
+  const info = { regions: [] };
+  try {
+    const response = Maps.newGeocoder().geocode(city);
+    const result = response && response.results && response.results[0];
+    if (result) info.regions = regionsFromGeocoderResult_(result, city);
+  } catch (error) {
+    console.warn(`Geocoding failed for ${city}: ${error}`);
+  }
+
+  cache[key] = info;
+  PropertiesService.getScriptProperties().setProperty(CITY_REGION_CACHE_KEY, JSON.stringify(cache));
+  return info;
+}
+
+function regionsFromGeocoderResult_(result, city) {
+  const components = result.address_components || [];
+  const country = clean_(componentShort_(components, "country")).toLowerCase();
+  const state = normalize_(componentLong_(components, "administrative_area_level_1"));
+  const locality = normalizeCity_(componentLong_(components, "locality") || componentLong_(components, "postal_town") || city);
+  const regions = [];
+
+  if (country === "de") regions.push("DE");
+  if (country === "de" && (state.includes("nordrhein westfalen") || state === "nrw")) regions.push("NRW");
+  if (country === "de" && state.includes("hamburg")) regions.push("HH");
+  if (["be", "nl", "lu"].includes(country)) regions.push("BENELUX");
+  if (country === "es") regions.push("SPAIN");
+  if (country === "pl") regions.push("POLAND");
+  if (country === "hu") regions.push("HUNGARY");
+  if (country === "cz") regions.push("CZECHIA");
+  if (country === "fr") regions.push("FRANCE");
+  if (country === "ie") regions.push("IRELAND");
+  if (["gb", "uk"].includes(country)) regions.push("UK");
+  if (country === "pt") regions.push("PORTUGAL");
+  if (country === "it") regions.push("ITALY");
+  if (country === "fi") regions.push("FINLAND");
+  if (country === "hr") regions.push("CROATIA");
+  if (["athen", "athens"].includes(locality)) regions.push("Athen");
+
+  return unique_(regions);
+}
+
+function componentLong_(components, type) {
+  const component = components.find((entry) => (entry.types || []).includes(type));
+  return component ? component.long_name : "";
+}
+
+function componentShort_(components, type) {
+  const component = components.find((entry) => (entry.types || []).includes(type));
+  return component ? component.short_name : "";
+}
+
+function cityRegionCache_() {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty(CITY_REGION_CACHE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function unique_(values) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function formatDateCell_(value) {

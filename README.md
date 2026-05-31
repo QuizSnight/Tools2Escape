@@ -99,6 +99,8 @@ Danach schreibt die App bei jeder Änderung alle Tabs neu in die Google-Tabelle.
 
 Die Tabellen werden automatisch nach denselben Regionen wie in der App aufgeteilt. Die Blatt-Reihenfolge ist `Welt`, `Up Next`, danach alphabetisch: `Anderes`, `Athen`, `BeNeLux`, `DE`, `Finnland`, `Frankreich`, `Hamburg (HH)`, `Irland`, `Italien`, `Kroatien`, `NRW`, `Polen`, `Portugal`, `Spanien`, `Tschechien`, `UK`, `Ungarn`.
 
+Neue Orte werden automatisch geocodiert. Dadurch können App und Google-Sheets-Sync auch Städte zuordnen, die noch nicht in den bisherigen Stadtlisten stehen; für Deutschland wird zusätzlich NRW bzw. Hamburg (HH) erkannt, wenn der Geocoder das Bundesland liefert.
+
 ## Datengrundlage
 
 - `src/seed-data.js` enthält den Import aus `Ksch Spiele.xlsx`.

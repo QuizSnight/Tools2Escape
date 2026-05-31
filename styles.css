@@ -144,7 +144,8 @@ h2 {
 }
 
 .tab,
-.chip {
+.chip,
+.header-action {
   background: #e6ebef;
   border-color: transparent;
   font-weight: 750;
@@ -200,6 +201,10 @@ h2 {
 .sync-button.is-warning {
   border-color: #e2b14e;
   background: #fff6e3;
+}
+
+.header-action {
+  min-height: 36px;
 }
 
 .main-panel {
@@ -571,22 +576,80 @@ h2 {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-.member-rating-field {
-  gap: 7px;
+.segmented-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.unrated-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.segmented-field legend {
+  margin-bottom: 6px;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
-.unrated-toggle input {
-  width: 16px;
-  height: 16px;
+.segmented-options,
+.rating-button-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.segmented-options {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.segmented-option,
+.rating-choice,
+.rating-modifier {
+  cursor: pointer;
+}
+
+.segmented-option input,
+.rating-choice input,
+.rating-modifier input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-option span,
+.rating-choice span,
+.rating-modifier span {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fa;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.segmented-option input:checked + span,
+.rating-choice input:checked + span,
+.rating-modifier input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.member-rating-field {
+  display: grid;
+  gap: 8px;
+}
+
+.rating-button-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.rating-modifier.is-wide {
+  grid-column: span 4;
 }
 
 .full-field {

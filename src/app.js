@@ -13,7 +13,7 @@
     other: [],
     regionPresets: [],
   };
-  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE"];
+  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
   const REGION_LABELS = {
     HH: "Hamburg (HH)",
     BENELUX: "BeNeLux",
@@ -22,6 +22,12 @@
     HUNGARY: "Ungarn",
     CZECHIA: "Tschechien",
     FRANCE: "Frankreich",
+    IRELAND: "Irland",
+    UK: "UK",
+    PORTUGAL: "Portugal",
+    ITALY: "Italien",
+    FINLAND: "Finnland",
+    CROATIA: "Kroatien",
   };
   const ATHENS_CITIES = new Set(["athen", "athens"]);
   const HAMBURG_CITIES = new Set(["hamburg"]);
@@ -164,6 +170,12 @@
   const HUNGARY_CITIES = new Set(["budapest"]);
   const CZECHIA_CITIES = new Set(["prag", "prague", "praha"]);
   const FRANCE_CITIES = new Set(["paris", "strasbourg", "strassbourg"]);
+  const IRELAND_CITIES = new Set(["dublin"]);
+  const UK_CITIES = new Set(["london"]);
+  const PORTUGAL_CITIES = new Set(["lisbon", "lisboa", "lissabon"]);
+  const ITALY_CITIES = new Set(["rom", "roma", "rome"]);
+  const FINLAND_CITIES = new Set(["helsinki"]);
+  const CROATIA_CITIES = new Set(["zagreb"]);
   const GERMANY_CITIES = new Set([
     ...NRW_CITIES,
     ...HAMBURG_CITIES,
@@ -240,8 +252,14 @@
     HUNGARY: HUNGARY_CITIES,
     CZECHIA: CZECHIA_CITIES,
     FRANCE: FRANCE_CITIES,
+    IRELAND: IRELAND_CITIES,
+    UK: UK_CITIES,
+    PORTUGAL: PORTUGAL_CITIES,
+    ITALY: ITALY_CITIES,
+    FINLAND: FINLAND_CITIES,
+    CROATIA: CROATIA_CITIES,
   };
-  const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE"];
+  const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
 
   const ui = {
     view: "played",
@@ -785,6 +803,169 @@
     }, {});
   }
 
+  function exportExcelWorkbook() {
+    if (!window.XLSX?.utils) {
+      setNotice("Excel-Export konnte nicht geladen werden.");
+      return;
+    }
+
+    const workbook = window.XLSX.utils.book_new();
+    appendWorksheet(workbook, "Gespielt (Welt)", playedExportRows(data.played));
+
+    regionPresetOptions().forEach((region) => {
+      const roomIds = new Set(region.roomIds);
+      const rooms = data.played.filter((room) => roomIds.has(room.id));
+      appendWorksheet(workbook, exportRegionSheetName(region), playedExportRows(rooms));
+    });
+
+    appendWorksheet(workbook, "Up Next", [
+      ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
+      ...data.wishList.map((entry) => [
+        entry.title,
+        entry.provider,
+        entry.country,
+        entry.city,
+        entry.link,
+        entry.notes,
+      ]),
+    ]);
+
+    appendWorksheet(workbook, "Anderes", [
+      ["Game", "Anbieter", "Stadt", "Bewertung", "Datum", "Bemerkung"],
+      ...data.other.map((entry) => [
+        entry.title,
+        entry.provider,
+        entry.city,
+        entry.rating,
+        entry.date,
+        entry.notes,
+      ]),
+    ]);
+
+    const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    downloadBlob(
+      new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `Tools2EscApp-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+    setNotice("Excel exportiert.");
+  }
+
+  function appendWorksheet(workbook, name, rows) {
+    const worksheet = window.XLSX.utils.aoa_to_sheet(rows);
+    worksheet["!cols"] = rows[0].map((_, index) => ({ wch: index < 3 ? 26 : index < 10 ? 12 : 18 }));
+    window.XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(name));
+  }
+
+  function playedExportRows(rooms) {
+    const members = data.members;
+    const firstMemberColumn = 5;
+    const lastMemberColumn = firstMemberColumn + members.length - 1;
+    const firstMemberLetter = excelColumn(firstMemberColumn);
+    const lastMemberLetter = excelColumn(lastMemberColumn);
+    return [
+      [
+        "Game",
+        "Anbieter",
+        "Stadt",
+        "Scarefaktor",
+        "Schwierigkeit",
+        ...members.map((member, index) => {
+          const column = excelColumn(firstMemberColumn + index);
+          const count = rooms.filter((room) => memberPlayedRoom(room, member)).length;
+          return formulaCell(`="${member} ("&COUNTA(${column}2:${column}999)&")"`, `${member} (${count})`);
+        }),
+        "Ø",
+        "Datum",
+        "Bemerkung",
+        "Tags",
+      ],
+      ...rooms.map((room, index) => {
+        const row = index + 2;
+        return [
+          room.title,
+          room.provider,
+          room.city,
+          exportMetric(room.scare, room),
+          exportMetric(room.difficulty, room),
+          ...members.map((member) => exportMemberRating(room, member)),
+          formulaCell(`IF(COUNT(${firstMemberLetter}${row}:${lastMemberLetter}${row})>0,SUM(${firstMemberLetter}${row}:${lastMemberLetter}${row})/COUNT(${firstMemberLetter}${row}:${lastMemberLetter}${row}),"")`, exportAverage(room)),
+          room.date,
+          room.notes,
+          (room.tags || []).join(", "),
+        ];
+      }),
+    ];
+  }
+
+  function formulaCell(formula, value) {
+    return {
+      f: formula,
+      v: value,
+      t: typeof value === "number" ? "n" : "s",
+    };
+  }
+
+  function excelColumn(index) {
+    let value = index + 1;
+    let column = "";
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      column = String.fromCharCode(65 + remainder) + column;
+      value = Math.floor((value - 1) / 26);
+    }
+    return column;
+  }
+
+  function exportMemberRating(room, member) {
+    const rating = room.ratings[member];
+    if (typeof rating === "number") return rating;
+    return memberPlayedRoom(room, member) ? "-" : "";
+  }
+
+  function exportMetric(value, room) {
+    if (typeof value === "number") return value;
+    return playedMembersForRoom(room).length && !ratingValuesForRooms([room]).length ? "-" : "";
+  }
+
+  function exportAverage(room) {
+    const score = averageFor(room, data.members);
+    return typeof score === "number" ? Number(score.toFixed(2)) : "";
+  }
+
+  function exportRegionSheetName(region) {
+    const names = {
+      HH: "HH",
+      BENELUX: "BENELUX",
+      SPAIN: "Spanien",
+      POLAND: "Polen",
+      HUNGARY: "Ungarn",
+      CZECHIA: "Tschechien",
+      FRANCE: "Frankreich",
+      IRELAND: "Irland",
+      UK: "UK",
+      PORTUGAL: "Portugal",
+      ITALY: "Italien",
+      FINLAND: "Finnland",
+      CROATIA: "Kroatien",
+    };
+    return `Gespielt (${names[region.name] || region.name})`;
+  }
+
+  function safeSheetName(name) {
+    return clean(name).replace(/[:\\/?*[\]]/g, " ").slice(0, 31) || "Export";
+  }
+
+  function downloadBlob(blob, fileName) {
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = fileName;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function cssAttribute(value) {
     return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
@@ -856,18 +1037,10 @@
         ${tabButton("upnext", "Up Next")}
         ${tabButton("stats", "Statistik")}
       </nav>
-          ${renderCloudBadge()}
+          <button class="header-action" data-export-excel type="button">Excel exportieren</button>
         </div>
       </header>
     `;
-  }
-
-  function renderCloudBadge() {
-    if (!cloud.enabled) return `<span class="sync-pill is-local">Lokal</span>`;
-    if (cloud.loading) return `<span class="sync-pill">Synchronisiert...</span>`;
-    if (cloud.saving) return `<span class="sync-pill">Speichert...</span>`;
-    if (cloud.error) return `<button class="sync-button is-warning" data-refresh-cloud type="button">Sync prüfen</button>`;
-    return `<button class="sync-button is-online" data-refresh-cloud type="button">Online</button>`;
   }
 
   function tabButton(view, label) {
@@ -1116,7 +1289,6 @@
             ${kpi("Gespielte Räume", data.played.length)}
             ${kpi("Bewertete Räume", roomsWithRatings.length)}
             ${kpi("Ohne Wertung", roomsWithoutRatings)}
-            ${kpi("Einzelbewertungen", ratingValuesForRooms(data.played).length)}
             ${kpi("Team Ø", formatAverage(averageOf(ratingValuesForRooms(data.played, data.members))))}
             ${kpi("Top-Stadt", topCity ? `${topCity[0]} (${topCity[1]})` : "-")}
             ${kpi("Horror 3+", highHorror)}
@@ -1286,8 +1458,8 @@
               ${field("provider", "Anbieter", room.provider, "text", false)}
               ${field("city", "Ort", room.city, "text", false)}
               ${field("date", "Datum", room.date, "date", false)}
-              ${field("difficulty", "Difficulty", room.difficulty ?? "", "number", false, "1", "5", "1")}
-              ${field("scare", "Horror", room.scare ?? 0, "number", false, "0", "5", "0.5")}
+              ${scoreControl("difficulty", "Difficulty", room.difficulty, [1, 2, 3, 4, 5])}
+              ${scoreControl("scare", "Horror", room.scare, [0, 1, 2, 3, 4, 5])}
             </div>
             <div class="ratings-form">
               ${alphabeticalMembers().map((member) => memberRatingField(member, ratings[member], playedBy.includes(member))).join("")}
@@ -1357,16 +1529,48 @@
     `;
   }
 
-  function memberRatingField(member, value = "", played = false) {
+  function scoreControl(name, label, value, options) {
     return `
-      <label class="member-rating-field">
+      <fieldset class="segmented-field">
+        <legend>${escapeHtml(label)}</legend>
+        <div class="segmented-options">
+          ${options.map((option) => `
+            <label class="segmented-option">
+              <input type="radio" name="${escapeHtml(name)}" value="${option}" ${Number(value) === option ? "checked" : ""}>
+              <span>${option}</span>
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+    `;
+  }
+
+  function memberRatingField(member, value = "", played = false) {
+    const numericValue = numberOrNull(value);
+    const wholeValue = typeof numericValue === "number" ? Math.floor(numericValue) : null;
+    const hasHalf = typeof numericValue === "number" && numericValue % 1 !== 0;
+    const unrated = played && typeof numericValue !== "number";
+
+    return `
+      <div class="member-rating-field">
         <span>${escapeHtml(member)}</span>
-        <input name="rating-${escapeHtml(member)}" type="number" value="${escapeHtml(value ?? "")}" min="0" max="10" step="0.5">
-        <span class="unrated-toggle">
-          <input name="played-${escapeHtml(member)}" type="checkbox" ${played ? "checked" : ""}>
-          gespielt
-        </span>
-      </label>
+        <div class="rating-button-grid" data-rating-group="${escapeHtml(member)}">
+          ${Array.from({ length: 10 }, (_, index) => index + 1).map((rating) => `
+            <label class="rating-choice">
+              <input data-rating-base="${escapeHtml(member)}" name="rating-base-${escapeHtml(member)}" type="radio" value="${rating}" ${wholeValue === rating ? "checked" : ""}>
+              <span>${rating}</span>
+            </label>
+          `).join("")}
+          <label class="rating-modifier">
+            <input data-rating-half="${escapeHtml(member)}" name="rating-half-${escapeHtml(member)}" type="checkbox" ${hasHalf ? "checked" : ""}>
+            <span>,5</span>
+          </label>
+          <label class="rating-modifier is-wide">
+            <input data-rating-unrated="${escapeHtml(member)}" name="unrated-${escapeHtml(member)}" type="checkbox" ${unrated ? "checked" : ""}>
+            <span>ohne Bewertung</span>
+          </label>
+        </div>
+      </div>
     `;
   }
 
@@ -1389,6 +1593,10 @@
       button.addEventListener("click", () => {
         void saveCloudState();
       });
+    });
+
+    app.querySelectorAll("[data-export-excel]").forEach((button) => {
+      button.addEventListener("click", exportExcelWorkbook);
     });
 
     const playedSearch = app.querySelector("#played-search");
@@ -1516,6 +1724,26 @@
     const roomForm = app.querySelector("#room-form");
     if (roomForm) roomForm.addEventListener("submit", saveRoomFromForm);
 
+    app.querySelectorAll("[data-rating-base]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const group = input.closest("[data-rating-group]");
+        const unrated = group?.querySelector("[data-rating-unrated]");
+        if (unrated) unrated.checked = false;
+      });
+    });
+
+    app.querySelectorAll("[data-rating-unrated]").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        const group = input.closest("[data-rating-group]");
+        group?.querySelectorAll("[data-rating-base]").forEach((entry) => {
+          entry.checked = false;
+        });
+        const half = group?.querySelector("[data-rating-half]");
+        if (half) half.checked = false;
+      });
+    });
+
     const wishForm = app.querySelector("#wish-form");
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
 
@@ -1526,10 +1754,10 @@
     const form = new FormData(event.currentTarget);
     const id = clean(form.get("id")) || makeId("room");
     const ratings = Object.fromEntries(
-      data.members.map((member) => [member, numberOrNull(form.get(`rating-${member}`))]),
+      data.members.map((member) => [member, ratingFromForm(form, member)]),
     );
     const playedBy = data.members.filter((member) => (
-      typeof ratings[member] === "number" || form.get(`played-${member}`) === "on"
+      typeof ratings[member] === "number" || form.get(`unrated-${member}`) === "on"
     ));
     const values = Object.values(ratings).filter((value) => typeof value === "number");
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
@@ -1566,6 +1794,13 @@
     saveData();
     ui.modal = null;
     setNotice("Raum gespeichert.");
+  }
+
+  function ratingFromForm(form, member) {
+    const base = numberOrNull(form.get(`rating-base-${member}`));
+    if (typeof base !== "number") return null;
+    const half = form.get(`rating-half-${member}`) === "on" && base < 10 ? 0.5 : 0;
+    return base + half;
   }
 
   function saveWishFromForm(event) {

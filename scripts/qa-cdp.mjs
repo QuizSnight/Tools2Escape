@@ -41,6 +41,13 @@ try {
   );
   await assertEval(
     cdp,
+    "Boolean(document.querySelector('[data-export-excel]')) && !document.body.textContent.includes('Online')",
+    Boolean,
+    "export action replaces online badge",
+  );
+  await assertEval(cdp, "Boolean(window.XLSX?.utils?.book_new)", Boolean, "xlsx export library loaded");
+  await assertEval(
+    cdp,
     "document.querySelectorAll('.room-card').length === window.T2E_SEED_DATA.played.length",
     Boolean,
     "played cards count",
@@ -55,7 +62,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(\\d+\\)$/, '')).join('|')",
-    (value) => value === "Alle|DE|Athen|NRW|Hamburg (HH)|BeNeLux|Spanien|Polen|Ungarn|Tschechien|Frankreich",
+    (value) => value === "Alle|DE|Athen|NRW|Hamburg (HH)|BeNeLux|Spanien|Polen|Ungarn|Tschechien|Frankreich|Irland|UK|Portugal|Italien|Finnland|Kroatien",
     "region filter preset options only",
   );
   await assertEval(
@@ -90,7 +97,7 @@ try {
   );
   await assertEval(
     cdp,
-    "['Polen (9)', 'Ungarn (9)', 'Tschechien (5)', 'Frankreich (5)'].every((label) => Array.from(document.querySelectorAll('#region-filter option')).some((option) => option.textContent === label))",
+    "['Polen (9)', 'Ungarn (9)', 'Tschechien (5)', 'Frankreich (5)', 'Irland (4)', 'UK (4)', 'Portugal (3)', 'Italien (2)', 'Finnland (1)', 'Kroatien (1)'].every((label) => Array.from(document.querySelectorAll('#region-filter option')).some((option) => option.textContent === label))",
     Boolean,
     "additional country region counts",
   );
@@ -129,6 +136,12 @@ try {
 
   await evalPage(cdp, "document.querySelector('[data-open-room]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#room-form'))", Boolean, "room modal opens");
+  await assertEval(
+    cdp,
+    "document.querySelectorAll('[name=\"difficulty\"]').length === 5 && document.querySelectorAll('[name=\"scare\"]').length === 6 && document.querySelectorAll('[name=\"rating-base-Sebi\"]').length === 10 && Boolean(document.querySelector('[name=\"unrated-Sebi\"]'))",
+    Boolean,
+    "room modal uses button controls",
+  );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click()");
@@ -143,7 +156,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('.compact-kpis .kpi span')).map((node) => node.textContent).join('|')",
-    (value) => value.includes("Top-Stadt") && value.includes("Horror 3+") && value.includes("Ø Difficulty") && !value.includes("Up Next") && !value.includes("Ø Horror"),
+    (value) => value.includes("Top-Stadt") && value.includes("Horror 3+") && value.includes("Ø Difficulty") && !value.includes("Up Next") && !value.includes("Ø Horror") && !value.includes("Einzelbewertungen"),
     "stats overview extended KPIs",
   );
   await assertEval(
@@ -169,7 +182,7 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Spanien|Athen|Polen|Ungarn|Frankreich|Tschechien",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Spanien|Athen|Polen|Ungarn|Frankreich|Tschechien|Irland|UK|Portugal|Italien|Finnland|Kroatien",
     "regions sorted by played rooms",
   );
   await assertEval(
@@ -209,7 +222,7 @@ try {
       form.querySelector('[name="title"]').value = 'QA Münster';
       form.querySelector('[name="provider"]').value = 'QA';
       form.querySelector('[name="city"]').value = 'Münster';
-      form.querySelector('[name="rating-Sebi"]').value = '8';
+      form.querySelector('[name="rating-base-Sebi"][value="8"]').checked = true;
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return true;
     })()

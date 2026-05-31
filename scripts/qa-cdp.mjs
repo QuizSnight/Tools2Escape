@@ -171,6 +171,39 @@ try {
   );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
 
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-view="played"]').click();
+      const countFor = (label) => {
+        const option = Array.from(document.querySelectorAll('#region-filter option')).find((entry) => entry.textContent.startsWith(label));
+        return Number(option?.textContent.match(/\\((\\d+)\\)$/)?.[1] || 0);
+      };
+      window.__qaRegionCounts = { de: countFor('DE'), nrw: countFor('NRW') };
+      document.querySelector('[data-open-room]').click();
+      const form = document.querySelector('#room-form');
+      form.querySelector('[name="title"]').value = 'QA Münster';
+      form.querySelector('[name="provider"]').value = 'QA';
+      form.querySelector('[name="city"]').value = 'Münster';
+      form.querySelector('[name="rating-Sebi"]').value = '8';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    `
+      (() => {
+        const countFor = (label) => {
+          const option = Array.from(document.querySelectorAll('#region-filter option')).find((entry) => entry.textContent.startsWith(label));
+          return Number(option?.textContent.match(/\\((\\d+)\\)$/)?.[1] || 0);
+        };
+        return countFor('DE') === window.__qaRegionCounts.de + 1 && countFor('NRW') === window.__qaRegionCounts.nrw + 1;
+      })()
+    `,
+    Boolean,
+    "new room city auto assigns DE and NRW",
+  );
+
   await cdp.send("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,

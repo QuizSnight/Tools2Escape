@@ -19,7 +19,84 @@
     BENELUX: "BeNeLux",
     SPAIN: "Spanien",
   };
+  const ATHENS_CITIES = new Set(["athen", "athens"]);
   const HAMBURG_CITIES = new Set(["hamburg"]);
+  const NRW_CITIES = new Set([
+    "aachen",
+    "arnsberg",
+    "bad salzuflen",
+    "bergisch gladbach",
+    "bielefeld",
+    "bocholt",
+    "bochum",
+    "bonn",
+    "bottrop",
+    "bruhl",
+    "bruehl",
+    "castrop rauxel",
+    "detmold",
+    "dinslaken",
+    "dormagen",
+    "dorsten",
+    "dortmund",
+    "dueren",
+    "duisburg",
+    "duren",
+    "dusseldorf",
+    "duesseldorf",
+    "erkelenz",
+    "essen",
+    "frechen",
+    "gelsenkirchen",
+    "grevenbroich",
+    "gutersloh",
+    "guetersloh",
+    "hagen",
+    "hamm",
+    "herne",
+    "huerth",
+    "hurth",
+    "iserlohn",
+    "kerpen",
+    "koln",
+    "koeln",
+    "krefeld",
+    "langenfeld",
+    "leverkusen",
+    "lippstadt",
+    "marl",
+    "minden",
+    "moenchengladbach",
+    "moers",
+    "monchengladbach",
+    "mulheim",
+    "mulheim an der ruhr",
+    "muelheim",
+    "muelheim an der ruhr",
+    "munster",
+    "muenster",
+    "munster westfalen",
+    "muenster westfalen",
+    "neuss",
+    "niederkassel",
+    "oberhausen",
+    "paderborn",
+    "ratingen",
+    "recklinghausen",
+    "remscheid",
+    "rheine",
+    "siegen",
+    "siegburg",
+    "solingen",
+    "troisdorf",
+    "unna",
+    "velbert",
+    "viersen",
+    "warendorf",
+    "wesel",
+    "witten",
+    "wuppertal",
+  ]);
   const BENELUX_CITIES = new Set([
     "amersfoort",
     "amsterdam",
@@ -72,6 +149,79 @@
     "valencia",
     "zaragoza",
   ]);
+  const GERMANY_CITIES = new Set([
+    ...NRW_CITIES,
+    ...HAMBURG_CITIES,
+    "augsburg",
+    "bad steben",
+    "balingen",
+    "bamberg",
+    "berlin",
+    "braunschweig",
+    "bremen",
+    "darmstadt",
+    "dresden",
+    "erfurt",
+    "flensburg",
+    "frankfurt",
+    "frankfurt am main",
+    "frankfurt main",
+    "freiburg",
+    "friedrichshafen",
+    "fulda",
+    "gelnhausen",
+    "gelnhausen frankfurt",
+    "gottingen",
+    "goettingen",
+    "halle",
+    "hannover",
+    "heidelberg",
+    "jena",
+    "karlsruhe",
+    "kassel",
+    "kiel",
+    "koblenz",
+    "konstanz",
+    "leipzig",
+    "limburg",
+    "limburg an der lahn",
+    "lubeck",
+    "luebeck",
+    "magdeburg",
+    "mainz",
+    "mannheim",
+    "munchen",
+    "muenchen",
+    "munich",
+    "nurnberg",
+    "nuernberg",
+    "nuremberg",
+    "obernkirchen",
+    "oldenburg",
+    "osnabruck",
+    "osnabrueck",
+    "potsdam",
+    "regensburg",
+    "reutlingen",
+    "rostock",
+    "saarbrucken",
+    "saarbruecken",
+    "stuttgart",
+    "trier",
+    "tubingen",
+    "tuebingen",
+    "ulm",
+    "wiesbaden",
+    "wurzburg",
+    "wuerzburg",
+  ]);
+  const CITY_REGION_SETS = {
+    Athen: ATHENS_CITIES,
+    NRW: NRW_CITIES,
+    HH: HAMBURG_CITIES,
+    BENELUX: BENELUX_CITIES,
+    SPAIN: SPAIN_CITIES,
+  };
 
   const ui = {
     view: "played",
@@ -539,9 +689,8 @@
   }
 
   function roomBelongsToPreset(room, preset) {
-    if (preset.name === "HH" && isHamburgRoom(room)) return true;
-    if (preset.name === "BENELUX" && isBeneluxRoom(room)) return true;
-    if (preset.name === "SPAIN" && isSpainRoom(room)) return true;
+    if (detectedRegionNamesForCity(room.city).includes(preset.name)) return true;
+    if ((room.regions || []).includes(preset.name)) return true;
     if ((preset.roomIds || []).includes(room.id)) return true;
     return regionCitiesForPreset(preset).has(normalizeCity(room.city));
   }
@@ -556,17 +705,21 @@
     );
   }
 
-  function isBeneluxRoom(room) {
-    return BENELUX_CITIES.has(normalizeCity(room.city));
+  function detectedRegionNamesForCity(value) {
+    const city = normalizeCity(value);
+    if (!city) return [];
+    return REGION_ORDER.filter((regionName) => cityBelongsToRegion(city, regionName));
   }
 
-  function isHamburgRoom(room) {
-    const city = normalizeCity(room.city);
-    return HAMBURG_CITIES.has(city) || city.startsWith("hamburg ");
+  function cityBelongsToRegion(city, regionName) {
+    if (regionName === "DE") return cityMatchesSet(city, GERMANY_CITIES) || cityBelongsToRegion(city, "NRW") || cityBelongsToRegion(city, "HH");
+    if (regionName === "HH") return cityMatchesSet(city, HAMBURG_CITIES);
+    return Boolean(CITY_REGION_SETS[regionName] && cityMatchesSet(city, CITY_REGION_SETS[regionName]));
   }
 
-  function isSpainRoom(room) {
-    return SPAIN_CITIES.has(normalizeCity(room.city));
+  function cityMatchesSet(city, cities) {
+    if (cities.has(city)) return true;
+    return [...cities].some((entry) => entry.length >= 4 && city.startsWith(`${entry} `));
   }
 
   function countBy(items, getter) {
@@ -1305,12 +1458,13 @@
     const values = Object.values(ratings).filter((value) => typeof value === "number");
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     const existing = data.played.find((room) => room.id === id);
+    const city = clean(form.get("city"));
     const room = {
       ...(existing || {}),
       id,
       title: clean(form.get("title")),
       provider: clean(form.get("provider")),
-      city: clean(form.get("city")),
+      city,
       date: clean(form.get("date")),
       difficulty: numberOrNull(form.get("difficulty")),
       scare: numberOrNull(form.get("scare")),
@@ -1320,7 +1474,7 @@
       notes: clean(form.get("notes")),
       tags: splitTags(form.get("tags")),
       sourceSheets: existing?.sourceSheets || ["App"],
-      regions: existing?.regions || [],
+      regions: detectedRegionNamesForCity(city),
     };
 
     if (existing) {

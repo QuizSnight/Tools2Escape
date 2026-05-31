@@ -1,4 +1,4 @@
-const CACHE_NAME = "tools2escape-v11";
+const CACHE_NAME = "tools2escape-v12";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -6,7 +6,7 @@ const workspace = process.cwd();
 const edgePath = process.env.EDGE_PATH || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const port = Number(process.env.CDP_PORT || 9300 + Math.floor(Math.random() * 500));
 const qaDir = path.join(workspace, "qa");
-const fileUrl = `file:///${path.join(workspace, "index.html").replace(/\\/g, "/")}`;
+const fileUrl = `file:///${path.join(workspace, "index.html").replace(/\\/g, "/")}?qa`;
 
 await fs.mkdir(qaDir, { recursive: true });
 const profileDir = await fs.mkdtemp(path.join(qaDir, "edge-profile-"));
@@ -55,8 +55,20 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(\\d+\\)$/, '')).join('|')",
-    (value) => value === "Alle|DE|Athen|NRW|Hamburg (HH)|BeNeLux|Spanien",
+    (value) => value === "Alle|DE|Athen|NRW|Hamburg (HH)|BeNeLux|Spanien|Polen|Ungarn|Tschechien|Frankreich",
     "region filter preset options only",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('DE'))?.textContent",
+    (value) => value === "DE (194)",
+    "germany city count",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('NRW'))?.textContent",
+    (value) => value === "NRW (138)",
+    "nrw city count",
   );
   await assertEval(
     cdp,
@@ -73,8 +85,14 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('Spanien'))?.textContent",
-    (value) => value === "Spanien (16)",
+    (value) => value === "Spanien (14)",
     "spain dynamic city count",
+  );
+  await assertEval(
+    cdp,
+    "['Polen (9)', 'Ungarn (9)', 'Tschechien (5)', 'Frankreich (5)'].every((label) => Array.from(document.querySelectorAll('#region-filter option')).some((option) => option.textContent === label))",
+    Boolean,
+    "additional country region counts",
   );
   await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");
 
@@ -151,7 +169,7 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Athen|Spanien",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg (HH)|Athen|Spanien|Polen|Ungarn|Frankreich|Tschechien",
     "regions sorted by rated rooms",
   );
   await assertEval(

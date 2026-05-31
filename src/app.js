@@ -13,11 +13,15 @@
     other: [],
     regionPresets: [],
   };
-  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN"];
+  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE"];
   const REGION_LABELS = {
     HH: "Hamburg (HH)",
     BENELUX: "BeNeLux",
     SPAIN: "Spanien",
+    POLAND: "Polen",
+    HUNGARY: "Ungarn",
+    CZECHIA: "Tschechien",
+    FRANCE: "Frankreich",
   };
   const ATHENS_CITIES = new Set(["athen", "athens"]);
   const HAMBURG_CITIES = new Set(["hamburg"]);
@@ -130,7 +134,6 @@
   const SPAIN_CITIES = new Set([
     "alicante",
     "barcelona",
-    "berga",
     "bilbao",
     "cordoba",
     "girona",
@@ -149,6 +152,17 @@
     "valencia",
     "zaragoza",
   ]);
+  const POLAND_CITIES = new Set([
+    "breslau",
+    "poznan",
+    "posen",
+    "warsaw",
+    "warschau",
+    "wroclaw",
+  ]);
+  const HUNGARY_CITIES = new Set(["budapest"]);
+  const CZECHIA_CITIES = new Set(["prag", "prague", "praha"]);
+  const FRANCE_CITIES = new Set(["paris", "strasbourg", "strassbourg"]);
   const GERMANY_CITIES = new Set([
     ...NRW_CITIES,
     ...HAMBURG_CITIES,
@@ -156,6 +170,7 @@
     "bad steben",
     "balingen",
     "bamberg",
+    "berga",
     "berlin",
     "braunschweig",
     "bremen",
@@ -221,7 +236,12 @@
     HH: HAMBURG_CITIES,
     BENELUX: BENELUX_CITIES,
     SPAIN: SPAIN_CITIES,
+    POLAND: POLAND_CITIES,
+    HUNGARY: HUNGARY_CITIES,
+    CZECHIA: CZECHIA_CITIES,
+    FRANCE: FRANCE_CITIES,
   };
+  const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE"];
 
   const ui = {
     view: "played",
@@ -333,7 +353,8 @@
 
   function hasSupabaseConfig() {
     return Boolean(
-      config.supabaseUrl
+      !new URLSearchParams(window.location.search).has("qa")
+      && config.supabaseUrl
       && config.supabaseAnonKey
       && config.teamId
       && window.supabase?.createClient,
@@ -665,13 +686,12 @@
   }
 
   function virtualRegionById(id) {
-    if (id === "spain") return virtualRegion("SPAIN");
-    return null;
+    const name = VIRTUAL_REGION_NAMES.find((regionName) => regionName.toLowerCase() === id);
+    return name ? virtualRegion(name) : null;
   }
 
   function virtualRegionByName(name) {
-    if (name === "SPAIN") return virtualRegion("SPAIN");
-    return null;
+    return VIRTUAL_REGION_NAMES.includes(name) ? virtualRegion(name) : null;
   }
 
   function virtualRegion(name) {

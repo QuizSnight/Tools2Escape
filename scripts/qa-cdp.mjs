@@ -55,7 +55,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).map((option) => option.textContent.replace(/ \\(.+\\)/, '')).join('|')",
-    (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux",
+    (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux|Spanien",
     "region filter preset options only",
   );
   await assertEval(
@@ -63,6 +63,12 @@ try {
     "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('BeNeLux'))?.textContent",
     (value) => value === "BeNeLux (29)",
     "benelux dynamic city count",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('Spanien'))?.textContent",
+    (value) => value === "Spanien (14)",
+    "spain dynamic city count",
   );
   await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");
 
@@ -139,7 +145,7 @@ try {
         return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
       })()
     `,
-    (value) => value === "DE|NRW|BeNeLux|Hamburg|Athen",
+    (value) => value === "DE|NRW|BeNeLux|Hamburg|Athen|Spanien",
     "regions sorted by rated rooms",
   );
   await assertEval(

@@ -13,10 +13,11 @@
     other: [],
     regionPresets: [],
   };
-  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX"];
+  const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN"];
   const REGION_LABELS = {
     HH: "Hamburg",
     BENELUX: "BeNeLux",
+    SPAIN: "Spanien",
   };
   const BENELUX_CITIES = new Set([
     "amersfoort",
@@ -47,6 +48,27 @@
     "voorburg",
     "waalwijk",
     "zoersel",
+  ]);
+  const SPAIN_CITIES = new Set([
+    "alicante",
+    "barcelona",
+    "bilbao",
+    "cordoba",
+    "girona",
+    "granada",
+    "madrid",
+    "malaga",
+    "murcia",
+    "palma",
+    "salamanca",
+    "segovia",
+    "sevilla",
+    "seville",
+    "sitges",
+    "tarragona",
+    "toledo",
+    "valencia",
+    "zaragoza",
   ]);
 
   const ui = {
@@ -448,7 +470,7 @@
     if (ui.region === "all") return true;
     if (ui.region.startsWith("preset:")) {
       const presetId = ui.region.slice(7);
-      const preset = data.regionPresets.find((entry) => entry.id === presetId);
+      const preset = regionById(presetId);
       return Boolean(preset && roomBelongsToPreset(room, preset));
     }
     if (ui.region.startsWith("city:")) {
@@ -466,8 +488,8 @@
 
   function regionPresetOptions() {
     return REGION_ORDER
-      .map((name) => data.regionPresets.find((preset) => preset.name === name))
-      .filter((preset) => preset?.roomIds?.length)
+      .map(regionByName)
+      .filter(Boolean)
       .map((preset) => {
         const roomIds = regionRoomIds(preset);
         return {
@@ -478,7 +500,34 @@
           count: roomIds.length,
           roomIds,
         };
-      });
+      })
+      .filter((option) => option.roomIds.length);
+  }
+
+  function regionById(id) {
+    return data.regionPresets.find((preset) => preset.id === id) || virtualRegionById(id);
+  }
+
+  function regionByName(name) {
+    return data.regionPresets.find((preset) => preset.name === name) || virtualRegionByName(name);
+  }
+
+  function virtualRegionById(id) {
+    if (id === "spain") return virtualRegion("SPAIN");
+    return null;
+  }
+
+  function virtualRegionByName(name) {
+    if (name === "SPAIN") return virtualRegion("SPAIN");
+    return null;
+  }
+
+  function virtualRegion(name) {
+    return {
+      id: name.toLowerCase(),
+      name,
+      roomIds: [],
+    };
   }
 
   function regionRoomIds(preset) {
@@ -489,6 +538,7 @@
 
   function roomBelongsToPreset(room, preset) {
     if (preset.name === "BENELUX" && isBeneluxRoom(room)) return true;
+    if (preset.name === "SPAIN" && isSpainRoom(room)) return true;
     if ((preset.roomIds || []).includes(room.id)) return true;
     return regionCitiesForPreset(preset).has(normalizeCity(room.city));
   }
@@ -505,6 +555,10 @@
 
   function isBeneluxRoom(room) {
     return BENELUX_CITIES.has(normalizeCity(room.city));
+  }
+
+  function isSpainRoom(room) {
+    return SPAIN_CITIES.has(normalizeCity(room.city));
   }
 
   function countBy(items, getter) {

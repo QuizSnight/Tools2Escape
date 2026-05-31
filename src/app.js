@@ -425,7 +425,47 @@
     }, {});
   }
 
+  function cssAttribute(value) {
+    return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function captureActiveField() {
+    const element = document.activeElement;
+    if (!element || !app.contains(element) || !element.matches("input, textarea, select")) return null;
+
+    const selector = element.id
+      ? `[id="${cssAttribute(element.id)}"]`
+      : element.name
+        ? `${element.tagName.toLowerCase()}[name="${cssAttribute(element.name)}"]`
+        : "";
+
+    if (!selector) return null;
+
+    return {
+      selector,
+      start: typeof element.selectionStart === "number" ? element.selectionStart : null,
+      end: typeof element.selectionEnd === "number" ? element.selectionEnd : null,
+    };
+  }
+
+  function restoreActiveField(snapshot) {
+    if (!snapshot) return;
+    const element = app.querySelector(snapshot.selector);
+    if (!element) return;
+
+    element.focus({ preventScroll: true });
+    if (snapshot.start === null || typeof element.setSelectionRange !== "function") return;
+
+    try {
+      const end = snapshot.end ?? snapshot.start;
+      element.setSelectionRange(snapshot.start, end);
+    } catch {
+      // Some input types, like number, cannot receive a text selection.
+    }
+  }
+
   function render() {
+    const activeField = captureActiveField();
     const rooms = getPlayedRooms();
     app.innerHTML = `
       <div class="app-shell">
@@ -440,6 +480,7 @@
       </div>
     `;
     bindEvents();
+    restoreActiveField(activeField);
   }
 
   function renderHeader() {

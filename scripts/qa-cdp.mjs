@@ -49,9 +49,11 @@ try {
   await screenshot(cdp, path.join(qaDir, "desktop.png"));
 
   await evalPage(cdp, `
+    document.querySelector('#played-search').focus();
     document.querySelector('#played-search').value = 'Mollys';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
   `);
+  await assertEval(cdp, "document.activeElement.id", (value) => value === "played-search", "played search keeps focus");
   await assertEval(cdp, "document.querySelectorAll('.room-card').length", (value) => value === 1, "played search filter");
   await evalPage(cdp, `
     document.querySelector('#played-search').value = '';

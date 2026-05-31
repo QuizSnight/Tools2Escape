@@ -6,6 +6,24 @@ Mobile-first Escape-Room-Tracker auf Basis der importierten Excel-Datei.
 
 `index.html` im Browser öffnen. Ohne Cloud-Konfiguration läuft die App lokal und speichert Änderungen im Browser unter `localStorage`.
 
+## Auf dem Handy installieren
+
+Die App ist als Progressive Web App vorbereitet. Nach dem Online-Deploy kann sie vom Browser aus auf dem Homescreen installiert werden.
+
+Android/Chrome:
+
+1. Veröffentlichte App-URL öffnen.
+2. Browsermenü öffnen.
+3. `App installieren` oder `Zum Startbildschirm hinzufügen` wählen.
+
+iPhone/Safari:
+
+1. Veröffentlichte App-URL in Safari öffnen.
+2. Teilen-Menü öffnen.
+3. `Zum Home-Bildschirm` wählen.
+
+Danach startet die App über ein eigenes Icon und wirkt wie eine normale App. Technisch bleibt sie trotzdem eine Website mit Online-Sync.
+
 ## Online-Sync ohne Login
 
 Die App kann mit Supabase gemeinsam genutzt werden. Es gibt bewusst keinen Team-Code und keine Anmeldung: Wer die veröffentlichte App-URL kennt, kann die Daten lesen und bearbeiten.

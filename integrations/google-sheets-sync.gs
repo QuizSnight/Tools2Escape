@@ -59,6 +59,13 @@ function installEditTrigger() {
   ScriptApp.newTrigger("syncSheetToApp").forSpreadsheet(spreadsheet).onEdit().create();
 }
 
+function refreshSheetFromApp() {
+  const spreadsheet = getSpreadsheet_();
+  const payload = fetchCurrentPayload_();
+  setScriptWriteGuard_(20000);
+  writeAllTabs_(spreadsheet, sheetsForPayload_(payload));
+}
+
 function syncSheetToApp(e) {
   if (isScriptWriteGuarded_()) return;
   const spreadsheet = getSpreadsheet_();
@@ -280,10 +287,10 @@ function playedRows_(rooms, members) {
 function writeAllTabs_(spreadsheet, tabs) {
   const normalizedTabs = tabs.map((tab) => ({
     name: normalizeSheetName_(tab.name),
-    rows: tab.rows || [],
+    rows: normalizeRowsForSheet_(normalizeSheetName_(tab.name), tab.rows || []),
   }));
   normalizedTabs.forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows));
-  orderAndCleanSheets_(spreadsheet, normalizedTabs.map((tab) => tab.name));
+  orderAndCleanSheets_(spreadsheet, sortedSheetNames_(normalizedTabs.map((tab) => tab.name)));
 }
 
 function writeTab_(spreadsheet, name, rows) {
@@ -316,7 +323,7 @@ function getOrCreateSheet_(spreadsheet, name) {
 }
 
 function orderAndCleanSheets_(spreadsheet, desiredNames) {
-  const desired = [...new Set(desiredNames.map(normalizeSheetName_))];
+  const desired = sortedSheetNames_(desiredNames);
   generatedOldSheetNames_().forEach((oldName) => {
     const sheet = spreadsheet.getSheetByName(oldName);
     if (sheet && !desired.includes(oldName) && spreadsheet.getSheets().length > 1) spreadsheet.deleteSheet(sheet);
@@ -327,6 +334,53 @@ function orderAndCleanSheets_(spreadsheet, desiredNames) {
     spreadsheet.setActiveSheet(sheet);
     spreadsheet.moveActiveSheet(index + 1);
   });
+}
+
+function sortedSheetNames_(names) {
+  const unique = [...new Set(names.map(normalizeSheetName_).filter(Boolean))];
+  return [
+    ...unique.filter((name) => name === "Welt"),
+    ...unique.filter((name) => name === "Up Next"),
+    ...unique.filter((name) => name !== "Welt" && name !== "Up Next").sort((a, b) => a.localeCompare(b, "de")),
+  ];
+}
+
+function normalizeRowsForSheet_(name, rows) {
+  if (!isPlayedSheetName_(name)) return rows.map((row) => row.map(valueFromPossiblyFormula_));
+  if (!rows.length) return rows;
+  const header = rows[0].map((cell, index) => {
+    const value = valueFromPossiblyFormula_(cell);
+    if (index >= 5 && index < 10) return value && !String(value).includes("#") ? value : MEMBERS[index - 5];
+    return value;
+  });
+  const avgIndex = header.findIndex((cell) => clean_(cell) === "Ø" || normalize_(cell) === "ø" || normalize_(cell) === "o");
+  const memberStart = 5;
+  const memberEnd = avgIndex > memberStart ? avgIndex : 10;
+  const body = rows.slice(1).map((row) => {
+    const next = row.map(valueFromPossiblyFormula_);
+    if (avgIndex >= 0) next[avgIndex] = averageFromRow_(next, memberStart, memberEnd);
+    return next;
+  });
+  for (let index = memberStart; index < memberEnd; index += 1) {
+    const member = clean_(header[index]).replace(/\s*\(.+\)$/, "") || MEMBERS[index - memberStart] || `Person ${index - memberStart + 1}`;
+    const count = body.filter((row) => clean_(row[index]) !== "").length;
+    header[index] = `${member} (${count})`;
+  }
+  return [header, ...body];
+}
+
+function valueFromPossiblyFormula_(value) {
+  if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "v")) return value.v;
+  if (typeof value !== "string") return value;
+  if (!value.startsWith("=")) return value;
+  const headerMatch = value.match(/^="([^"]+)\s+\("/);
+  if (headerMatch) return headerMatch[1];
+  return "";
+}
+
+function averageFromRow_(row, start, end) {
+  const values = row.slice(start, end).map(numberFromCell_).filter((value) => typeof value === "number");
+  return values.length ? Number(averageOf_(values).toFixed(2)) : "";
 }
 
 function normalizeSheetName_(name) {

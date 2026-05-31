@@ -51,6 +51,7 @@ window.T2E_CONFIG = {
   supabaseUrl: "https://dein-projekt.supabase.co",
   supabaseAnonKey: "dein-publishable-key",
   teamId: "ksch-spiele",
+  googleSheetsWebhookUrl: "",
 };
 ```
 
@@ -79,6 +80,20 @@ Alternativ kann der Ordner auch bei Netlify oder Firebase Hosting als statische 
 Den Freunden nur die App-URL schicken. Die App verbindet sich beim Öffnen automatisch mit Supabase. Änderungen werden online gespeichert und an andere offene Tabs verteilt.
 
 Wichtig: Ohne Login ist die URL praktisch der Zugang. Poste den Link also nicht öffentlich.
+
+## Google-Sheets-Sync
+
+Die App kann nach jedem Speichern zusätzlich eine Google-Sheets-Datei im alten Tabellenformat aktualisieren.
+
+1. In Google Sheets die Ziel-Tabelle öffnen und die Spreadsheet-ID aus der URL kopieren.
+2. Unter `Erweiterungen -> Apps Script` ein neues Script öffnen.
+3. `integrations/google-sheets-sync.gs` einfügen.
+4. `SPREADSHEET_ID` im Script ersetzen.
+5. `Bereitstellen -> Neue Bereitstellung -> Web-App` wählen.
+6. Zugriff auf `Jeder` setzen und bereitstellen.
+7. Die Web-App-URL in `src/config.js` bei `googleSheetsWebhookUrl` eintragen.
+
+Danach schreibt die App bei jeder Änderung alle Tabs neu in die Google-Tabelle.
 
 ## Datengrundlage
 

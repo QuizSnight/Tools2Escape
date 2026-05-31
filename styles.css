@@ -239,6 +239,10 @@ h2 {
   min-width: 150px;
 }
 
+.map-toolbar {
+  grid-template-columns: minmax(140px, 0.45fr) minmax(160px, 0.7fr) minmax(220px, 1fr);
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -304,6 +308,81 @@ h2 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 14px;
+}
+
+.map-shell,
+.map-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.map-shell {
+  min-height: 560px;
+  overflow: hidden;
+}
+
+.map-canvas {
+  width: 100%;
+  min-height: 560px;
+}
+
+.map-fallback {
+  display: grid;
+  min-height: 560px;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.map-list {
+  max-height: 560px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.map-summary,
+.map-place {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 4px;
+}
+
+.map-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.map-summary strong {
+  font-size: 1.6rem;
+}
+
+.map-summary span,
+.map-place span,
+.map-place small,
+.map-missing {
+  color: var(--muted);
+}
+
+.map-place {
+  display: grid;
+  gap: 4px;
+}
+
+.map-place.is-muted {
+  opacity: 0.65;
+}
+
+.map-missing {
+  margin: 12px 4px 0;
+  font-size: 0.86rem;
 }
 
 .room-card,
@@ -670,6 +749,7 @@ h2 {
 
   .topbar,
   .toolbar,
+  .map-layout,
   .stats-layout,
   .data-layout {
     grid-template-columns: 1fr;
@@ -686,7 +766,7 @@ h2 {
 
   .tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
   }
 
@@ -702,6 +782,16 @@ h2 {
   .room-grid,
   .wish-grid {
     grid-template-columns: 1fr;
+  }
+
+  .map-shell,
+  .map-canvas,
+  .map-fallback {
+    min-height: 430px;
+  }
+
+  .map-list {
+    max-height: none;
   }
 
   .ratings-form {
@@ -720,7 +810,7 @@ h2 {
   }
 
   .tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kpi-grid,

@@ -35,7 +35,7 @@ try {
   await assertEval(cdp, "document.title", (value) => value === "Tools2EscApp", "document title");
   await assertEval(
     cdp,
-    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && Boolean(document.querySelector('.brand-logo')) && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker')",
+    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && Boolean(document.querySelector('.brand-logo')) && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker') && Array.from(document.querySelectorAll('[data-view]')).map((button) => button.textContent).join('|') === 'Gespielt|Up Next|Karte|Statistik'",
     Boolean,
     "single app heading with logo",
   );
@@ -150,6 +150,14 @@ try {
   await evalPage(cdp, "document.querySelector('[data-open-wish]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#wish-form'))", Boolean, "wish modal opens");
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+
+  await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click()");
+  await assertEval(cdp, "Boolean(document.querySelector('#map-canvas')) && document.querySelectorAll('.map-place').length > 0", Boolean, "map view renders city groups");
+  await evalPage(cdp, "document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent", (value) => value === "35", "map source filters up next rooms");
+  await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
+  await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
+  await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"stats\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.panel').length", (value) => value >= 4, "stats panels");

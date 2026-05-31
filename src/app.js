@@ -203,6 +203,7 @@
     "halle",
     "hannover",
     "heidelberg",
+    "heilbronn",
     "jena",
     "karlsruhe",
     "kassel",
@@ -223,6 +224,7 @@
     "nurnberg",
     "nuernberg",
     "nuremberg",
+    "neuwied",
     "obernkirchen",
     "oldenburg",
     "osnabruck",
@@ -260,6 +262,134 @@
     CROATIA: CROATIA_CITIES,
   };
   const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
+  const GEOCODE_CACHE_KEY = "tools2escape:geocode-cache:v1";
+  const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const CITY_COORDS = {
+    aachen: [50.7753, 6.0839],
+    amersfoort: [52.1561, 5.3878],
+    amsterdam: [52.3676, 4.9041],
+    as: [51.0072, 5.5847],
+    athen: [37.9838, 23.7275],
+    athens: [37.9838, 23.7275],
+    baarn: [52.2117, 5.2875],
+    "bad salzuflen": [52.0862, 8.7443],
+    "bad steben": [50.3667, 11.6333],
+    balingen: [48.2753, 8.8547],
+    bamberg: [49.8988, 10.9028],
+    barcelona: [41.3874, 2.1686],
+    bemmel: [51.8917, 5.8986],
+    berga: [42.1043, 1.8467],
+    berlin: [52.52, 13.405],
+    bielefeld: [52.0302, 8.5325],
+    bochum: [51.4818, 7.2162],
+    bonn: [50.7374, 7.0982],
+    bottrop: [51.5291, 6.9447],
+    braunschweig: [52.2689, 10.5268],
+    breslau: [51.1079, 17.0385],
+    brugge: [51.2093, 3.2247],
+    bruhl: [50.8293, 6.9057],
+    brussel: [50.8503, 4.3517],
+    bruxelles: [50.8503, 4.3517],
+    budapest: [47.4979, 19.0402],
+    burgum: [53.1928, 5.9903],
+    "castrop rauxel": [51.5566, 7.3116],
+    "den haag": [52.0705, 4.3007],
+    dorsten: [51.6617, 6.9651],
+    dortmund: [51.5136, 7.4653],
+    dublin: [53.3498, -6.2603],
+    duisburg: [51.4344, 6.7623],
+    dusseldorf: [51.2277, 6.7735],
+    duesseldorf: [51.2277, 6.7735],
+    essen: [51.4556, 7.0116],
+    frankfurt: [50.1109, 8.6821],
+    frechen: [50.9149, 6.8118],
+    friedrichshafen: [47.6500, 9.4800],
+    gelnhausen: [50.2016, 9.1874],
+    "gelnhausen frankfurt": [50.2016, 9.1874],
+    gelsenkirchen: [51.5177, 7.0857],
+    gottingen: [51.5413, 9.9158],
+    goettingen: [51.5413, 9.9158],
+    hagen: [51.3671, 7.4633],
+    hamburg: [53.5511, 9.9937],
+    hannover: [52.3759, 9.7320],
+    heilbronn: [49.1427, 9.2109],
+    helsinki: [60.1699, 24.9384],
+    herne: [51.5369, 7.2009],
+    hilversum: [52.2292, 5.1669],
+    katwijk: [52.1942, 4.4222],
+    koblenz: [50.3569, 7.5890],
+    koln: [50.9375, 6.9603],
+    koeln: [50.9375, 6.9603],
+    krefeld: [51.3388, 6.5853],
+    langenfeld: [51.1082, 6.9483],
+    leiden: [52.1601, 4.4970],
+    lier: [51.1313, 4.5704],
+    limburg: [50.3836, 8.0503],
+    lippstadt: [51.6737, 8.3448],
+    lissabon: [38.7223, -9.1393],
+    lisboa: [38.7223, -9.1393],
+    lisbon: [38.7223, -9.1393],
+    london: [51.5072, -0.1276],
+    luxembourg: [49.6116, 6.1319],
+    luxemburg: [49.6116, 6.1319],
+    maaseik: [51.0980, 5.7838],
+    mechelen: [51.0259, 4.4775],
+    moenchengladbach: [51.1805, 6.4428],
+    monchengladbach: [51.1805, 6.4428],
+    moordrecht: [51.9867, 4.6694],
+    munchen: [48.1351, 11.5820],
+    muenchen: [48.1351, 11.5820],
+    naarden: [52.2958, 5.1625],
+    neuwied: [50.4333, 7.4667],
+    niederkassel: [50.8150, 7.0378],
+    oberhausen: [51.4963, 6.8638],
+    obernkirchen: [52.2728, 9.1295],
+    paderborn: [51.7189, 8.7575],
+    paris: [48.8566, 2.3522],
+    posen: [52.4064, 16.9252],
+    poznan: [52.4064, 16.9252],
+    prag: [50.0755, 14.4378],
+    prague: [50.0755, 14.4378],
+    praha: [50.0755, 14.4378],
+    remscheid: [51.1787, 7.1897],
+    retie: [51.2670, 5.0824],
+    reutlingen: [48.4914, 9.2043],
+    rijswijk: [52.0377, 4.3210],
+    rom: [41.9028, 12.4964],
+    roma: [41.9028, 12.4964],
+    schijndel: [51.6200, 5.4319],
+    siegburg: [50.8000, 7.2075],
+    strassbourg: [48.5734, 7.7521],
+    strasbourg: [48.5734, 7.7521],
+    tubingen: [48.5216, 9.0576],
+    tuebingen: [48.5216, 9.0576],
+    utrecht: [52.0907, 5.1214],
+    volkel: [51.6425, 5.6542],
+    voorburg: [52.0742, 4.3597],
+    waalwijk: [51.6825, 5.0708],
+    warschau: [52.2297, 21.0122],
+    warsaw: [52.2297, 21.0122],
+    witten: [51.4439, 7.3522],
+    wuppertal: [51.2562, 7.1508],
+    zagreb: [45.8150, 15.9819],
+    zoersel: [51.2678, 4.7120],
+  };
+  const COUNTRY_REGION_ALIASES = {
+    DE: ["deutschland", "germany", "de"],
+    Athen: ["griechenland", "greece"],
+    BENELUX: ["belgien", "belgium", "niederlande", "netherlands", "luxemburg", "luxembourg"],
+    SPAIN: ["spanien", "spain", "espana"],
+    POLAND: ["polen", "poland"],
+    HUNGARY: ["ungarn", "hungary"],
+    CZECHIA: ["tschechien", "czechia", "czech republic"],
+    FRANCE: ["frankreich", "france"],
+    IRELAND: ["irland", "ireland"],
+    UK: ["uk", "united kingdom", "england", "grossbritannien", "großbritannien"],
+    PORTUGAL: ["portugal"],
+    ITALY: ["italien", "italy"],
+    FINLAND: ["finnland", "finland"],
+    CROATIA: ["kroatien", "croatia"],
+  };
 
   const ui = {
     view: "played",
@@ -269,6 +399,9 @@
     selectedMembers: [],
     wishSearch: "",
     wishCountry: "all",
+    mapSource: "played",
+    mapSearch: "",
+    mapRegion: "all",
     notice: "",
     modal: null,
   };
@@ -284,8 +417,16 @@
   };
 
   let saveQueued = false;
+  let sheetsSyncTimer = null;
   let applyingRemoteData = false;
   let data = loadData();
+  const mapState = {
+    map: null,
+    layer: null,
+    container: null,
+    geocodeCache: loadGeocodeCache(),
+    pendingGeocodes: new Set(),
+  };
 
   const app = document.getElementById("app");
 
@@ -311,6 +452,19 @@
       console.warn(error);
     }
     return normalizeData(clone(seed));
+  }
+
+  function loadGeocodeCache() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}");
+      return cached && typeof cached === "object" ? cached : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveGeocodeCache() {
+    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(mapState.geocodeCache));
   }
 
   function normalizeData(input) {
@@ -388,7 +542,10 @@
   function saveData() {
     data.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    if (!applyingRemoteData) queueCloudSave();
+    if (!applyingRemoteData) {
+      queueCloudSave();
+      queueGoogleSheetsSync();
+    }
   }
 
   function hasSupabaseConfig() {
@@ -529,6 +686,48 @@
       cloud.saving = false;
       render();
     }
+  }
+
+  function hasGoogleSheetsSyncConfig() {
+    return Boolean(config.googleSheetsWebhookUrl && !new URLSearchParams(window.location.search).has("qa"));
+  }
+
+  function queueGoogleSheetsSync() {
+    if (!hasGoogleSheetsSyncConfig()) return;
+    window.clearTimeout(sheetsSyncTimer);
+    sheetsSyncTimer = window.setTimeout(() => {
+      void syncGoogleSheetsState();
+    }, 900);
+  }
+
+  async function syncGoogleSheetsState() {
+    if (!hasGoogleSheetsSyncConfig()) return;
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      source: "Tools2EscApp",
+      sheets: exportSheets().map((sheet) => ({
+        name: safeSheetName(sheet.name),
+        rows: rowsForGoogleSheets(sheet.rows),
+      })),
+    };
+
+    try {
+      await fetch(config.googleSheetsWebhookUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.warn("Google Sheets sync failed", error);
+    }
+  }
+
+  function rowsForGoogleSheets(rows) {
+    return rows.map((row) => row.map((cell) => {
+      if (cell && typeof cell === "object" && typeof cell.f === "string") return `=${cell.f}`;
+      return cell ?? "";
+    }));
   }
 
   function readableCloudError(error) {
@@ -704,6 +903,70 @@
     return true;
   }
 
+  function getMapEntries() {
+    const query = normalize(ui.mapSearch);
+    return [
+      ...(ui.mapSource !== "wish" ? data.played.map((room) => ({ type: "played", entry: room })) : []),
+      ...(ui.mapSource !== "played" ? data.wishList.map((entry) => ({ type: "wish", entry })) : []),
+    ]
+      .filter((item) => mapEntryMatchesRegion(item))
+      .filter((item) => {
+        if (!query) return true;
+        const entry = item.entry;
+        return normalize([
+          entry.title,
+          entry.provider,
+          entry.city,
+          entry.country,
+          entry.notes,
+          (entry.tags || []).join(" "),
+        ].join(" ")).includes(query);
+      })
+      .sort((a, b) => `${a.entry.city} ${a.entry.title}`.localeCompare(`${b.entry.city} ${b.entry.title}`, "de"));
+  }
+
+  function mapEntryMatchesRegion(item) {
+    if (ui.mapRegion === "all") return true;
+    if (ui.mapRegion.startsWith("preset:")) {
+      const preset = regionById(ui.mapRegion.slice(7));
+      if (!preset) return false;
+      if (item.type === "played") return roomBelongsToPreset(item.entry, preset);
+      return detectedRegionNamesForCity(item.entry.city).includes(preset.name) || countryBelongsToRegion(item.entry.country, preset.name);
+    }
+    return true;
+  }
+
+  function countryBelongsToRegion(country, regionName) {
+    const normalizedCountry = normalize(country);
+    if (!normalizedCountry) return false;
+    return (COUNTRY_REGION_ALIASES[regionName] || []).some((alias) => normalizedCountry === normalize(alias));
+  }
+
+  function mapCityGroups(entries = getMapEntries()) {
+    const groups = new Map();
+    entries.forEach((item) => {
+      const cityKey = normalizeCity(item.entry.city);
+      if (!cityKey) return;
+      const group = groups.get(cityKey) || {
+        city: clean(item.entry.city),
+        coords: coordsForCity(item.entry.city),
+        played: 0,
+        wish: 0,
+        entries: [],
+      };
+      group[item.type] += 1;
+      group.entries.push(item);
+      if (!group.coords) group.coords = coordsForCity(item.entry.city);
+      groups.set(cityKey, group);
+    });
+    return [...groups.values()].sort((a, b) => (b.played + b.wish) - (a.played + a.wish) || a.city.localeCompare(b.city, "de"));
+  }
+
+  function coordsForCity(city) {
+    const key = normalizeCity(city);
+    return CITY_COORDS[key] || mapState.geocodeCache[key] || null;
+  }
+
   function regionOptions() {
     return [
       { value: "all", label: `Alle (${data.played.length})` },
@@ -810,37 +1073,7 @@
     }
 
     const workbook = window.XLSX.utils.book_new();
-    appendWorksheet(workbook, "Gespielt (Welt)", playedExportRows(data.played));
-
-    regionPresetOptions().forEach((region) => {
-      const roomIds = new Set(region.roomIds);
-      const rooms = data.played.filter((room) => roomIds.has(room.id));
-      appendWorksheet(workbook, exportRegionSheetName(region), playedExportRows(rooms));
-    });
-
-    appendWorksheet(workbook, "Up Next", [
-      ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
-      ...data.wishList.map((entry) => [
-        entry.title,
-        entry.provider,
-        entry.country,
-        entry.city,
-        entry.link,
-        entry.notes,
-      ]),
-    ]);
-
-    appendWorksheet(workbook, "Anderes", [
-      ["Game", "Anbieter", "Stadt", "Bewertung", "Datum", "Bemerkung"],
-      ...data.other.map((entry) => [
-        entry.title,
-        entry.provider,
-        entry.city,
-        entry.rating,
-        entry.date,
-        entry.notes,
-      ]),
-    ]);
+    exportSheets().forEach((sheet) => appendWorksheet(workbook, sheet.name, sheet.rows));
 
     const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     downloadBlob(
@@ -848,6 +1081,50 @@
       `Tools2EscApp-${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
     setNotice("Excel exportiert.");
+  }
+
+  function exportSheets() {
+    const sheets = [
+      { name: "Gespielt (Welt)", rows: playedExportRows(data.played) },
+    ];
+
+    regionPresetOptions().forEach((region) => {
+      const roomIds = new Set(region.roomIds);
+      const rooms = data.played.filter((room) => roomIds.has(room.id));
+      sheets.push({ name: exportRegionSheetName(region), rows: playedExportRows(rooms) });
+    });
+
+    sheets.push({
+      name: "Up Next",
+      rows: [
+        ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
+        ...data.wishList.map((entry) => [
+          entry.title,
+          entry.provider,
+          entry.country,
+          entry.city,
+          entry.link,
+          entry.notes,
+        ]),
+      ],
+    });
+
+    sheets.push({
+      name: "Anderes",
+      rows: [
+        ["Game", "Anbieter", "Stadt", "Bewertung", "Datum", "Bemerkung"],
+        ...data.other.map((entry) => [
+          entry.title,
+          entry.provider,
+          entry.city,
+          entry.rating,
+          entry.date,
+          entry.notes,
+        ]),
+      ],
+    });
+
+    return sheets;
   }
 
   function appendWorksheet(workbook, name, rows) {
@@ -1015,6 +1292,7 @@
         <main class="main-panel">
           ${ui.view === "played" ? renderPlayedView(rooms) : ""}
           ${ui.view === "upnext" ? renderWishView() : ""}
+          ${ui.view === "map" ? renderMapView() : ""}
           ${ui.view === "stats" ? renderStatsView() : ""}
         </main>
         ${renderModal()}
@@ -1035,6 +1313,7 @@
           <nav class="tabs" aria-label="Hauptbereiche">
         ${tabButton("played", "Gespielt")}
         ${tabButton("upnext", "Up Next")}
+        ${tabButton("map", "Karte")}
         ${tabButton("stats", "Statistik")}
       </nav>
           <button class="header-action" data-export-excel type="button">Excel exportieren</button>
@@ -1199,6 +1478,146 @@
         </div>
       </article>
     `;
+  }
+
+  function renderMapView() {
+    const options = regionOptions()
+      .map((option) => `<option value="${escapeHtml(option.value)}" ${ui.mapRegion === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+      .join("");
+    const entries = getMapEntries();
+    const groups = mapCityGroups(entries);
+    const mappedCount = groups.filter((group) => group.coords).length;
+    const missingGroups = groups.filter((group) => !group.coords);
+
+    return `
+      <section class="toolbar map-toolbar">
+        <label>
+          <span>Quelle</span>
+          <select id="map-source">
+            ${selectOption("played", `Gespielt (${data.played.length})`, ui.mapSource)}
+            ${selectOption("wish", `Up Next (${data.wishList.length})`, ui.mapSource)}
+            ${selectOption("all", `Alle (${data.played.length + data.wishList.length})`, ui.mapSource)}
+          </select>
+        </label>
+        <label>
+          <span>Gebiet</span>
+          <select id="map-region">${options}</select>
+        </label>
+        <label class="search-box">
+          <span>Suche</span>
+          <input type="search" id="map-search" value="${escapeHtml(ui.mapSearch)}" placeholder="Raum, Anbieter, Stadt">
+        </label>
+      </section>
+
+      <section class="map-layout">
+        <div class="map-shell">
+          <div id="map-canvas" class="map-canvas" aria-label="Karte"></div>
+        </div>
+        <aside class="map-list">
+          <div class="map-summary">
+            <strong>${entries.length}</strong>
+            <span>Räume · ${mappedCount}/${groups.length} Orte</span>
+          </div>
+          ${groups.length ? groups.map(renderMapGroup).join("") : renderEmptyState("Keine Orte gefunden.")}
+          ${missingGroups.length ? `<p class="map-missing">${escapeHtml(missingGroups.map((group) => group.city).join(", "))}</p>` : ""}
+        </aside>
+      </section>
+    `;
+  }
+
+  function renderMapGroup(group) {
+    const examples = group.entries.slice(0, 3).map((item) => item.entry.title).filter(Boolean).join(", ");
+    return `
+      <article class="map-place ${group.coords ? "" : "is-muted"}">
+        <strong>${escapeHtml(group.city)}</strong>
+        <span>${group.played ? `${group.played} gespielt` : ""}${group.played && group.wish ? " · " : ""}${group.wish ? `${group.wish} Up Next` : ""}</span>
+        ${examples ? `<small>${escapeHtml(examples)}</small>` : ""}
+      </article>
+    `;
+  }
+
+  function renderMap() {
+    const canvas = app.querySelector("#map-canvas");
+    if (!canvas) return;
+    const groups = mapCityGroups();
+    queueMissingGeocodes(groups);
+
+    if (!window.L) {
+      canvas.innerHTML = '<div class="map-fallback">Karte lädt...</div>';
+      return;
+    }
+
+    if (mapState.map && mapState.container !== canvas) {
+      mapState.map.remove();
+      mapState.map = null;
+      mapState.layer = null;
+    }
+
+    if (!mapState.map) {
+      mapState.map = window.L.map(canvas, { scrollWheelZoom: false });
+      window.L.tileLayer(MAP_TILE_URL, {
+        attribution: "&copy; OpenStreetMap",
+        maxZoom: 19,
+      }).addTo(mapState.map);
+      mapState.container = canvas;
+    }
+
+    if (mapState.layer) mapState.layer.remove();
+    mapState.layer = window.L.layerGroup().addTo(mapState.map);
+
+    const mappedGroups = groups.filter((group) => group.coords);
+    mappedGroups.forEach((group) => {
+      const total = group.played + group.wish;
+      const marker = window.L.marker(group.coords).addTo(mapState.layer);
+      marker.bindPopup(`
+        <strong>${escapeHtml(group.city)}</strong><br>
+        ${group.played ? `${group.played} gespielt` : ""}
+        ${group.played && group.wish ? " · " : ""}
+        ${group.wish ? `${group.wish} Up Next` : ""}
+        <br><small>${escapeHtml(group.entries.slice(0, 5).map((item) => item.entry.title).join(", "))}${total > 5 ? " ..." : ""}</small>
+      `);
+    });
+
+    window.setTimeout(() => {
+      mapState.map.invalidateSize();
+      if (mappedGroups.length) {
+        const bounds = window.L.latLngBounds(mappedGroups.map((group) => group.coords));
+        mapState.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 11 });
+      } else {
+        mapState.map.setView([51.1657, 10.4515], 5);
+      }
+    }, 60);
+  }
+
+  function queueMissingGeocodes(groups) {
+    groups
+      .filter((group) => !group.coords)
+      .slice(0, 8)
+      .forEach((group, index) => {
+        const key = normalizeCity(group.city);
+        if (!key || mapState.pendingGeocodes.has(key)) return;
+        mapState.pendingGeocodes.add(key);
+        window.setTimeout(() => {
+          void geocodeCity(group.city, key);
+        }, index * 350);
+      });
+  }
+
+  async function geocodeCity(city, key = normalizeCity(city)) {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(city)}`);
+      if (!response.ok) throw new Error(response.statusText);
+      const result = (await response.json())[0];
+      if (result?.lat && result?.lon) {
+        mapState.geocodeCache[key] = [Number(result.lat), Number(result.lon)];
+        saveGeocodeCache();
+        if (ui.view === "map") render();
+      }
+    } catch (error) {
+      console.warn("Geocoding failed", city, error);
+    } finally {
+      mapState.pendingGeocodes.delete(key);
+    }
   }
 
   function renderStatsView() {
@@ -1641,6 +2060,24 @@
       render();
     });
 
+    const mapSource = app.querySelector("#map-source");
+    if (mapSource) mapSource.addEventListener("change", (event) => {
+      ui.mapSource = event.target.value;
+      render();
+    });
+
+    const mapRegion = app.querySelector("#map-region");
+    if (mapRegion) mapRegion.addEventListener("change", (event) => {
+      ui.mapRegion = event.target.value;
+      render();
+    });
+
+    const mapSearch = app.querySelector("#map-search");
+    if (mapSearch) mapSearch.addEventListener("input", (event) => {
+      ui.mapSearch = event.target.value;
+      render();
+    });
+
     const roomButton = app.querySelector("[data-open-room]");
     if (roomButton) roomButton.addEventListener("click", () => {
       ui.modal = { type: "room", room: { ratings: {} } };
@@ -1747,6 +2184,7 @@
     const wishForm = app.querySelector("#wish-form");
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
 
+    if (ui.view === "map") window.requestAnimationFrame(renderMap);
   }
 
   function saveRoomFromForm(event) {

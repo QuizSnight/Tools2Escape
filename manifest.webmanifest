@@ -1,6 +1,6 @@
 {
-  "name": "Tools2Escape",
-  "short_name": "T2E",
+  "name": "Tools2EscApp",
+  "short_name": "EscApp",
   "description": "Escape-Room-Tracker fuer euer Team.",
   "start_url": ".",
   "scope": ".",

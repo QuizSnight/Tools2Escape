@@ -32,7 +32,13 @@ try {
   await cdp.send("Runtime.enable");
   await waitForApp(cdp);
 
-  await assertEval(cdp, "document.title", (value) => value === "Tools2Escape", "document title");
+  await assertEval(cdp, "document.title", (value) => value === "Tools2EscApp", "document title");
+  await assertEval(
+    cdp,
+    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker')",
+    Boolean,
+    "single app heading",
+  );
   await assertEval(
     cdp,
     "document.querySelectorAll('.room-card').length === window.T2E_SEED_DATA.played.length",
@@ -52,6 +58,7 @@ try {
     (value) => value === "Alle|DE|Athen|NRW|Hamburg|BeNeLux",
     "region filter preset options only",
   );
+  await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");
 
   await screenshot(cdp, path.join(qaDir, "desktop.png"));
 
@@ -99,8 +106,34 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('.compact-kpis .kpi span')).map((node) => node.textContent).join('|')",
-    (value) => value.includes("Top-Stadt") && value.includes("Horror 3+") && value.includes("Ø Difficulty"),
+    (value) => value.includes("Top-Stadt") && value.includes("Horror 3+") && value.includes("Ø Difficulty") && !value.includes("Up Next") && !value.includes("Ø Horror"),
     "stats overview extended KPIs",
+  );
+  await assertEval(
+    cdp,
+    `
+      (() => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find((entry) => entry.querySelector('h2')?.textContent === 'Top Räume');
+        const rows = Array.from(panel.querySelectorAll('.rank-row')).map((row) => ({
+          rank: row.children[0].textContent.trim(),
+          score: row.querySelector('b').textContent.trim(),
+        }));
+        return rows.every((row, index) => rows.findIndex((entry) => entry.score === row.score) === index || rows.find((entry) => entry.score === row.score).rank === row.rank);
+      })()
+    `,
+    Boolean,
+    "top rooms share rank for same score",
+  );
+  await assertEval(
+    cdp,
+    `
+      (() => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find((entry) => entry.querySelector('h2')?.textContent === 'Regionen');
+        return Array.from(panel.querySelectorAll('.bar-row span')).map((node) => node.textContent).join('|');
+      })()
+    `,
+    (value) => value === "DE|NRW|BeNeLux|Athen|Hamburg",
+    "regions sorted by rated rooms",
   );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
 

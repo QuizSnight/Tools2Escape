@@ -343,6 +343,23 @@
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   }
 
+  function rankRooms(sortedRooms, maxRank) {
+    const ranked = [];
+    let previousScore = "";
+    let currentRank = 0;
+
+    sortedRooms.forEach((item, index) => {
+      const score = formatScore(item.score);
+      if (score !== previousScore) {
+        currentRank = index + 1;
+        previousScore = score;
+      }
+      if (currentRank <= maxRank) ranked.push({ ...item, rank: currentRank });
+    });
+
+    return ranked;
+  }
+
   function formatScore(value) {
     const score = numberOrNull(value);
     return score === null ? "-" : score.toFixed(score % 1 === 0 ? 0 : 1);
@@ -498,8 +515,7 @@
     return `
       <header class="topbar">
         <div>
-          <p class="eyebrow">Tools2Escape</p>
-          <h1>Escape Tracker</h1>
+          <h1>Tools2EscApp</h1>
         </div>
         <div class="top-actions">
           <nav class="tabs" aria-label="Hauptbereiche">
@@ -534,7 +550,7 @@
       <section class="toolbar">
         <label class="search-box">
           <span>Suche</span>
-          <input type="search" id="played-search" value="${escapeHtml(ui.search)}" placeholder="Raum, Anbieter, Stadt, Tag">
+          <input type="search" id="played-search" value="${escapeHtml(ui.search)}" placeholder="Raum, Anbieter, Stadt">
         </label>
         <label>
           <span>Gebiet</span>
@@ -682,13 +698,12 @@
     const ratedRooms = data.played
       .map((room) => ({ room, score: averageFor(room, data.members) }))
       .filter((item) => typeof item.score === "number");
-    const topRooms = [...ratedRooms].sort((a, b) => b.score - a.score).slice(0, 10);
+    const rankedTopRooms = rankRooms([...ratedRooms].sort((a, b) => b.score - a.score || a.room.title.localeCompare(b.room.title, "de")), 10);
     const cityStats = Object.entries(countBy(data.played, (room) => room.city))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12);
     const topCity = cityStats[0];
     const highHorror = data.played.filter((room) => (room.scare ?? 0) >= 3).length;
-    const horrorAverage = averageOf(data.played.map((room) => room.scare).filter((value) => typeof value === "number"));
     const difficultyAverage = averageOf(data.played.map((room) => room.difficulty).filter((value) => typeof value === "number"));
     const memberStats = data.members.map((member) => {
       const values = data.played.map((room) => room.ratings[member]).filter((value) => typeof value === "number");
@@ -709,7 +724,7 @@
       }, {}),
     )
       .map(([provider, scores]) => ({ provider, count: scores.length, avg: averageOf(scores) }))
-      .filter((stat) => stat.count >= 3)
+      .filter((stat) => stat.count >= 2)
       .sort((a, b) => b.avg - a.avg || b.count - a.count)
       .slice(0, 10);
     const difficultyStats = Object.entries(countBy(
@@ -724,7 +739,13 @@
       data.played.filter((room) => /^\d{4}-/.test(room.date)),
       (room) => room.date.slice(0, 4),
     )).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 10);
-    const regionStats = regionPresetOptions();
+    const regionStats = regionPresetOptions()
+      .map((region) => {
+        const regionRoomIds = new Set(region.roomIds);
+        const rooms = data.played.filter((room) => regionRoomIds.has(room.id) && ratingValuesForRooms([room]).length);
+        return { ...region, count: rooms.length };
+      })
+      .sort((a, b) => b.count - a.count || a.shortLabel.localeCompare(b.shortLabel, "de"));
     const splitRooms = data.played
       .map((room) => {
         const ratings = ratingValuesForRooms([room]);
@@ -751,19 +772,17 @@
             ${kpi("Räume mit Bewertung", roomsWithRatings.length)}
             ${kpi("Einzelbewertungen", ratingValuesForRooms(data.played).length)}
             ${kpi("Team Ø", formatAverage(averageOf(ratingValuesForRooms(data.played, data.members))))}
-            ${kpi("Up Next", data.wishList.length)}
             ${kpi("Top-Stadt", topCity ? `${topCity[0]} (${topCity[1]})` : "-")}
             ${kpi("Horror 3+", highHorror)}
-            ${kpi("Ø Horror", `${formatAverage(horrorAverage)}/5`)}
             ${kpi("Ø Difficulty", `${formatAverage(difficultyAverage)}/5`)}
           </section>
         </article>
         <article class="panel">
           <h2>Top Räume</h2>
           <div class="rank-list">
-            ${topRooms.map(({ room, score }, index) => `
+            ${rankedTopRooms.map(({ room, score, rank }) => `
               <div class="rank-row">
-                <span>${index + 1}</span>
+                <span>${rank}</span>
                 <strong>${escapeHtml(room.title)}</strong>
                 <small>${escapeHtml(room.city)}</small>
                 <b>${formatScore(score)}</b>
@@ -797,7 +816,7 @@
         </article>
         <article class="panel">
           <h2>Top Anbieter</h2>
-          <p class="panel-help">Nur Anbieter mit mindestens 3 bewerteten Räumen; sortiert nach durchschnittlicher Team-Bewertung.</p>
+          <p class="panel-help">Nur Anbieter mit mindestens 2 bewerteten Räumen; sortiert nach durchschnittlicher Team-Bewertung.</p>
           <div class="rank-list">
             ${providerStats.map((stat, index) => `
               <div class="rank-row">

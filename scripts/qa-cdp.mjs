@@ -73,7 +73,7 @@ try {
   await assertEval(
     cdp,
     "Array.from(document.querySelectorAll('#region-filter option')).find((option) => option.textContent.startsWith('Spanien'))?.textContent",
-    (value) => value === "Spanien (14)",
+    (value) => value === "Spanien (16)",
     "spain dynamic city count",
   );
   await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");

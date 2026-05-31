@@ -53,6 +53,7 @@
   const SPAIN_CITIES = new Set([
     "alicante",
     "barcelona",
+    "berga",
     "bilbao",
     "cordoba",
     "girona",

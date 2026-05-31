@@ -725,7 +725,7 @@
 
   function rowsForGoogleSheets(rows) {
     return rows.map((row) => row.map((cell) => {
-      if (cell && typeof cell === "object" && typeof cell.f === "string") return `=${cell.f}`;
+      if (cell && typeof cell === "object" && typeof cell.f === "string") return cell.v ?? "";
       return cell ?? "";
     }));
   }
@@ -1085,31 +1085,31 @@
 
   function exportSheets() {
     const sheets = [
-      { name: "Gespielt (Welt)", rows: playedExportRows(data.played) },
+      { name: "Welt", rows: playedExportRows(data.played) },
+      {
+        name: "Up Next",
+        rows: [
+          ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
+          ...data.wishList.map((entry) => [
+            entry.title,
+            entry.provider,
+            entry.country,
+            entry.city,
+            entry.link,
+            entry.notes,
+          ]),
+        ],
+      },
     ];
+    const detailSheets = [];
 
     regionPresetOptions().forEach((region) => {
       const roomIds = new Set(region.roomIds);
       const rooms = data.played.filter((room) => roomIds.has(room.id));
-      sheets.push({ name: exportRegionSheetName(region), rows: playedExportRows(rooms) });
+      detailSheets.push({ name: exportRegionSheetName(region), rows: playedExportRows(rooms) });
     });
 
-    sheets.push({
-      name: "Up Next",
-      rows: [
-        ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
-        ...data.wishList.map((entry) => [
-          entry.title,
-          entry.provider,
-          entry.country,
-          entry.city,
-          entry.link,
-          entry.notes,
-        ]),
-      ],
-    });
-
-    sheets.push({
+    detailSheets.push({
       name: "Anderes",
       rows: [
         ["Game", "Anbieter", "Stadt", "Bewertung", "Datum", "Bemerkung"],
@@ -1124,7 +1124,10 @@
       ],
     });
 
-    return sheets;
+    return [
+      ...sheets,
+      ...detailSheets.sort((a, b) => a.name.localeCompare(b.name, "de")),
+    ];
   }
 
   function appendWorksheet(workbook, name, rows) {
@@ -1211,8 +1214,8 @@
 
   function exportRegionSheetName(region) {
     const names = {
-      HH: "HH",
-      BENELUX: "BENELUX",
+      HH: "Hamburg (HH)",
+      BENELUX: "BeNeLux",
       SPAIN: "Spanien",
       POLAND: "Polen",
       HUNGARY: "Ungarn",
@@ -1225,7 +1228,7 @@
       FINLAND: "Finnland",
       CROATIA: "Kroatien",
     };
-    return `Gespielt (${names[region.name] || region.name})`;
+    return names[region.name] || region.name;
   }
 
   function safeSheetName(name) {

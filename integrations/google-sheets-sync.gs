@@ -6,7 +6,7 @@ const SCRIPT_WRITE_GUARD_KEY = "tools2escapp_script_write_until";
 const MEMBERS = ["Sebi", "Elisa", "Lara", "Nikolai", "Ari"];
 
 const REGION_TABS = [
-  { name: "DE", sheet: "Gespielt (DE)", cities: [
+  { name: "DE", sheet: "DE", oldSheet: "Gespielt (DE)", cities: [
     "aachen", "bad salzuflen", "bad steben", "balingen", "bamberg", "berlin", "bielefeld",
     "bochum", "bonn", "bottrop", "braunschweig", "bruhl", "castrop rauxel", "dorsten",
     "dortmund", "duisburg", "dusseldorf", "essen", "frankfurt", "frechen", "friedrichshafen",
@@ -15,39 +15,39 @@ const REGION_TABS = [
     "monchengladbach", "munchen", "neuwied", "niederkassel", "oberhausen", "obernkirchen",
     "paderborn", "remscheid", "reutlingen", "siegburg", "tubingen", "witten", "wuppertal",
   ] },
-  { name: "Athen", sheet: "Gespielt (Athen)", cities: ["athen", "athens"] },
-  { name: "NRW", sheet: "Gespielt (NRW)", cities: [
+  { name: "Athen", sheet: "Athen", oldSheet: "Gespielt (Athen)", cities: ["athen", "athens"] },
+  { name: "NRW", sheet: "NRW", oldSheet: "Gespielt (NRW)", cities: [
     "aachen", "bad salzuflen", "bielefeld", "bochum", "bonn", "bottrop", "bruhl",
     "castrop rauxel", "dorsten", "dortmund", "duisburg", "dusseldorf", "essen", "frechen",
     "gelsenkirchen", "hagen", "herne", "koln", "krefeld", "langenfeld", "lippstadt",
     "monchengladbach", "niederkassel", "oberhausen", "paderborn", "remscheid", "siegburg",
     "witten", "wuppertal",
   ] },
-  { name: "HH", sheet: "Gespielt (HH)", cities: ["hamburg"] },
-  { name: "BENELUX", sheet: "Gespielt (BENELUX)", cities: [
+  { name: "HH", sheet: "Hamburg (HH)", oldSheet: "Gespielt (HH)", cities: ["hamburg"] },
+  { name: "BENELUX", sheet: "BeNeLux", oldSheet: "Gespielt (BENELUX)", cities: [
     "amersfoort", "amsterdam", "as", "baarn", "bemmel", "brugge", "brussel", "burgum",
     "den haag", "hilversum", "katwijk", "leiden", "lier", "luxembourg", "luxemburg",
     "maaseik", "mechelen", "moordrecht", "naarden", "retie", "rijswijk", "schijndel",
     "utrecht", "volkel", "voorburg", "waalwijk", "zoersel",
   ] },
-  { name: "SPAIN", sheet: "Gespielt (Spanien)", cities: ["barcelona", "berga"] },
-  { name: "POLAND", sheet: "Gespielt (Polen)", cities: ["breslau", "posen", "warschau"] },
-  { name: "HUNGARY", sheet: "Gespielt (Ungarn)", cities: ["budapest"] },
-  { name: "CZECHIA", sheet: "Gespielt (Tschechien)", cities: ["prag"] },
-  { name: "FRANCE", sheet: "Gespielt (Frankreich)", cities: ["paris", "strassbourg", "strasbourg"] },
-  { name: "IRELAND", sheet: "Gespielt (Irland)", cities: ["dublin"] },
-  { name: "UK", sheet: "Gespielt (UK)", cities: ["london"] },
-  { name: "PORTUGAL", sheet: "Gespielt (Portugal)", cities: ["lissabon", "lisbon", "lisboa"] },
-  { name: "ITALY", sheet: "Gespielt (Italien)", cities: ["rom", "roma"] },
-  { name: "FINLAND", sheet: "Gespielt (Finnland)", cities: ["helsinki"] },
-  { name: "CROATIA", sheet: "Gespielt (Kroatien)", cities: ["zagreb"] },
+  { name: "SPAIN", sheet: "Spanien", oldSheet: "Gespielt (Spanien)", cities: ["barcelona", "berga"] },
+  { name: "POLAND", sheet: "Polen", oldSheet: "Gespielt (Polen)", cities: ["breslau", "posen", "warschau"] },
+  { name: "HUNGARY", sheet: "Ungarn", oldSheet: "Gespielt (Ungarn)", cities: ["budapest"] },
+  { name: "CZECHIA", sheet: "Tschechien", oldSheet: "Gespielt (Tschechien)", cities: ["prag"] },
+  { name: "FRANCE", sheet: "Frankreich", oldSheet: "Gespielt (Frankreich)", cities: ["paris", "strassbourg", "strasbourg"] },
+  { name: "IRELAND", sheet: "Irland", oldSheet: "Gespielt (Irland)", cities: ["dublin"] },
+  { name: "UK", sheet: "UK", oldSheet: "Gespielt (UK)", cities: ["london"] },
+  { name: "PORTUGAL", sheet: "Portugal", oldSheet: "Gespielt (Portugal)", cities: ["lissabon", "lisbon", "lisboa"] },
+  { name: "ITALY", sheet: "Italien", oldSheet: "Gespielt (Italien)", cities: ["rom", "roma"] },
+  { name: "FINLAND", sheet: "Finnland", oldSheet: "Gespielt (Finnland)", cities: ["helsinki"] },
+  { name: "CROATIA", sheet: "Kroatien", oldSheet: "Gespielt (Kroatien)", cities: ["zagreb"] },
 ];
 
 function doPost(e) {
   const payload = JSON.parse((e.postData && e.postData.contents) || "{}");
   const spreadsheet = getSpreadsheet_();
   setScriptWriteGuard_(20000);
-  (payload.sheets || []).forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows || []));
+  writeAllTabs_(spreadsheet, payload.sheets || []);
   return jsonResponse_({ ok: true, updatedAt: new Date().toISOString() });
 }
 
@@ -67,7 +67,7 @@ function syncSheetToApp(e) {
   const payload = parseSpreadsheet_(spreadsheet, existingPayload, editedSheetName);
   updateSupabase_(payload);
   setScriptWriteGuard_(20000);
-  sheetsForPayload_(payload).forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows));
+  writeAllTabs_(spreadsheet, sheetsForPayload_(payload));
 }
 
 function getSpreadsheet_() {
@@ -76,19 +76,41 @@ function getSpreadsheet_() {
   return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
+function isWorldSheetName_(name) {
+  return normalizeSheetName_(name) === "Welt";
+}
+
+function isPlayedSheetName_(name) {
+  const normalizedName = normalizeSheetName_(name);
+  return normalizedName === "Welt" || REGION_TABS.some((region) => region.sheet === normalizedName);
+}
+
+function sheetByAnyName_(spreadsheet, ...names) {
+  for (const name of names) {
+    const sheet = spreadsheet.getSheetByName(name);
+    if (sheet) return sheet;
+  }
+  return null;
+}
+
+function sheetNameForRead_(spreadsheet, ...names) {
+  const sheet = sheetByAnyName_(spreadsheet, ...names);
+  return sheet ? sheet.getName() : "";
+}
+
 function parseSpreadsheet_(spreadsheet, existingPayload, editedSheetName) {
   const allPlayedSheets = spreadsheet.getSheets()
     .map((sheet) => sheet.getName())
-    .filter((name) => /^Gespielt \(/.test(name));
-  const playedSheets = editedSheetName === "Gespielt (Welt)" ? ["Gespielt (Welt)"] : allPlayedSheets
+    .filter(isPlayedSheetName_);
+  const playedSheets = isWorldSheetName_(editedSheetName) ? [sheetNameForRead_(spreadsheet, "Welt", "Gespielt (Welt)")] : allPlayedSheets
     .sort((a, b) => {
       if (a === editedSheetName) return 1;
       if (b === editedSheetName) return -1;
-      if (a === "Gespielt (Welt)") return -1;
-      if (b === "Gespielt (Welt)") return 1;
+      if (isWorldSheetName_(a)) return -1;
+      if (isWorldSheetName_(b)) return 1;
       return a.localeCompare(b);
     });
-  const members = detectMembers_(spreadsheet.getSheetByName("Gespielt (Welt)")) || MEMBERS;
+  const members = detectMembers_(sheetByAnyName_(spreadsheet, "Welt", "Gespielt (Welt)")) || MEMBERS;
   const existingRooms = mapByKey_(existingPayload.played || [], roomKey_);
   const existingWishes = mapByKey_(existingPayload.wishList || [], wishKey_);
   const existingOther = mapByKey_(existingPayload.other || [], otherKey_);
@@ -208,61 +230,65 @@ function parseOtherSheet_(sheet, existingOther) {
 
 function sheetsForPayload_(payload) {
   const members = payload.members || MEMBERS;
-  const sheets = [{ name: "Gespielt (Welt)", rows: playedRows_(payload.played || [], members) }];
+  const fixedSheets = [
+    { name: "Welt", rows: playedRows_(payload.played || [], members) },
+    {
+      name: "Up Next",
+      rows: [
+        ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
+        ...(payload.wishList || []).map((entry) => [entry.title, entry.provider, entry.country, entry.city, entry.link, entry.notes]),
+      ],
+    },
+  ];
+  const detailSheets = [];
   REGION_TABS.forEach((region) => {
     const rooms = (payload.played || []).filter((room) => roomInRegion_(room, region));
-    sheets.push({ name: region.sheet, rows: playedRows_(rooms, members) });
+    detailSheets.push({ name: region.sheet, rows: playedRows_(rooms, members) });
   });
-  sheets.push({
-    name: "Up Next",
-    rows: [
-      ["Game", "Anbieter", "Land", "Stadt", "Link", "Anmerkungen"],
-      ...(payload.wishList || []).map((entry) => [entry.title, entry.provider, entry.country, entry.city, entry.link, entry.notes]),
-    ],
-  });
-  sheets.push({
+  detailSheets.push({
     name: "Anderes",
     rows: [
       ["Game", "Anbieter", "Stadt", "Bewertung", "Datum", "Bemerkung"],
       ...(payload.other || []).map((entry) => [entry.title, entry.provider, entry.city, entry.rating, entry.date, entry.notes]),
     ],
   });
-  return sheets;
+  return [...fixedSheets, ...detailSheets.sort((a, b) => a.name.localeCompare(b.name, "de"))];
 }
 
 function playedRows_(rooms, members) {
-  const memberStart = 5;
-  const firstMember = columnLetter_(memberStart);
-  const lastMember = columnLetter_(memberStart + members.length - 1);
   return [
     [
       "Game", "Anbieter", "Stadt", "Scarefaktor", "Schwierigkeit",
-      ...members.map((member, index) => {
-        const column = columnLetter_(memberStart + index);
-        return `="${member} ("&COUNTA(${column}2:${column}999)&")"`;
-      }),
+      ...members.map((member) => `${member} (${rooms.filter((room) => memberPlayedRoom_(room, member)).length})`),
       "Ø", "Datum", "Bemerkung", "Tags",
     ],
-    ...rooms.map((room, index) => {
-      const rowNumber = index + 2;
-      return [
-        room.title,
-        room.provider,
-        room.city,
-        valueOrBlank_(room.scare),
-        valueOrBlank_(room.difficulty),
-        ...members.map((member) => memberRatingForSheet_(room, member)),
-        `=IF(COUNT(${firstMember}${rowNumber}:${lastMember}${rowNumber})>0,SUM(${firstMember}${rowNumber}:${lastMember}${rowNumber})/COUNT(${firstMember}${rowNumber}:${lastMember}${rowNumber}),"")`,
-        room.date,
-        room.notes,
-        (room.tags || []).join(", "),
-      ];
-    }),
+    ...rooms.map((room) => [
+      room.title,
+      room.provider,
+      room.city,
+      valueOrBlank_(room.scare),
+      valueOrBlank_(room.difficulty),
+      ...members.map((member) => memberRatingForSheet_(room, member)),
+      averageForSheet_(room, members),
+      room.date,
+      room.notes,
+      (room.tags || []).join(", "),
+    ]),
   ];
 }
 
+function writeAllTabs_(spreadsheet, tabs) {
+  const normalizedTabs = tabs.map((tab) => ({
+    name: normalizeSheetName_(tab.name),
+    rows: tab.rows || [],
+  }));
+  normalizedTabs.forEach((tab) => writeTab_(spreadsheet, tab.name, tab.rows));
+  orderAndCleanSheets_(spreadsheet, normalizedTabs.map((tab) => tab.name));
+}
+
 function writeTab_(spreadsheet, name, rows) {
-  const sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+  const sheetName = normalizeSheetName_(name);
+  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
   sheet.clear();
   if (!rows.length) return;
   const width = Math.max(...rows.map((row) => row.length));
@@ -275,6 +301,49 @@ function writeTab_(spreadsheet, name, rows) {
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, width).setFontWeight("bold").setBackground("#817de0").setFontColor("#ffffff");
   sheet.autoResizeColumns(1, Math.min(width, 14));
+}
+
+function getOrCreateSheet_(spreadsheet, name) {
+  const existing = spreadsheet.getSheetByName(name);
+  if (existing) return existing;
+  const oldName = oldSheetNameFor_(name);
+  const oldSheet = oldName ? spreadsheet.getSheetByName(oldName) : null;
+  if (oldSheet) {
+    oldSheet.setName(name);
+    return oldSheet;
+  }
+  return spreadsheet.insertSheet(name);
+}
+
+function orderAndCleanSheets_(spreadsheet, desiredNames) {
+  const desired = [...new Set(desiredNames.map(normalizeSheetName_))];
+  generatedOldSheetNames_().forEach((oldName) => {
+    const sheet = spreadsheet.getSheetByName(oldName);
+    if (sheet && !desired.includes(oldName) && spreadsheet.getSheets().length > 1) spreadsheet.deleteSheet(sheet);
+  });
+  desired.forEach((name, index) => {
+    const sheet = spreadsheet.getSheetByName(name);
+    if (!sheet) return;
+    spreadsheet.setActiveSheet(sheet);
+    spreadsheet.moveActiveSheet(index + 1);
+  });
+}
+
+function normalizeSheetName_(name) {
+  const cleanName = clean_(name);
+  if (cleanName === "Gespielt (Welt)") return "Welt";
+  const region = REGION_TABS.find((entry) => cleanName === entry.oldSheet || cleanName === entry.sheet || cleanName === entry.name);
+  return region ? region.sheet : cleanName;
+}
+
+function oldSheetNameFor_(name) {
+  if (name === "Welt") return "Gespielt (Welt)";
+  const region = REGION_TABS.find((entry) => entry.sheet === name);
+  return region ? region.oldSheet : "";
+}
+
+function generatedOldSheetNames_() {
+  return ["Gespielt (Welt)", ...REGION_TABS.map((entry) => entry.oldSheet)];
 }
 
 function fetchCurrentPayload_() {
@@ -311,7 +380,9 @@ function detectMembers_(sheet) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(clean_);
   const avgIndex = headers.findIndex((header) => clean_(header) === "Ø" || normalize_(header) === "ø" || normalize_(header) === "o");
   if (avgIndex < 7) return null;
-  return headers.slice(5, avgIndex).map((header) => clean_(header).replace(/\s*\(.+\)$/, "")).filter(Boolean);
+  const members = headers.slice(5, avgIndex).map((header) => clean_(header).replace(/\s*\(.+\)$/, "")).filter(Boolean);
+  if (members.length !== MEMBERS.length || members.some((member) => member.includes("#"))) return null;
+  return members;
 }
 
 function headerIndex_(headers, candidates) {
@@ -336,6 +407,16 @@ function memberRatingForSheet_(room, member) {
   const rating = room.ratings && room.ratings[member];
   if (typeof rating === "number") return rating;
   return (room.playedBy || []).includes(member) ? "-" : "";
+}
+
+function memberPlayedRoom_(room, member) {
+  return (room.playedBy || []).includes(member) || Boolean(room.ratings && typeof room.ratings[member] === "number");
+}
+
+function averageForSheet_(room, members) {
+  const values = members.map((member) => room.ratings && room.ratings[member]).filter((value) => typeof value === "number");
+  if (!values.length) return "";
+  return Number(averageOf_(values).toFixed(2));
 }
 
 function roomInRegion_(room, region) {

@@ -97,7 +97,7 @@ Die App kann nach jedem Speichern zusätzlich eine Google-Sheets-Datei im alten 
 
 Danach schreibt die App bei jeder Änderung alle Tabs neu in die Google-Tabelle. Umgekehrt schreibt jede manuelle Änderung in Google Sheets den Datenstand zurück in Supabase; offene Apps bekommen die Änderung per Realtime-Sync.
 
-Die Tabellen werden automatisch nach denselben Regionen wie in der App aufgeteilt: DE, Athen, NRW, HH, BENELUX, Spanien, Polen, Ungarn, Tschechien, Frankreich, Irland, UK, Portugal, Italien, Finnland und Kroatien.
+Die Tabellen werden automatisch nach denselben Regionen wie in der App aufgeteilt. Die Blatt-Reihenfolge ist `Welt`, `Up Next`, danach alphabetisch: `Anderes`, `Athen`, `BeNeLux`, `DE`, `Finnland`, `Frankreich`, `Hamburg (HH)`, `Irland`, `Italien`, `Kroatien`, `NRW`, `Polen`, `Portugal`, `Spanien`, `Tschechien`, `UK`, `Ungarn`.
 
 ## Datengrundlage
 

@@ -319,6 +319,10 @@
     return ui.selectedMembers.length ? ui.selectedMembers : data.members;
   }
 
+  function alphabeticalMembers() {
+    return [...data.members].sort((a, b) => a.localeCompare(b, "de"));
+  }
+
   function averageFor(room, members = currentMembers()) {
     const ratings = members.map((member) => room.ratings[member]).filter((value) => typeof value === "number");
     if (!ratings.length) return numberOrNull(room.average);
@@ -503,7 +507,7 @@
       <section class="member-switch" aria-label="Nach Personen filtern">
         <span>Gespielt von</span>
         ${memberFilterButton("team", "Team")}
-        ${data.members.map((member) => memberFilterButton(member, member)).join("")}
+        ${alphabeticalMembers().map((member) => memberFilterButton(member, member)).join("")}
       </section>
 
       <section class="room-grid">
@@ -549,7 +553,7 @@
 
   function renderRoomCard(room) {
     const score = averageFor(room);
-    const memberScores = data.members.map((member) => {
+    const memberScores = alphabeticalMembers().map((member) => {
       const rating = room.ratings[member];
       return `<span class="rating-pill ${rating === null ? "is-muted" : ""}">${escapeHtml(member)} ${formatScore(rating)}</span>`;
     }).join("");
@@ -736,6 +740,7 @@
         </article>
         <article class="panel">
           <h2>Top Anbieter</h2>
+          <p class="panel-help">Nur Anbieter mit mindestens 3 bewerteten Räumen; sortiert nach durchschnittlicher Team-Bewertung.</p>
           <div class="rank-list">
             ${providerStats.map((stat, index) => `
               <div class="rank-row">
@@ -802,6 +807,7 @@
         </article>
         <article class="panel">
           <h2>Kontrovers</h2>
+          <p class="panel-help">Räume mit mindestens 3 Einzelbewertungen; die Zahl zeigt die Spanne zwischen höchster und niedrigster Bewertung.</p>
           <div class="rank-list">
             ${splitRooms.map(({ room, spread }, index) => `
               <div class="rank-row">
@@ -849,7 +855,7 @@
               ${field("scare", "Horror", room.scare ?? 0, "number", false, "0", "5", "0.5")}
             </div>
             <div class="ratings-form">
-              ${data.members.map((member) => field(`rating-${member}`, member, ratings[member] ?? "", "number", false, "0", "10", "0.5")).join("")}
+              ${alphabeticalMembers().map((member) => field(`rating-${member}`, member, ratings[member] ?? "", "number", false, "0", "10", "0.5")).join("")}
             </div>
             <label class="full-field">
               <span>Tags</span>

@@ -392,6 +392,13 @@ h2 {
   padding: 16px;
 }
 
+.panel-help {
+  margin: -6px 0 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .panel-wide {
   grid-column: 1 / -1;
 }

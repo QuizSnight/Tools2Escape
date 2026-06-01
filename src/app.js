@@ -424,6 +424,8 @@
     map: null,
     layer: null,
     container: null,
+    groups: [],
+    listListenerAttached: false,
     geocodeCache: loadGeocodeCache(),
     pendingGeocodes: new Set(),
   };
@@ -1086,23 +1088,6 @@
     }, {});
   }
 
-  function exportExcelWorkbook() {
-    if (!window.XLSX?.utils) {
-      setNotice("Excel-Export konnte nicht geladen werden.");
-      return;
-    }
-
-    const workbook = window.XLSX.utils.book_new();
-    exportSheets().forEach((sheet) => appendWorksheet(workbook, sheet.name, sheet.rows));
-
-    const bytes = window.XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    downloadBlob(
-      new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-      `Tools2EscApp-${new Date().toISOString().slice(0, 10)}.xlsx`,
-    );
-    setNotice("Excel exportiert.");
-  }
-
   function exportSheets() {
     const sheets = [
       { name: "Welt", rows: playedExportRows(data.played) },
@@ -1148,12 +1133,6 @@
       ...sheets,
       ...detailSheets.sort((a, b) => a.name.localeCompare(b.name, "de")),
     ];
-  }
-
-  function appendWorksheet(workbook, name, rows) {
-    const worksheet = window.XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!cols"] = rows[0].map((_, index) => ({ wch: index < 3 ? 26 : index < 10 ? 12 : 18 }));
-    window.XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(name));
   }
 
   function playedExportRows(rooms) {
@@ -1255,17 +1234,6 @@
     return clean(name).replace(/[:\\/?*[\]]/g, " ").slice(0, 31) || "Export";
   }
 
-  function downloadBlob(blob, fileName) {
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = fileName;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
   function cssAttribute(value) {
     return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
@@ -1339,7 +1307,6 @@
         ${tabButton("map", "Karte")}
         ${tabButton("stats", "Statistik")}
       </nav>
-          <button class="header-action" data-export-excel type="button">Excel exportieren</button>
         </div>
       </header>
     `;
@@ -1509,8 +1476,6 @@
       .join("");
     const entries = getMapEntries();
     const groups = mapCityGroups(entries);
-    const mappedCount = groups.filter((group) => group.coords).length;
-    const missingGroups = groups.filter((group) => !group.coords);
 
     return `
       <section class="toolbar map-toolbar">
@@ -1536,15 +1501,26 @@
         <div class="map-shell">
           <div id="map-canvas" class="map-canvas" aria-label="Karte"></div>
         </div>
-        <aside class="map-list">
-          <div class="map-summary">
-            <strong>${entries.length}</strong>
-            <span>Räume · ${mappedCount}/${groups.length} Orte</span>
-          </div>
-          ${groups.length ? groups.map(renderMapGroup).join("") : renderEmptyState("Keine Orte gefunden.")}
-          ${missingGroups.length ? `<p class="map-missing">${escapeHtml(missingGroups.map((group) => group.city).join(", "))}</p>` : ""}
+        <aside class="map-list" data-map-list>
+          ${renderMapList(groups, groups, entries.length)}
         </aside>
       </section>
+    `;
+  }
+
+  function renderMapList(groups, allGroups = groups, roomCount = null) {
+    const listedRooms = roomCount ?? groups.reduce((sum, group) => sum + group.entries.length, 0);
+    const listedMappedPlaces = groups.filter((group) => group.coords).length;
+    const totalMappedPlaces = allGroups.filter((group) => group.coords).length;
+    const missingGroups = allGroups.filter((group) => !group.coords);
+
+    return `
+      <div class="map-summary">
+        <strong>${listedRooms}</strong>
+        <span>Räume im Ausschnitt · ${listedMappedPlaces}/${totalMappedPlaces} Orte</span>
+      </div>
+      ${groups.length ? groups.map(renderMapGroup).join("") : renderEmptyState("Keine Räume im aktuellen Kartenausschnitt.")}
+      ${missingGroups.length ? `<p class="map-missing">Ohne Kartenpunkt: ${escapeHtml(missingGroups.map((group) => group.city).join(", "))}</p>` : ""}
     `;
   }
 
@@ -1563,6 +1539,7 @@
     const canvas = app.querySelector("#map-canvas");
     if (!canvas) return;
     const groups = mapCityGroups();
+    mapState.groups = groups;
     queueMissingGeocodes(groups);
 
     if (!window.L) {
@@ -1574,6 +1551,7 @@
       mapState.map.remove();
       mapState.map = null;
       mapState.layer = null;
+      mapState.listListenerAttached = false;
     }
 
     if (!mapState.map) {
@@ -1583,6 +1561,11 @@
         maxZoom: 19,
       }).addTo(mapState.map);
       mapState.container = canvas;
+    }
+
+    if (!mapState.listListenerAttached) {
+      mapState.map.on("moveend zoomend", updateVisibleMapList);
+      mapState.listListenerAttached = true;
     }
 
     if (mapState.layer) mapState.layer.remove();
@@ -1609,7 +1592,24 @@
       } else {
         mapState.map.setView([51.1657, 10.4515], 5);
       }
+      updateVisibleMapList();
     }, 60);
+  }
+
+  function visibleMapGroups() {
+    if (!mapState.map || !window.L) return mapState.groups;
+    const bounds = mapState.map.getBounds();
+    return mapState.groups.filter((group) => {
+      if (!group.coords) return false;
+      return bounds.contains(window.L.latLng(group.coords[0], group.coords[1]));
+    });
+  }
+
+  function updateVisibleMapList() {
+    const list = app.querySelector("[data-map-list]");
+    if (!list) return;
+    const visibleGroups = visibleMapGroups();
+    list.innerHTML = renderMapList(visibleGroups, mapState.groups);
   }
 
   function queueMissingGeocodes(groups) {
@@ -2083,10 +2083,6 @@
       button.addEventListener("click", () => {
         void saveCloudState();
       });
-    });
-
-    app.querySelectorAll("[data-export-excel]").forEach((button) => {
-      button.addEventListener("click", exportExcelWorkbook);
     });
 
     const playedSearch = app.querySelector("#played-search");

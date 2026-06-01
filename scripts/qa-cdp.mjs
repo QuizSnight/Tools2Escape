@@ -41,11 +41,10 @@ try {
   );
   await assertEval(
     cdp,
-    "Boolean(document.querySelector('[data-export-excel]')) && !document.body.textContent.includes('Online')",
+    "!document.querySelector('[data-export-excel]') && !document.body.textContent.includes('Excel exportieren') && !document.body.textContent.includes('Online')",
     Boolean,
-    "export action replaces online badge",
+    "header has no export action or online badge",
   );
-  await assertEval(cdp, "Boolean(window.XLSX?.utils?.book_new)", Boolean, "xlsx export library loaded");
   await assertEval(
     cdp,
     "document.querySelectorAll('.room-card').length === window.T2E_SEED_DATA.played.length",

@@ -81,6 +81,12 @@ Den Freunden nur die App-URL schicken. Die App verbindet sich beim Öffnen autom
 
 Wichtig: Ohne Login ist die URL praktisch der Zugang. Poste den Link also nicht öffentlich.
 
+### Supabase-Ping
+
+Der GitHub-Workflow `.github/workflows/supabase-ping.yml` pingt Supabase täglich. Er versucht zuerst, den `team_state`-Datensatz per REST zu lesen. Falls Supabase diesen Datensatz in der REST-Schema-Ansicht nicht freigibt, nutzt er stattdessen Auth-/Storage-API-Pings. In beiden Fällen werden keine App-Daten verändert.
+
+Testen kannst du ihn in GitHub unter `Actions -> Supabase Ping -> Run workflow`. Standardmäßig nutzt der Workflow die Werte aus `src/config.js`. Optional können stattdessen Repository-Secrets mit den Namen `SUPABASE_URL`, `SUPABASE_ANON_KEY` und `SUPABASE_TEAM_ID` gesetzt werden.
+
 ## Google-Sheets-Sync
 
 Die App kann nach jedem Speichern zusätzlich eine Google-Sheets-Datei im alten Tabellenformat aktualisieren. Änderungen in Google Sheets können über einen installierbaren Trigger zurück in die App/Supabase synchronisiert werden.

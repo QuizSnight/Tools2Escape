@@ -10,6 +10,7 @@
     members: ["Sebi", "Elisa", "Lara", "Nikolai", "Ari"],
     played: [],
     wishList: [],
+    trips: [],
     other: [],
     regionPresets: [],
   };
@@ -264,6 +265,12 @@
   const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
   const GEOCODE_CACHE_KEY = "tools2escape:geocode-cache:v1";
   const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const TESSERACT_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  const TRIP_ITEM_LABELS = {
+    escape: "Escape Room",
+    accommodation: "Unterkunft",
+    other: "Sonstiges",
+  };
   const CITY_COORDS = {
     aachen: [50.7753, 6.0839],
     amersfoort: [52.1561, 5.3878],
@@ -399,6 +406,8 @@
     selectedMembers: [],
     wishSearch: "",
     wishCountry: "all",
+    tripSearch: "",
+    activeTripId: "",
     mapSource: "played",
     mapSearch: "",
     mapRegion: "all",
@@ -419,6 +428,7 @@
   let saveQueued = false;
   let sheetsSyncTimer = null;
   let applyingRemoteData = false;
+  let ocrScriptPromise = null;
   let data = loadData();
   const mapState = {
     map: null,
@@ -478,6 +488,7 @@
       members: Array.isArray(input.members) && input.members.length ? input.members : base.members,
       played: Array.isArray(input.played) ? input.played : [],
       wishList: Array.isArray(input.wishList) ? input.wishList : [],
+      trips: Array.isArray(input.trips) ? input.trips : [],
       other: Array.isArray(input.other) ? input.other : [],
       regionPresets: Array.isArray(input.regionPresets) ? input.regionPresets : [],
     };
@@ -519,8 +530,43 @@
       priority: clean(entry.priority) || "normal",
     }));
 
+    merged.trips = merged.trips.map(normalizeTrip);
+
     merged.updatedAt = input.updatedAt || new Date().toISOString();
     return merged;
+  }
+
+  function normalizeTrip(trip) {
+    return {
+      id: trip.id || makeId("trip"),
+      name: clean(trip.name),
+      startDate: clean(trip.startDate),
+      endDate: clean(trip.endDate),
+      destination: clean(trip.destination),
+      notes: clean(trip.notes),
+      items: Array.isArray(trip.items) ? trip.items.map(normalizeTripItem) : [],
+      createdAt: clean(trip.createdAt) || new Date().toISOString(),
+    };
+  }
+
+  function normalizeTripItem(item) {
+    const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
+    return {
+      id: item.id || makeId("trip-item"),
+      type,
+      title: clean(item.title),
+      provider: clean(item.provider),
+      date: clean(item.date),
+      time: clean(item.time),
+      endDate: clean(item.endDate),
+      endTime: clean(item.endTime),
+      address: clean(item.address),
+      city: clean(item.city),
+      bookingReference: clean(item.bookingReference),
+      link: clean(item.link),
+      notes: clean(item.notes),
+      sourceName: clean(item.sourceName),
+    };
   }
 
   function normalizeRatings(ratings, members) {
@@ -1283,6 +1329,7 @@
         <main class="main-panel">
           ${ui.view === "played" ? renderPlayedView(rooms) : ""}
           ${ui.view === "upnext" ? renderWishView() : ""}
+          ${ui.view === "trips" ? renderTripsView() : ""}
           ${ui.view === "map" ? renderMapView() : ""}
           ${ui.view === "stats" ? renderStatsView() : ""}
         </main>
@@ -1304,6 +1351,7 @@
           <nav class="tabs" aria-label="Hauptbereiche">
         ${tabButton("played", "Gespielt")}
         ${tabButton("upnext", "Up Next")}
+        ${tabButton("trips", "Trips")}
         ${tabButton("map", "Karte")}
         ${tabButton("stats", "Statistik")}
       </nav>
@@ -1468,6 +1516,205 @@
         </div>
       </article>
     `;
+  }
+
+  function renderTripsView() {
+    const activeTrip = data.trips.find((trip) => trip.id === ui.activeTripId);
+    if (activeTrip) return renderTripDetail(activeTrip);
+
+    const query = normalize(ui.tripSearch);
+    const trips = [...data.trips]
+      .filter((trip) => !query || normalize(`${trip.name} ${trip.destination} ${trip.notes} ${trip.items.map((item) => `${item.title} ${item.city}`).join(" ")}`).includes(query))
+      .sort(sortTrips);
+
+    return `
+      <section class="toolbar trips-toolbar">
+        <label class="search-box">
+          <span>Suche</span>
+          <input type="search" id="trip-search" value="${escapeHtml(ui.tripSearch)}" placeholder="Trip, Ziel, Stadt">
+        </label>
+        <button class="primary-action" data-open-trip type="button">Trip anlegen</button>
+      </section>
+      <section class="trip-grid">
+        ${trips.length ? trips.map(renderTripCard).join("") : renderEmptyState("Noch kein Trip geplant.")}
+      </section>
+    `;
+  }
+
+  function renderTripCard(trip) {
+    const escapeCount = trip.items.filter((item) => item.type === "escape").length;
+    const accommodationCount = trip.items.filter((item) => item.type === "accommodation").length;
+    const cities = unique(trip.items.map((item) => item.city)).slice(0, 4);
+    return `
+      <article class="trip-card">
+        <div class="trip-card__head">
+          <div>
+            <span class="trip-status ${escapeHtml(tripStatus(trip).className)}">${escapeHtml(tripStatus(trip).label)}</span>
+            <h2>${escapeHtml(trip.name || "Unbenannter Trip")}</h2>
+            <p>${escapeHtml(formatTripRange(trip))}</p>
+          </div>
+          <strong class="trip-days">${tripDuration(trip)}</strong>
+        </div>
+        ${trip.destination ? `<p class="trip-destination">${escapeHtml(trip.destination)}</p>` : ""}
+        <div class="trip-facts">
+          <span>${escapeCount} Escape Rooms</span>
+          <span>${accommodationCount} Unterkünfte</span>
+          ${cities.length ? `<span>${escapeHtml(cities.join(" · "))}</span>` : ""}
+        </div>
+        ${trip.notes ? `<p class="note">${escapeHtml(trip.notes)}</p>` : ""}
+        <div class="card-actions">
+          <button class="primary-action" type="button" data-open-trip-detail="${escapeHtml(trip.id)}">Trip öffnen</button>
+          <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Bearbeiten</button>
+          <button type="button" data-delete-trip="${escapeHtml(trip.id)}">Entfernen</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderTripDetail(trip) {
+    const items = [...trip.items].sort(sortTripItems);
+    const dayGroups = groupTripItems(items);
+    const escapeCount = items.filter((item) => item.type === "escape").length;
+    const accommodationCount = items.filter((item) => item.type === "accommodation").length;
+
+    return `
+      <section class="trip-detail-head">
+        <button type="button" data-close-trip-detail>Zurück zu Trips</button>
+        <div class="trip-title-row">
+          <div>
+            <span class="trip-status ${escapeHtml(tripStatus(trip).className)}">${escapeHtml(tripStatus(trip).label)}</span>
+            <h2>${escapeHtml(trip.name || "Unbenannter Trip")}</h2>
+            <p>${escapeHtml([formatTripRange(trip), trip.destination].filter(Boolean).join(" · "))}</p>
+          </div>
+          <div class="trip-detail-actions">
+            <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Trip bearbeiten</button>
+            <button type="button" data-import-trip-item="${escapeHtml(trip.id)}">Buchung importieren</button>
+            <button class="primary-action" type="button" data-open-trip-item="${escapeHtml(trip.id)}">Termin ergänzen</button>
+          </div>
+        </div>
+        ${trip.notes ? `<p class="trip-notes">${escapeHtml(trip.notes)}</p>` : ""}
+      </section>
+
+      <section class="kpi-grid trip-kpis" aria-label="Trip-Kennzahlen">
+        ${kpi("Tage", tripDuration(trip))}
+        ${kpi("Escape Rooms", escapeCount)}
+        ${kpi("Unterkünfte", accommodationCount)}
+        ${kpi("Termine", items.length)}
+      </section>
+
+      <section class="trip-timeline">
+        ${dayGroups.length ? dayGroups.map(([date, dayItems]) => renderTripDay(date, dayItems, trip.id)).join("") : renderEmptyState("Für diesen Trip sind noch keine Termine eingetragen.")}
+      </section>
+    `;
+  }
+
+  function renderTripDay(date, items, tripId) {
+    return `
+      <section class="trip-day">
+        <header class="trip-day__head">
+          <span>${date ? escapeHtml(formatWeekday(date)) : "OFFEN"}</span>
+          <div>
+            <h2>${date ? escapeHtml(formatLongDate(date)) : "Noch nicht terminiert"}</h2>
+            <p>${items.length} ${items.length === 1 ? "Eintrag" : "Einträge"}</p>
+          </div>
+        </header>
+        <div class="trip-day__items">
+          ${items.map((item) => renderTripItem(item, tripId)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripItem(item, tripId) {
+    const routeUrl = mapsRouteUrl(item);
+    const endText = [item.endDate ? formatDate(item.endDate) : "", item.endTime].filter(Boolean).join(" · ");
+    return `
+      <article class="trip-item trip-item--${escapeHtml(item.type)}">
+        <div class="trip-item__time">
+          <strong>${escapeHtml(item.time || "--:--")}</strong>
+          ${endText ? `<span>bis ${escapeHtml(endText)}</span>` : ""}
+        </div>
+        <div class="trip-item__body">
+          <span class="trip-type">${escapeHtml(TRIP_ITEM_LABELS[item.type])}</span>
+          <h3>${escapeHtml(item.title || "Ohne Titel")}</h3>
+          ${item.provider ? `<p class="trip-provider">${escapeHtml(item.provider)}</p>` : ""}
+          ${item.address || item.city ? `<address>${escapeHtml([item.address, item.city].filter(Boolean).join(", "))}</address>` : ""}
+          ${item.bookingReference ? `<p class="booking-reference">Buchung: ${escapeHtml(item.bookingReference)}</p>` : ""}
+          ${item.notes ? `<p class="note">${escapeHtml(item.notes)}</p>` : ""}
+          ${item.sourceName ? `<small class="trip-source">Importiert aus ${escapeHtml(item.sourceName)}</small>` : ""}
+          <div class="trip-item__actions">
+            ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route öffnen</a>` : ""}
+            ${item.link ? `<a class="external-link" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">Buchung öffnen</a>` : ""}
+            <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
+            <button type="button" data-delete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function sortTrips(a, b) {
+    const today = new Date().toISOString().slice(0, 10);
+    const aPast = a.endDate && a.endDate < today;
+    const bPast = b.endDate && b.endDate < today;
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    return aPast
+      ? (b.startDate || "").localeCompare(a.startDate || "")
+      : (a.startDate || "9999-12-31").localeCompare(b.startDate || "9999-12-31");
+  }
+
+  function sortTripItems(a, b) {
+    return `${a.date || "9999-12-31"} ${a.time || "99:99"} ${a.title}`
+      .localeCompare(`${b.date || "9999-12-31"} ${b.time || "99:99"} ${b.title}`, "de");
+  }
+
+  function groupTripItems(items) {
+    const groups = new Map();
+    items.forEach((item) => {
+      const key = item.date || "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    return [...groups.entries()];
+  }
+
+  function tripStatus(trip) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (!trip.startDate) return { label: "Planung", className: "is-planning" };
+    if (trip.endDate && trip.endDate < today) return { label: "Abgeschlossen", className: "is-past" };
+    if (trip.startDate <= today && (!trip.endDate || trip.endDate >= today)) return { label: "Unterwegs", className: "is-current" };
+    return { label: "Geplant", className: "is-upcoming" };
+  }
+
+  function tripDuration(trip) {
+    if (!trip.startDate || !trip.endDate) return trip.startDate ? 1 : 0;
+    const start = new Date(`${trip.startDate}T00:00:00`);
+    const end = new Date(`${trip.endDate}T00:00:00`);
+    if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end < start) return 0;
+    return Math.round((end - start) / 86400000) + 1;
+  }
+
+  function formatTripRange(trip) {
+    if (!trip.startDate) return "Termin offen";
+    if (!trip.endDate || trip.endDate === trip.startDate) return formatDate(trip.startDate);
+    return `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`;
+  }
+
+  function formatWeekday(value) {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.valueOf())) return "TAG";
+    return new Intl.DateTimeFormat("de-DE", { weekday: "short" }).format(date).replace(".", "").toUpperCase();
+  }
+
+  function formatLongDate(value) {
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.valueOf())) return value;
+    return new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(date);
+  }
+
+  function mapsRouteUrl(item) {
+    const destination = [item.address, item.city].filter(Boolean).join(", ");
+    return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : "";
   }
 
   function renderMapView() {
@@ -1927,6 +2174,9 @@
     if (!ui.modal) return "";
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
+    if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
+    if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
     return "";
   }
 
@@ -1999,6 +2249,118 @@
             <div class="modal-actions">
               <button type="button" data-close-modal>Abbrechen</button>
               <button class="primary-action" type="submit">Speichern</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTripModal(trip = {}) {
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-modal-title">
+          <form id="trip-form">
+            <input type="hidden" name="id" value="${escapeHtml(trip.id || "")}">
+            <div class="modal-head">
+              <h2 id="trip-modal-title">${trip.id ? "Trip bearbeiten" : "Trip anlegen"}</h2>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <div class="form-grid">
+              ${field("name", "Name", trip.name, "text", true)}
+              ${field("destination", "Ziel / Region", trip.destination, "text", false)}
+              ${field("startDate", "Von", trip.startDate, "date", false)}
+              ${field("endDate", "Bis", trip.endDate, "date", false)}
+            </div>
+            <label class="full-field">
+              <span>Notizen</span>
+              <textarea name="notes" rows="3">${escapeHtml(trip.notes || "")}</textarea>
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Speichern</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTripItemModal(tripId, item = {}, imported = false) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    const defaultDate = item.date || trip?.startDate || "";
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-item-modal-title">
+          <form id="trip-item-form">
+            <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
+            <input type="hidden" name="id" value="${escapeHtml(item.id || "")}">
+            <input type="hidden" name="sourceName" value="${escapeHtml(item.sourceName || "")}">
+            <div class="modal-head">
+              <div>
+                <h2 id="trip-item-modal-title">${imported ? "Buchungsdetails prüfen" : item.id ? "Termin bearbeiten" : "Termin ergänzen"}</h2>
+                ${imported ? `<p class="modal-subtitle">${escapeHtml(item.sourceName || "Import")}</p>` : ""}
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <div class="form-grid">
+              <label>
+                <span>Art</span>
+                <select name="type">
+                  ${Object.entries(TRIP_ITEM_LABELS).map(([value, label]) => selectOption(value, label, item.type || "escape")).join("")}
+                </select>
+              </label>
+              ${field("title", "Name", item.title, "text", true)}
+              ${field("provider", "Anbieter / Gastgeber", item.provider, "text", false)}
+              ${field("bookingReference", "Buchungsnummer", item.bookingReference, "text", false)}
+              ${field("date", "Datum / Check-in", defaultDate, "date", false)}
+              ${field("time", "Uhrzeit", item.time, "time", false)}
+              ${field("endDate", "Enddatum / Check-out", item.endDate, "date", false)}
+              ${field("endTime", "Endzeit", item.endTime, "time", false)}
+              ${field("address", "Adresse", item.address, "text", false)}
+              ${field("city", "Ort", item.city, "text", false)}
+            </div>
+            <label class="full-field">
+              <span>Link</span>
+              <input name="link" type="url" value="${escapeHtml(item.link || "")}" placeholder="https://">
+            </label>
+            <label class="full-field">
+              <span>Notizen</span>
+              <textarea name="notes" rows="3">${escapeHtml(item.notes || "")}</textarea>
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">${imported ? "Übernehmen" : "Speichern"}</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTripImportModal(tripId) {
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-import-modal-title">
+          <form id="trip-import-form">
+            <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
+            <div class="modal-head">
+              <h2 id="trip-import-modal-title">Buchung importieren</h2>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <label class="import-file-field">
+              <span>Datei</span>
+              <input id="trip-import-file" name="bookingFile" type="file" accept="image/*,.eml,.txt,message/rfc822">
+              <small data-import-file-name>Screenshot, E-Mail oder Textdatei</small>
+            </label>
+            <label class="full-field">
+              <span>E-Mail-Text</span>
+              <textarea name="sourceText" rows="8" placeholder="Buchungsbestätigung hier einfügen"></textarea>
+            </label>
+            <div class="import-status" data-import-status hidden></div>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit" data-import-submit>Details erkennen</button>
             </div>
           </form>
         </section>
@@ -2127,6 +2489,12 @@
       render();
     });
 
+    const tripSearch = app.querySelector("#trip-search");
+    if (tripSearch) tripSearch.addEventListener("input", (event) => {
+      ui.tripSearch = event.target.value;
+      render();
+    });
+
     const mapSource = app.querySelector("#map-source");
     if (mapSource) mapSource.addEventListener("change", (event) => {
       ui.mapSource = event.target.value;
@@ -2155,6 +2523,81 @@
     if (wishButton) wishButton.addEventListener("click", () => {
       ui.modal = { type: "wish", entry: {} };
       render();
+    });
+
+    const tripButton = app.querySelector("[data-open-trip]");
+    if (tripButton) tripButton.addEventListener("click", () => {
+      ui.modal = { type: "trip", trip: {} };
+      render();
+    });
+
+    app.querySelectorAll("[data-open-trip-detail]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.activeTripId = button.dataset.openTripDetail;
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-close-trip-detail]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.activeTripId = "";
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-edit-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.editTrip);
+        if (!trip) return;
+        ui.modal = { type: "trip", trip: clone(trip) };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-delete-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.deleteTrip);
+        if (!trip || !confirm(`Trip "${trip.name}" mit allen Terminen entfernen?`)) return;
+        data.trips = data.trips.filter((entry) => entry.id !== trip.id);
+        if (ui.activeTripId === trip.id) ui.activeTripId = "";
+        saveData();
+        setNotice("Trip entfernt.");
+      });
+    });
+
+    app.querySelectorAll("[data-open-trip-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "tripItem", tripId: button.dataset.openTripItem, item: { type: "escape" } };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-import-trip-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "tripImport", tripId: button.dataset.importTripItem };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-edit-trip-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.tripId);
+        const item = trip?.items.find((entry) => entry.id === button.dataset.editTripItem);
+        if (!item) return;
+        ui.modal = { type: "tripItem", tripId: trip.id, item: clone(item) };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-delete-trip-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.tripId);
+        const item = trip?.items.find((entry) => entry.id === button.dataset.deleteTripItem);
+        if (!trip || !item || !confirm(`"${item.title}" aus dem Trip entfernen?`)) return;
+        trip.items = trip.items.filter((entry) => entry.id !== item.id);
+        saveData();
+        setNotice("Termin entfernt.");
+      });
     });
 
     app.querySelectorAll("[data-edit-room]").forEach((button) => {
@@ -2251,6 +2694,23 @@
     const wishForm = app.querySelector("#wish-form");
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
 
+    const tripForm = app.querySelector("#trip-form");
+    if (tripForm) tripForm.addEventListener("submit", saveTripFromForm);
+
+    const tripItemForm = app.querySelector("#trip-item-form");
+    if (tripItemForm) tripItemForm.addEventListener("submit", saveTripItemFromForm);
+
+    const tripImportFile = app.querySelector("#trip-import-file");
+    if (tripImportFile) tripImportFile.addEventListener("change", () => {
+      const label = app.querySelector("[data-import-file-name]");
+      if (label) label.textContent = tripImportFile.files[0]?.name || "Screenshot, E-Mail oder Textdatei";
+    });
+
+    const tripImportForm = app.querySelector("#trip-import-form");
+    if (tripImportForm) tripImportForm.addEventListener("submit", (event) => {
+      void importTripBooking(event);
+    });
+
     if (ui.view === "map") window.requestAnimationFrame(renderMap);
   }
 
@@ -2331,6 +2791,373 @@
     saveData();
     ui.modal = null;
     setNotice("Plan gespeichert.");
+  }
+
+  function saveTripFromForm(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const id = clean(form.get("id")) || makeId("trip");
+    const existing = data.trips.find((trip) => trip.id === id);
+    const startDate = clean(form.get("startDate"));
+    const endDate = clean(form.get("endDate"));
+
+    if (startDate && endDate && endDate < startDate) {
+      event.currentTarget.elements.endDate.setCustomValidity("Das Enddatum muss nach dem Startdatum liegen.");
+      event.currentTarget.reportValidity();
+      return;
+    }
+
+    const trip = normalizeTrip({
+      ...(existing || {}),
+      id,
+      name: form.get("name"),
+      destination: form.get("destination"),
+      startDate,
+      endDate,
+      notes: form.get("notes"),
+      items: existing?.items || [],
+      createdAt: existing?.createdAt || new Date().toISOString(),
+    });
+
+    data.trips = existing
+      ? data.trips.map((entry) => (entry.id === id ? trip : entry))
+      : [trip, ...data.trips];
+    ui.activeTripId = id;
+    ui.modal = null;
+    saveData();
+    setNotice("Trip gespeichert.");
+  }
+
+  function saveTripItemFromForm(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    if (!trip) return;
+
+    const id = clean(form.get("id")) || makeId("trip-item");
+    const existing = trip.items.find((item) => item.id === id);
+    const date = clean(form.get("date"));
+    const endDate = clean(form.get("endDate"));
+    if (date && endDate && endDate < date) {
+      event.currentTarget.elements.endDate.setCustomValidity("Das Enddatum muss nach dem Startdatum liegen.");
+      event.currentTarget.reportValidity();
+      return;
+    }
+
+    const item = normalizeTripItem({
+      ...(existing || {}),
+      id,
+      type: form.get("type"),
+      title: form.get("title"),
+      provider: form.get("provider"),
+      bookingReference: form.get("bookingReference"),
+      date,
+      time: form.get("time"),
+      endDate,
+      endTime: form.get("endTime"),
+      address: form.get("address"),
+      city: form.get("city"),
+      link: form.get("link"),
+      notes: form.get("notes"),
+      sourceName: form.get("sourceName"),
+    });
+
+    trip.items = existing
+      ? trip.items.map((entry) => (entry.id === id ? item : entry))
+      : [...trip.items, item];
+    expandTripDates(trip, item);
+    ui.activeTripId = trip.id;
+    ui.modal = null;
+    saveData();
+    setNotice("Termin gespeichert.");
+  }
+
+  function expandTripDates(trip, item) {
+    const firstDate = item.date;
+    const lastDate = item.endDate || item.date;
+    if (firstDate && (!trip.startDate || firstDate < trip.startDate)) trip.startDate = firstDate;
+    if (lastDate && (!trip.endDate || lastDate > trip.endDate)) trip.endDate = lastDate;
+  }
+
+  async function importTripBooking(event) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const tripId = clean(form.get("tripId"));
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    const file = formElement.elements.bookingFile.files[0];
+    const pastedText = String(form.get("sourceText") || "").trim();
+    const status = formElement.querySelector("[data-import-status]");
+    const submit = formElement.querySelector("[data-import-submit]");
+    if (!trip) return;
+
+    submit.disabled = true;
+    setImportStatus(status, "Buchung wird gelesen ...");
+
+    try {
+      const sourceName = file?.name || "E-Mail-Text";
+      const fileText = file ? await readBookingFile(file, status) : "";
+      const sourceText = [fileText, pastedText].filter(Boolean).join("\n\n").trim();
+      if (!sourceText) throw new Error("Bitte einen Screenshot, eine E-Mail-Datei oder E-Mail-Text hinzufügen.");
+
+      setImportStatus(status, "Buchungsdetails werden erkannt ...");
+      const item = parseBookingText(sourceText, sourceName, trip);
+      ui.modal = { type: "tripItem", tripId, item, imported: true };
+      render();
+    } catch (error) {
+      setImportStatus(status, error.message || "Import fehlgeschlagen.", true);
+      submit.disabled = false;
+    }
+  }
+
+  async function readBookingFile(file, status) {
+    if (file.type.startsWith("image/")) return recognizeBookingImage(file, status);
+    const text = await file.text();
+    return file.name.toLowerCase().endsWith(".eml") || file.type === "message/rfc822"
+      ? extractEmailText(text)
+      : text;
+  }
+
+  async function recognizeBookingImage(file, status) {
+    await ensureTesseract();
+    const result = await window.Tesseract.recognize(file, "deu+eng", {
+      logger(message) {
+        if (message.status !== "recognizing text") return;
+        setImportStatus(status, `Screenshot wird gelesen ... ${Math.round((message.progress || 0) * 100)} %`);
+      },
+    });
+    return String(result?.data?.text || "").trim();
+  }
+
+  function ensureTesseract() {
+    if (window.Tesseract?.recognize) return Promise.resolve(window.Tesseract);
+    if (ocrScriptPromise) return ocrScriptPromise;
+
+    ocrScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = TESSERACT_SCRIPT_URL;
+      script.async = true;
+      script.onload = () => resolve(window.Tesseract);
+      script.onerror = () => {
+        ocrScriptPromise = null;
+        reject(new Error("Texterkennung konnte nicht geladen werden. Bitte Internetverbindung prüfen."));
+      };
+      document.head.append(script);
+    });
+    return ocrScriptPromise;
+  }
+
+  function setImportStatus(element, message, isError = false) {
+    if (!element) return;
+    element.hidden = false;
+    element.classList.toggle("is-error", isError);
+    element.textContent = message;
+  }
+
+  function extractEmailText(source) {
+    const subject = source.match(/^Subject:\s*(.+)$/im)?.[1] || "";
+    const decoded = decodeQuotedPrintable(source);
+    const base64Part = decoded.match(/Content-Type:\s*text\/(?:plain|html)[^\n]*[\s\S]*?Content-Transfer-Encoding:\s*base64\s*\r?\n\r?\n([A-Za-z0-9+/=\r\n]+)/i)?.[1];
+    let body = decoded;
+
+    if (base64Part) {
+      try {
+        const bytes = Uint8Array.from(atob(base64Part.replace(/\s/g, "")), (character) => character.charCodeAt(0));
+        body = new TextDecoder().decode(bytes);
+      } catch {
+        body = decoded;
+      }
+    }
+
+    const readableBody = htmlToText(body)
+      .split("\n")
+      .filter((line) => !/^(content-|mime-version:|boundary=|--[-_a-z0-9]+)/i.test(line.trim()))
+      .join("\n");
+    return [subject ? `Subject: ${subject}` : "", readableBody].filter(Boolean).join("\n").trim();
+  }
+
+  function decodeQuotedPrintable(source) {
+    return source
+      .replace(/=\r?\n/g, "")
+      .replace(/(?:=[A-Fa-f0-9]{2})+/g, (sequence) => {
+        const bytes = sequence.match(/[A-Fa-f0-9]{2}/g).map((hex) => Number.parseInt(hex, 16));
+        return new TextDecoder().decode(Uint8Array.from(bytes));
+      });
+  }
+
+  function htmlToText(source) {
+    const prepared = source
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
+    const documentNode = new DOMParser().parseFromString(prepared, "text/html");
+    return (documentNode.body.textContent || prepared)
+      .replace(/\r/g, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function parseBookingText(sourceText, sourceName, trip) {
+    const text = sourceText.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+    const lines = text.split("\n").map(clean).filter(Boolean);
+    const type = detectBookingType(text);
+    const dates = unique(extractDates(text));
+    const dateLabels = type === "accommodation"
+      ? ["check in", "check-in", "arrival", "ankunft", "arrivee", "arrivée"]
+      : ["datum", "date", "spieltag", "booking date", "reservation date"];
+    const endDateLabels = ["check out", "check-out", "departure", "abreise", "depart", "départ"];
+    const date = extractLabeledDate(lines, dateLabels) || dates[0] || trip.startDate || "";
+    const endDate = extractLabeledDate(lines, endDateLabels)
+      || (type === "accommodation" ? dates.find((candidate) => candidate > date) || "" : "");
+    const times = extractTimes(text);
+    const timeLabels = type === "accommodation"
+      ? ["check in", "check-in", "arrival", "ankunft"]
+      : ["uhrzeit", "time", "start", "slot", "heure", "tijd"];
+    const endTimeLabels = ["check out", "check-out", "departure", "abreise", "ende", "end time"];
+
+    return normalizeTripItem({
+      type,
+      title: extractBookingTitle(lines, type),
+      provider: extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "host", "gastgeber"]) || (text.toLowerCase().includes("airbnb") ? "Airbnb" : ""),
+      bookingReference: extractLabeledValue(lines, ["buchungsnummer", "buchungscode", "booking reference", "booking code", "reservation code", "confirmation code", "reference", "bestatigungscode", "bestätigungscode"]),
+      date,
+      time: extractLabeledTime(lines, timeLabels) || times[0] || "",
+      endDate,
+      endTime: extractLabeledTime(lines, endTimeLabels),
+      address: extractAddress(lines),
+      city: extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]),
+      link: text.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[),.;]+$/, "") || "",
+      notes: "",
+      sourceName,
+    });
+  }
+
+  function detectBookingType(text) {
+    return /(airbnb|hotel|hostel|apartment|unterkunft|übernachtung|uebernachtung|check[ -]?in|check[ -]?out|accommodation|ferienwohnung)/i.test(text)
+      ? "accommodation"
+      : "escape";
+  }
+
+  function extractBookingTitle(lines, type) {
+    const subject = lines.find((line) => /^subject:/i.test(line));
+    if (subject) return clean(subject.replace(/^subject:\s*/i, "").replace(/^(re|fw|fwd):\s*/i, ""));
+
+    const labeled = extractLabeledValue(lines, type === "accommodation"
+      ? ["unterkunft", "property", "accommodation", "listing", "hotel"]
+      : ["escape room", "room", "game", "spiel", "experience"]);
+    if (labeled) return labeled;
+
+    return lines.find((line) => (
+      line.length >= 3
+      && line.length <= 100
+      && !/^(from|to|date|sent|mime-version|content-|booking confirmation|buchungsbestätigung|bestätigung ihrer buchung)\b/i.test(line)
+      && !/^https?:\/\//i.test(line)
+    )) || (type === "accommodation" ? "Unterkunft" : "Escape Room");
+  }
+
+  function extractLabeledValue(lines, labels) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const normalizedLine = normalize(line);
+      const label = labels.find((candidate) => normalizedLine === normalize(candidate) || normalizedLine.startsWith(`${normalize(candidate)} `));
+      if (!label) continue;
+      const sameLine = clean(line.replace(new RegExp(`^${escapeRegExp(label)}\\s*[:#-]?\\s*`, "i"), ""));
+      if (sameLine && normalize(sameLine) !== normalize(label)) return sameLine;
+      if (lines[index + 1]) return lines[index + 1];
+    }
+    return "";
+  }
+
+  function extractLabeledDate(lines, labels) {
+    for (let index = 0; index < lines.length; index += 1) {
+      if (!labels.some((label) => normalize(lines[index]).includes(normalize(label)))) continue;
+      const dates = extractDates(`${lines[index]} ${lines[index + 1] || ""}`);
+      if (dates.length) return dates[0];
+    }
+    return "";
+  }
+
+  function extractLabeledTime(lines, labels) {
+    for (let index = 0; index < lines.length; index += 1) {
+      if (!labels.some((label) => normalize(lines[index]).includes(normalize(label)))) continue;
+      const times = extractTimes(`${lines[index]} ${lines[index + 1] || ""}`);
+      if (times.length) return times[0];
+    }
+    return "";
+  }
+
+  function extractDates(text) {
+    const matches = [];
+    const isoPattern = /\b(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g;
+    const numericPattern = /\b(0?[1-9]|[12]\d|3[01])[.\/-](0?[1-9]|1[0-2])[.\/-](\d{2}|20\d{2})\b/g;
+    const monthPattern = /\b(0?[1-9]|[12]\d|3[01])\.?\s+([A-Za-zÀ-ÿ]+)\s+(20\d{2})\b/g;
+    const monthFirstPattern = /\b([A-Za-zÀ-ÿ]+)\s+(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g;
+    let match;
+
+    while ((match = isoPattern.exec(text))) matches.push(validIsoDate(match[1], match[2], match[3]));
+    while ((match = numericPattern.exec(text))) matches.push(validIsoDate(normalizeYear(match[3]), match[2], match[1]));
+    while ((match = monthPattern.exec(text))) matches.push(validIsoDate(match[3], monthNumber(match[2]), match[1]));
+    while ((match = monthFirstPattern.exec(text))) matches.push(validIsoDate(match[3], monthNumber(match[1]), match[2]));
+    return matches.filter(Boolean).sort();
+  }
+
+  function extractTimes(text) {
+    const matches = [];
+    const pattern = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\s*(am|pm|uhr|h)?\b/gi;
+    let match;
+    while ((match = pattern.exec(text))) {
+      let hour = Number(match[1]);
+      const marker = clean(match[3]).toLowerCase();
+      if (marker === "pm" && hour < 12) hour += 12;
+      if (marker === "am" && hour === 12) hour = 0;
+      matches.push(`${String(hour).padStart(2, "0")}:${match[2]}`);
+    }
+    return unique(matches);
+  }
+
+  function monthNumber(name) {
+    const key = normalize(name);
+    const months = {
+      januar: 1, january: 1, janvier: 1, jan: 1,
+      februar: 2, february: 2, fevrier: 2, feb: 2,
+      marz: 3, march: 3, mars: 3, mar: 3,
+      april: 4, avril: 4, apr: 4,
+      mai: 5, may: 5,
+      juni: 6, june: 6, juin: 6, jun: 6,
+      juli: 7, july: 7, juillet: 7, jul: 7,
+      august: 8, aout: 8, aug: 8,
+      september: 9, septembre: 9, sep: 9, sept: 9,
+      oktober: 10, october: 10, octobre: 10, oct: 10, okt: 10,
+      november: 11, novembre: 11, nov: 11,
+      dezember: 12, december: 12, decembre: 12, dec: 12, dez: 12,
+    };
+    return months[key] || 0;
+  }
+
+  function normalizeYear(year) {
+    const value = Number(year);
+    return value < 100 ? 2000 + value : value;
+  }
+
+  function validIsoDate(year, month, day) {
+    const values = [Number(year), Number(month), Number(day)];
+    if (values.some((value) => !Number.isInteger(value)) || values[1] < 1 || values[1] > 12) return "";
+    const date = new Date(Date.UTC(values[0], values[1] - 1, values[2]));
+    if (date.getUTCFullYear() !== values[0] || date.getUTCMonth() !== values[1] - 1 || date.getUTCDate() !== values[2]) return "";
+    return `${values[0]}-${String(values[1]).padStart(2, "0")}-${String(values[2]).padStart(2, "0")}`;
+  }
+
+  function extractAddress(lines) {
+    const labeled = extractLabeledValue(lines, ["adresse", "address", "location", "lieu", "adres"]);
+    if (labeled) return labeled;
+    return lines.find((line) => (
+      /\d/.test(line)
+      && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
+    )) || "";
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   function setNotice(message) {

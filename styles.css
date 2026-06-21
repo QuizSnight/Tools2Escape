@@ -243,6 +243,10 @@ h2 {
   grid-template-columns: minmax(140px, 0.45fr) minmax(160px, 0.7fr) minmax(220px, 1fr);
 }
 
+.trips-toolbar {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -308,6 +312,316 @@ h2 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
+}
+
+.trip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.trip-card {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.trip-card__head,
+.trip-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.trip-card h2 {
+  margin: 8px 0 4px;
+  font-size: 1.25rem;
+}
+
+.trip-card p,
+.trip-title-row p,
+.trip-day__head p,
+.trip-provider {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.trip-days {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-size: 1.45rem;
+}
+
+.trip-days::after {
+  content: "T";
+  margin-left: 2px;
+  font-size: 0.66rem;
+  opacity: 0.72;
+}
+
+.trip-status,
+.trip-type {
+  display: inline-flex;
+  width: max-content;
+  border-radius: 4px;
+  padding: 5px 7px;
+  background: #edf1f5;
+  color: #314252;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.trip-status.is-upcoming {
+  background: #e3f4ee;
+  color: var(--accent-strong);
+}
+
+.trip-status.is-current {
+  background: #fff0cc;
+  color: #684610;
+}
+
+.trip-status.is-past {
+  color: var(--muted);
+}
+
+.trip-status.is-planning {
+  background: #eaf0f8;
+  color: var(--blue);
+}
+
+.trip-destination {
+  font-weight: 800;
+}
+
+.trip-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trip-facts span {
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  font-size: 0.84rem;
+}
+
+.trip-detail-head {
+  display: grid;
+  gap: 16px;
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.trip-detail-head > button {
+  width: max-content;
+}
+
+.trip-title-row h2 {
+  margin: 8px 0 6px;
+  font-size: 1.7rem;
+}
+
+.trip-detail-actions,
+.trip-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trip-notes {
+  max-width: 820px;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.trip-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.trip-timeline {
+  display: grid;
+  gap: 26px;
+}
+
+.trip-day {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.trip-day:first-child {
+  border-top: 0;
+}
+
+.trip-day__head {
+  align-self: start;
+  display: grid;
+  gap: 8px;
+  position: sticky;
+  top: 12px;
+}
+
+.trip-day__head > span {
+  color: var(--warm);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.trip-day__head h2 {
+  margin-bottom: 4px;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.trip-day__items {
+  display: grid;
+  gap: 10px;
+}
+
+.trip-item {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 150px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--warm);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.trip-item--accommodation {
+  border-left-color: var(--blue);
+}
+
+.trip-item--other {
+  border-left-color: var(--gold);
+}
+
+.trip-item__time {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 18px 12px;
+  background: #f7f9fa;
+}
+
+.trip-item__time strong {
+  font-size: 1.18rem;
+}
+
+.trip-item__time span,
+.trip-source {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.trip-item__body {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.trip-item__body h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.trip-item__body address {
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.trip-item__body .note,
+.booking-reference {
+  margin-bottom: 0;
+}
+
+.booking-reference {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.trip-type {
+  background: #fbe9e4;
+  color: #7b2e1a;
+}
+
+.trip-item--accommodation .trip-type {
+  background: #eaf0f8;
+  color: var(--blue);
+}
+
+.trip-item--other .trip-type {
+  background: #fff6e3;
+  color: #684610;
+}
+
+.trip-item__actions {
+  align-items: center;
+  margin-top: 4px;
+}
+
+.route-link {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.modal-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.import-file-field {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed #aeb9b7;
+  border-radius: 8px;
+  background: #f7f9fa;
+}
+
+.import-file-field small {
+  color: var(--muted);
+}
+
+.import-status {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--accent-strong);
+  font-weight: 750;
+}
+
+.import-status.is-error {
+  background: #fbe9e4;
+  color: #8d2e18;
 }
 
 .map-layout {
@@ -766,7 +1080,7 @@ h2 {
 
   .tabs {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     width: 100%;
   }
 
@@ -780,8 +1094,17 @@ h2 {
   }
 
   .room-grid,
-  .wish-grid {
+  .wish-grid,
+  .trip-grid {
     grid-template-columns: 1fr;
+  }
+
+  .trip-title-row {
+    flex-direction: column;
+  }
+
+  .trip-detail-actions {
+    width: 100%;
   }
 
   .map-shell,
@@ -817,6 +1140,28 @@ h2 {
   .form-grid,
   .ratings-form {
     grid-template-columns: 1fr;
+  }
+
+  .trip-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trip-day {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-day__head {
+    position: static;
+  }
+
+  .trip-item {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-item__time {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
   }
 
   .room-card__head {

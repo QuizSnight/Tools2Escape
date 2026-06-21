@@ -1,4 +1,8 @@
-const CACHE_NAME = "tools2escape-v23";
+const CACHE_NAME = "tools2escape-v24";
+const SHARE_DB_NAME = "tools2escape-share-target";
+const SHARE_DB_VERSION = 1;
+const SHARE_STORE_NAME = "shares";
+const SHARE_PENDING_KEY = "pending";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -35,6 +39,11 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
+  if (request.method === "POST" && url.searchParams.get("share-target") === "receive") {
+    event.respondWith(receiveSharedBooking(request));
+    return;
+  }
+
   if (request.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
 
@@ -47,3 +56,62 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((cached) => cached || fetch(request)),
   );
 });
+
+async function receiveSharedBooking(request) {
+  const redirectUrl = new URL("./?share-target=pending", self.registration.scope);
+
+  try {
+    const form = await request.formData();
+    const files = form.getAll("files")
+      .filter((entry) => entry instanceof File && entry.size)
+      .map((file) => ({
+        name: file.name,
+        type: file.type,
+        lastModified: file.lastModified,
+        blob: file,
+      }));
+
+    await savePendingShare({
+      id: SHARE_PENDING_KEY,
+      title: String(form.get("title") || ""),
+      text: String(form.get("text") || ""),
+      url: String(form.get("url") || ""),
+      files,
+      receivedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Shared booking could not be stored.", error);
+    redirectUrl.searchParams.set("share-target", "error");
+  }
+
+  return Response.redirect(redirectUrl.href, 303);
+}
+
+function savePendingShare(payload) {
+  return openShareDatabase().then((database) => new Promise((resolve, reject) => {
+    const transaction = database.transaction(SHARE_STORE_NAME, "readwrite");
+    transaction.objectStore(SHARE_STORE_NAME).put(payload);
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  }));
+}
+
+function openShareDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(SHARE_DB_NAME, SHARE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(SHARE_STORE_NAME)) {
+        database.createObjectStore(SHARE_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}

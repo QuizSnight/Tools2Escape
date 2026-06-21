@@ -184,6 +184,68 @@ try {
   await assertEval(cdp, "document.querySelectorAll('.trip-kpis .kpi').length === 3", Boolean, "trip overview omits appointment count");
   await assertEval(cdp, "window.__qaTripFormSimple && window.__qaTripRangePicker", Boolean, "trip form only uses name and one range picker");
 
+  await evalPage(cdp, `
+    new Promise((resolve, reject) => {
+      const request = indexedDB.open('tools2escape-share-target', 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('shares')) request.result.createObjectStore('shares', { keyPath: 'id' });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction('shares', 'readwrite');
+        transaction.objectStore('shares').put({
+          id: 'pending',
+          title: 'Booking confirmed',
+          text: [
+            'Escape Rush',
+            'Escape Rush',
+            'Your booking is confirmed!',
+            'Tokyo Lab',
+            'Saturday, 28 October 2023',
+            '19:45 - 20:55',
+            'Address: 30 rue de l automne, Ixelles, Bruxelles 1050'
+          ].join('\\n'),
+          url: '',
+          files: [],
+          receivedAt: new Date().toISOString()
+        });
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(true);
+        };
+        transaction.onerror = () => reject(transaction.error);
+      };
+    })
+  `);
+  await cdp.send("Page.navigate", { url: `${fileUrl}&share-target=pending` });
+  await waitForApp(cdp);
+  await evalPage(cdp, `
+    new Promise((resolve) => {
+      const deadline = Date.now() + 5000;
+      const timer = setInterval(() => {
+        if (document.querySelector('#trip-share-form') || Date.now() > deadline) {
+          clearInterval(timer);
+          resolve(true);
+        }
+      }, 50);
+    })
+  `);
+  await assertEval(cdp, "Boolean(document.querySelector('#trip-share-form')) && document.querySelector('.share-booking-preview')?.textContent.includes('Tokyo Lab')", Boolean, "shared email opens trip import");
+  await screenshot(cdp, path.join(qaDir, "trip-share-import.png"));
+  await evalPage(cdp, "document.querySelector('#trip-share-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"endTime\"]')?.value === '20:55'",
+    Boolean,
+    "shared email extracts booking details",
+  );
+  await evalPage(cdp, "document.querySelector('#trip-item-form [data-close-modal]').click()");
+  await assertEval(cdp, "Boolean(document.querySelector('#trip-share-form'))", Boolean, "canceling shared review returns to trip selection");
+  await cdp.send("Page.navigate", { url: fileUrl });
+  await waitForApp(cdp);
+  await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click(); document.querySelector('[data-open-trip-detail]').click()");
+
   if (ocrFixture) {
     await evalPage(cdp, "document.querySelector('[data-import-trip-item]').click()");
     const documentResult = await cdp.send("DOM.getDocument");

@@ -2,6 +2,10 @@
   "use strict";
 
   const STORAGE_KEY = "tools2escape:v2";
+  const SHARE_DB_NAME = "tools2escape-share-target";
+  const SHARE_DB_VERSION = 1;
+  const SHARE_STORE_NAME = "shares";
+  const SHARE_PENDING_KEY = "pending";
   const config = window.T2E_CONFIG || {};
   const seed = window.T2E_SEED_DATA || {
     version: 1,
@@ -430,6 +434,7 @@
   let applyingRemoteData = false;
   let ocrScriptPromise = null;
   let data = loadData();
+  let pendingShare = null;
   const mapState = {
     map: null,
     layer: null,
@@ -447,6 +452,75 @@
   async function init() {
     render();
     if (cloud.enabled) await initCloud();
+    await openSharedBooking();
+  }
+
+  async function openSharedBooking() {
+    const url = new URL(window.location.href);
+    const shareTarget = url.searchParams.get("share-target");
+    if (!shareTarget) return;
+
+    url.searchParams.delete("share-target");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+
+    if (shareTarget === "error") {
+      setNotice("Die geteilte Buchung konnte nicht übernommen werden.");
+      return;
+    }
+    if (shareTarget !== "pending") return;
+
+    try {
+      pendingShare = await readPendingShare();
+      if (!pendingShare) throw new Error("Keine geteilte Buchung gefunden.");
+      ui.view = "trips";
+      ui.activeTripId = "";
+      ui.modal = { type: "tripShare" };
+      render();
+    } catch (error) {
+      setNotice(error.message || "Die geteilte Buchung konnte nicht geöffnet werden.");
+    }
+  }
+
+  function openShareDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error("Der Browser unterstützt den Buchungsimport nicht."));
+        return;
+      }
+
+      const request = window.indexedDB.open(SHARE_DB_NAME, SHARE_DB_VERSION);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains(SHARE_STORE_NAME)) {
+          database.createObjectStore(SHARE_STORE_NAME, { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function readPendingShare() {
+    const database = await openShareDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(SHARE_STORE_NAME, "readonly");
+      const request = transaction.objectStore(SHARE_STORE_NAME).get(SHARE_PENDING_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => database.close();
+    });
+  }
+
+  async function clearPendingShare() {
+    pendingShare = null;
+    const database = await openShareDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(SHARE_STORE_NAME, "readwrite");
+      transaction.objectStore(SHARE_STORE_NAME).delete(SHARE_PENDING_KEY);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
   }
 
   function clone(value) {
@@ -1535,6 +1609,7 @@
           <span>Suche</span>
           <input type="search" id="trip-search" value="${escapeHtml(ui.tripSearch)}" placeholder="Trip, Ziel, Stadt">
         </label>
+        ${pendingShare ? `<button type="button" data-open-shared-booking>Geteilte Buchung öffnen</button>` : ""}
         <button class="primary-action" data-open-trip type="button">Trip anlegen</button>
       </section>
       <section class="trip-grid">
@@ -1586,6 +1661,7 @@
           </div>
           <div class="trip-detail-actions">
             <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Trip bearbeiten</button>
+            ${pendingShare ? `<button type="button" data-open-shared-booking>Geteilte Buchung öffnen</button>` : ""}
             <button type="button" data-import-trip-item="${escapeHtml(trip.id)}">Buchung importieren</button>
             <button class="primary-action" type="button" data-open-trip-item="${escapeHtml(trip.id)}">Termin ergänzen</button>
           </div>
@@ -2207,6 +2283,7 @@
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
+    if (ui.modal.type === "tripShare") return renderTripShareModal();
     return "";
   }
 
@@ -2443,6 +2520,59 @@
     `;
   }
 
+  function renderTripShareModal() {
+    const trips = [...data.trips].sort(sortTrips);
+    const selectedTripId = trips.some((trip) => trip.id === ui.activeTripId)
+      ? ui.activeTripId
+      : trips[0]?.id || "";
+    const files = Array.isArray(pendingShare?.files) ? pendingShare.files : [];
+    const sharedText = [pendingShare?.title, pendingShare?.text, pendingShare?.url]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    const preview = sharedText.length > 600 ? `${sharedText.slice(0, 600)} ...` : sharedText;
+
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-share-modal-title">
+          <form id="trip-share-form">
+            <div class="modal-head">
+              <div>
+                <h2 id="trip-share-modal-title">Geteilte Buchung</h2>
+                <p class="modal-subtitle">Aus deiner E-Mail-App</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <div class="share-booking-preview">
+              ${files.length ? `
+                <div class="share-file-list">
+                  ${files.map((file) => `<span>${escapeHtml(file.name || "Geteilte Datei")}</span>`).join("")}
+                </div>
+              ` : ""}
+              ${preview ? `<p>${escapeHtml(preview)}</p>` : ""}
+              ${!files.length && !preview ? `<p>Der geteilte Inhalt ist leer.</p>` : ""}
+            </div>
+            ${trips.length ? `
+              <label>
+                <span>Trip</span>
+                <select name="tripId" required>
+                  ${trips.map((trip) => selectOption(trip.id, `${trip.name} · ${formatTripRange(trip)}`, selectedTripId)).join("")}
+                </select>
+              </label>
+            ` : renderEmptyState("Lege zuerst den Trip für diese Buchung an.")}
+            <div class="import-status" data-share-import-status hidden></div>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Später</button>
+              ${trips.length
+                ? `<button class="primary-action" type="submit" data-share-import-submit>Details erkennen</button>`
+                : `<button class="primary-action" type="button" data-create-trip-for-share>Trip anlegen</button>`}
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
   function field(name, label, value = "", type = "text", required = false, min = "", max = "", step = "") {
     return `
       <label>
@@ -2603,6 +2733,19 @@
     const tripButton = app.querySelector("[data-open-trip]");
     if (tripButton) tripButton.addEventListener("click", () => {
       ui.modal = { type: "trip", trip: {} };
+      render();
+    });
+
+    app.querySelectorAll("[data-open-shared-booking]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "tripShare" };
+        render();
+      });
+    });
+
+    const createTripForShare = app.querySelector("[data-create-trip-for-share]");
+    if (createTripForShare) createTripForShare.addEventListener("click", () => {
+      ui.modal = { type: "trip", trip: {}, fromShare: true };
       render();
     });
 
@@ -2775,7 +2918,9 @@
     app.querySelectorAll("[data-close-modal]").forEach((element) => {
       element.addEventListener("click", (event) => {
         if (event.target !== element && !element.matches("button")) return;
-        ui.modal = null;
+        ui.modal = ui.modal?.type === "tripItem" && ui.modal.fromShare
+          ? { type: "tripShare" }
+          : null;
         render();
       });
     });
@@ -2828,6 +2973,11 @@
     const tripImportForm = app.querySelector("#trip-import-form");
     if (tripImportForm) tripImportForm.addEventListener("submit", (event) => {
       void importTripBooking(event);
+    });
+
+    const tripShareForm = app.querySelector("#trip-share-form");
+    if (tripShareForm && data.trips.length) tripShareForm.addEventListener("submit", (event) => {
+      void importSharedBooking(event);
     });
 
     if (ui.view === "map") window.requestAnimationFrame(renderMap);
@@ -2976,6 +3126,7 @@
 
   function saveTripFromForm(event) {
     event.preventDefault();
+    const returnToSharedBooking = Boolean(ui.modal?.fromShare && pendingShare);
     const form = new FormData(event.currentTarget);
     const id = clean(form.get("id")) || makeId("trip");
     const existing = data.trips.find((trip) => trip.id === id);
@@ -3011,13 +3162,14 @@
       ? data.trips.map((entry) => (entry.id === id ? trip : entry))
       : [trip, ...data.trips];
     ui.activeTripId = id;
-    ui.modal = null;
+    ui.modal = returnToSharedBooking ? { type: "tripShare" } : null;
     saveData();
     setNotice("Trip gespeichert.");
   }
 
   function saveTripItemFromForm(event) {
     event.preventDefault();
+    const completesSharedImport = Boolean(ui.modal?.fromShare);
     const form = new FormData(event.currentTarget);
     const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
     if (!trip) return;
@@ -3058,7 +3210,12 @@
     ui.activeTripId = trip.id;
     ui.modal = null;
     saveData();
-    setNotice("Termin gespeichert.");
+    if (completesSharedImport) {
+      void clearPendingShare().catch(console.warn);
+      setNotice("Geteilte Buchung im Trip gespeichert.");
+    } else {
+      setNotice("Termin gespeichert.");
+    }
   }
 
   function expandTripDates(trip, item) {
@@ -3097,6 +3254,59 @@
       setImportStatus(status, error.message || "Import fehlgeschlagen.", true);
       submit.disabled = false;
     }
+  }
+
+  async function importSharedBooking(event) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const tripId = clean(form.get("tripId"));
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    const status = formElement.querySelector("[data-share-import-status]");
+    const submit = formElement.querySelector("[data-share-import-submit]");
+    if (!trip || !pendingShare) return;
+
+    submit.disabled = true;
+    setImportStatus(status, "Geteilte Buchung wird gelesen ...");
+
+    try {
+      const storedFiles = Array.isArray(pendingShare.files) ? pendingShare.files : [];
+      const files = storedFiles.map(restoreSharedFile).filter(Boolean);
+      const fileTexts = [];
+
+      for (const file of files) {
+        fileTexts.push(await readBookingFile(file, status));
+      }
+
+      const sharedText = [pendingShare.title, pendingShare.text, pendingShare.url]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join("\n");
+      const sourceText = [...fileTexts, sharedText].filter(Boolean).join("\n\n").trim();
+      if (!sourceText) throw new Error("Die E-Mail-App hat keinen lesbaren Inhalt geteilt.");
+
+      setImportStatus(status, "Buchungsdetails werden erkannt ...");
+      const sourceName = files.map((file) => file.name).filter(Boolean).join(", ")
+        || clean(pendingShare.title)
+        || "Geteilte E-Mail";
+      const item = parseBookingText(sourceText, sourceName, trip);
+      ui.activeTripId = trip.id;
+      ui.modal = { type: "tripItem", tripId, item, imported: true, fromShare: true };
+      render();
+    } catch (error) {
+      setImportStatus(status, error.message || "Import fehlgeschlagen.", true);
+      submit.disabled = false;
+    }
+  }
+
+  function restoreSharedFile(entry) {
+    const blob = entry?.blob;
+    if (!(blob instanceof Blob)) return null;
+    if (blob instanceof File) return blob;
+    return new File([blob], entry.name || "Geteilte Datei", {
+      type: entry.type || blob.type,
+      lastModified: entry.lastModified || Date.now(),
+    });
   }
 
   async function readBookingFile(file, status) {

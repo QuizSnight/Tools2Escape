@@ -270,6 +270,9 @@
   const GEOCODE_CACHE_KEY = "tools2escape:geocode-cache:v1";
   const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const TESSERACT_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  const PDFJS_MODULE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs";
+  const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs";
+  const MAX_PDF_PAGES = 12;
   const TRIP_ITEM_LABELS = {
     escape: "Escape Room",
     accommodation: "Unterkunft",
@@ -433,6 +436,7 @@
   let sheetsSyncTimer = null;
   let applyingRemoteData = false;
   let ocrScriptPromise = null;
+  let pdfJsPromise = null;
   let data = loadData();
   let pendingShare = null;
   const mapState = {
@@ -2502,8 +2506,8 @@
             </div>
             <label class="import-file-field">
               <span>Dateien</span>
-              <input id="trip-import-file" name="bookingFile" type="file" accept="image/*,.eml,.txt,message/rfc822" multiple>
-              <small data-import-file-name>Mehrere Screenshots, E-Mail- oder Textdateien</small>
+              <input id="trip-import-file" name="bookingFile" type="file" accept="image/*,.pdf,.eml,.txt,application/pdf,message/rfc822" multiple>
+              <small data-import-file-name>PDF, mehrere Screenshots, E-Mail- oder Textdateien</small>
             </label>
             <label class="full-field">
               <span>E-Mail-Text</span>
@@ -2970,7 +2974,7 @@
       const files = [...tripImportFile.files];
       if (label) label.textContent = files.length > 1
         ? `${files.length} Dateien ausgewählt`
-        : files[0]?.name || "Mehrere Screenshots, E-Mail- oder Textdateien";
+        : files[0]?.name || "PDF, mehrere Screenshots, E-Mail- oder Textdateien";
     });
 
     const tripImportForm = app.querySelector("#trip-import-form");
@@ -3317,10 +3321,101 @@
 
   async function readBookingFile(file, status) {
     if (file.type.startsWith("image/")) return recognizeBookingImage(file, status);
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      return readBookingPdf(file, status);
+    }
     const text = await file.text();
     return file.name.toLowerCase().endsWith(".eml") || file.type === "message/rfc822"
       ? extractEmailText(text)
       : text;
+  }
+
+  async function readBookingPdf(file, status) {
+    const pdfjs = await ensurePdfJs();
+    setImportStatus(status, "PDF wird geöffnet ...");
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+    const documentNode = await loadingTask.promise;
+
+    try {
+      if (documentNode.numPages > MAX_PDF_PAGES) {
+        throw new Error(`Die PDF hat mehr als ${MAX_PDF_PAGES} Seiten. Bitte nur die Buchungsseiten importieren.`);
+      }
+
+      const pageTexts = [];
+      for (let pageNumber = 1; pageNumber <= documentNode.numPages; pageNumber += 1) {
+        setImportStatus(status, `PDF-Seite ${pageNumber} von ${documentNode.numPages} wird gelesen ...`);
+        const page = await documentNode.getPage(pageNumber);
+        const textContent = await page.getTextContent();
+        const pageText = extractPdfPageText(textContent);
+
+        if (pageText.replace(/\s/g, "").length >= 80) {
+          pageTexts.push(pageText);
+        } else {
+          setImportStatus(status, `PDF-Seite ${pageNumber} von ${documentNode.numPages} wird per Texterkennung gelesen ...`);
+          const pageImage = await renderPdfPage(page);
+          pageTexts.push(await recognizeBookingImage(pageImage, status));
+        }
+        page.cleanup();
+      }
+
+      const text = pageTexts.filter(Boolean).join("\n\n").trim();
+      if (!text) throw new Error("In der PDF konnte kein lesbarer Text gefunden werden.");
+      return text;
+    } finally {
+      await documentNode.destroy();
+    }
+  }
+
+  function extractPdfPageText(textContent) {
+    const lines = [];
+    let currentLine = [];
+    let previousY = null;
+
+    (textContent?.items || []).forEach((item) => {
+      const value = clean(item.str);
+      if (!value) return;
+      const y = Number(item.transform?.[5]);
+      if (previousY !== null && Number.isFinite(y) && Math.abs(y - previousY) > 2) {
+        lines.push(currentLine.join(" "));
+        currentLine = [];
+      }
+      currentLine.push(value);
+      if (Number.isFinite(y)) previousY = y;
+    });
+
+    if (currentLine.length) lines.push(currentLine.join(" "));
+    return lines.map(clean).filter(Boolean).join("\n");
+  }
+
+  async function renderPdfPage(page) {
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.max(1.4, Math.min(2.2, 2400 / Math.max(baseViewport.width, baseViewport.height)));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const context = canvas.getContext("2d", { alpha: false });
+    await page.render({ canvasContext: context, viewport }).promise;
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("PDF-Seite konnte nicht verarbeitet werden.")),
+        "image/png",
+      );
+    });
+  }
+
+  function ensurePdfJs() {
+    if (pdfJsPromise) return pdfJsPromise;
+    pdfJsPromise = import(PDFJS_MODULE_URL)
+      .then((pdfjs) => {
+        pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return pdfjs;
+      })
+      .catch((error) => {
+        pdfJsPromise = null;
+        throw new Error(`PDF-Unterstützung konnte nicht geladen werden: ${error.message || "Unbekannter Fehler"}`);
+      });
+    return pdfJsPromise;
   }
 
   async function recognizeBookingImage(file, status) {

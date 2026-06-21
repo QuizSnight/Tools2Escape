@@ -2,7 +2,7 @@
 
 Mobile-first Escape-Room-Tracker auf Basis der importierten Excel-Datei.
 
-Zusätzlich können mehrtägige Trips mit Escape Rooms, Unterkünften, Buchungsdaten und direkten Routenlinks geplant werden. Buchungsbestätigungen lassen sich als E-Mail-Text, `.eml`, `.txt` oder Screenshot importieren; erkannte Details werden vor dem Speichern in einem Formular geprüft.
+Zusätzlich können mehrtägige Trips mit Escape Rooms, Unterkünften, Buchungsdaten und direkten Routenlinks geplant werden. Buchungsbestätigungen lassen sich als E-Mail-Text, `.eml`, `.txt`, PDF oder über mehrere Screenshots importieren; erkannte Details werden vor dem Speichern in einem Formular geprüft.
 
 ## Öffnen
 

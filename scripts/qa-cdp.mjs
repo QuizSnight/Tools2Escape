@@ -10,6 +10,18 @@ const fileUrl = `file:///${path.join(workspace, "index.html").replace(/\\/g, "/"
 const ocrFixture = process.env.T2E_OCR_FIXTURE || "";
 
 await fs.mkdir(qaDir, { recursive: true });
+const pdfFixture = process.env.T2E_PDF_FIXTURE || path.join(qaDir, "booking-test.pdf");
+if (!process.env.T2E_PDF_FIXTURE) {
+  await fs.writeFile(pdfFixture, createSimplePdf([
+    "Escape Rush",
+    "Escape Rush",
+    "Your booking is confirmed!",
+    "Tokyo Lab",
+    "Saturday, 28 October 2023",
+    "19:45 - 20:55",
+    "Address: 30 rue de l automne, Ixelles, Bruxelles 1050",
+  ]));
+}
 const profileDir = await fs.mkdtemp(path.join(qaDir, "edge-profile-"));
 
 const edge = spawn(edgePath, [
@@ -281,6 +293,37 @@ try {
     );
     await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
   }
+  await evalPage(cdp, "document.querySelector('[data-import-trip-item]').click()");
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-import-file').accept.includes('.pdf') && document.querySelector('#trip-import-file').multiple",
+    Boolean,
+    "booking import accepts PDFs and multiple files",
+  );
+  const pdfDocumentResult = await cdp.send("DOM.getDocument");
+  const pdfFileInput = await cdp.send("DOM.querySelector", { nodeId: pdfDocumentResult.root.nodeId, selector: "#trip-import-file" });
+  await cdp.send("DOM.setFileInputFiles", { nodeId: pdfFileInput.nodeId, files: [pdfFixture] });
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('#trip-import-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => {
+        const deadline = Date.now() + 30000;
+        const timer = setInterval(() => {
+          if (document.querySelector('#trip-item-form') || document.querySelector('[data-import-status].is-error') || Date.now() > deadline) {
+            clearInterval(timer);
+            resolve(true);
+          }
+        }, 100);
+      });
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"endTime\"]')?.value === '20:55'",
+    Boolean,
+    "text PDF extracts booking details",
+  );
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-import-trip-item]').click();
@@ -599,4 +642,39 @@ async function screenshot(cdp, outputPath) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createSimplePdf(lines) {
+  const escapePdfText = (value) => value.replace(/([\\()])/g, "\\$1");
+  const content = [
+    "BT",
+    "/F1 14 Tf",
+    "50 790 Td",
+    ...lines.flatMap((line, index) => index
+      ? ["0 -28 Td", `(${escapePdfText(line)}) Tj`]
+      : [`(${escapePdfText(line)}) Tj`]),
+    "ET",
+  ].join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content, "ascii")} >>\nstream\n${content}\nendstream`,
+  ];
+
+  let source = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets[index + 1] = Buffer.byteLength(source, "ascii");
+    source += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(source, "ascii");
+  source += `xref\n0 ${objects.length + 1}\n`;
+  source += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    source += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  source += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(source, "ascii");
 }

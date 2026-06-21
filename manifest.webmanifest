@@ -22,9 +22,11 @@
           "accept": [
             "image/*",
             "message/rfc822",
+            "application/pdf",
             "text/plain",
             "text/html",
-            ".eml"
+            ".eml",
+            ".pdf"
           ]
         }
       ]

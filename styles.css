@@ -372,7 +372,8 @@ h2 {
 }
 
 .trip-status,
-.trip-type {
+.trip-type,
+.trip-complete {
   display: inline-flex;
   width: max-content;
   border-radius: 4px;
@@ -382,6 +383,11 @@ h2 {
   font-size: 0.72rem;
   font-weight: 850;
   text-transform: uppercase;
+}
+
+.trip-complete {
+  background: #e3f4ee;
+  color: var(--accent-strong);
 }
 
 .trip-status.is-upcoming {
@@ -451,7 +457,7 @@ h2 {
 }
 
 .trip-kpis {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .trip-timeline {
@@ -622,6 +628,29 @@ h2 {
 .import-status.is-error {
   background: #fbe9e4;
   color: #8d2e18;
+}
+
+.flatpickr-calendar {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-family: inherit;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.flatpickr-day.inRange {
+  border-color: #dcefe9;
+  background: #dcefe9;
+  box-shadow: -5px 0 0 #dcefe9, 5px 0 0 #dcefe9;
 }
 
 .map-layout {

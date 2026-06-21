@@ -566,6 +566,7 @@
       link: clean(item.link),
       notes: clean(item.notes),
       sourceName: clean(item.sourceName),
+      playedRoomId: clean(item.playedRoomId),
     };
   }
 
@@ -1322,6 +1323,7 @@
   function render() {
     const activeField = captureActiveField();
     const rooms = getPlayedRooms();
+    app.querySelectorAll(".trip-range-input").forEach((input) => input._flatpickr?.destroy());
     app.innerHTML = `
       <div class="app-shell">
         ${renderHeader()}
@@ -1544,7 +1546,6 @@
   function renderTripCard(trip) {
     const escapeCount = trip.items.filter((item) => item.type === "escape").length;
     const accommodationCount = trip.items.filter((item) => item.type === "accommodation").length;
-    const cities = unique(trip.items.map((item) => item.city)).slice(0, 4);
     return `
       <article class="trip-card">
         <div class="trip-card__head">
@@ -1555,13 +1556,10 @@
           </div>
           <strong class="trip-days">${tripDuration(trip)}</strong>
         </div>
-        ${trip.destination ? `<p class="trip-destination">${escapeHtml(trip.destination)}</p>` : ""}
         <div class="trip-facts">
           <span>${escapeCount} Escape Rooms</span>
           <span>${accommodationCount} Unterkünfte</span>
-          ${cities.length ? `<span>${escapeHtml(cities.join(" · "))}</span>` : ""}
         </div>
-        ${trip.notes ? `<p class="note">${escapeHtml(trip.notes)}</p>` : ""}
         <div class="card-actions">
           <button class="primary-action" type="button" data-open-trip-detail="${escapeHtml(trip.id)}">Trip öffnen</button>
           <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Bearbeiten</button>
@@ -1584,7 +1582,7 @@
           <div>
             <span class="trip-status ${escapeHtml(tripStatus(trip).className)}">${escapeHtml(tripStatus(trip).label)}</span>
             <h2>${escapeHtml(trip.name || "Unbenannter Trip")}</h2>
-            <p>${escapeHtml([formatTripRange(trip), trip.destination].filter(Boolean).join(" · "))}</p>
+            <p>${escapeHtml(formatTripRange(trip))}</p>
           </div>
           <div class="trip-detail-actions">
             <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Trip bearbeiten</button>
@@ -1592,14 +1590,12 @@
             <button class="primary-action" type="button" data-open-trip-item="${escapeHtml(trip.id)}">Termin ergänzen</button>
           </div>
         </div>
-        ${trip.notes ? `<p class="trip-notes">${escapeHtml(trip.notes)}</p>` : ""}
       </section>
 
       <section class="kpi-grid trip-kpis" aria-label="Trip-Kennzahlen">
         ${kpi("Tage", tripDuration(trip))}
         ${kpi("Escape Rooms", escapeCount)}
         ${kpi("Unterkünfte", accommodationCount)}
-        ${kpi("Termine", items.length)}
       </section>
 
       <section class="trip-timeline">
@@ -1627,24 +1623,30 @@
 
   function renderTripItem(item, tripId) {
     const routeUrl = mapsRouteUrl(item);
-    const endText = [item.endDate ? formatDate(item.endDate) : "", item.endTime].filter(Boolean).join(" · ");
+    const isAccommodation = item.type === "accommodation";
+    const timeText = isAccommodation ? "Check-in" : item.time || "--:--";
+    const endText = isAccommodation
+      ? item.endDate ? `Check-out ${formatDate(item.endDate)}` : ""
+      : item.endTime ? `bis ${item.endTime}` : "";
     return `
       <article class="trip-item trip-item--${escapeHtml(item.type)}">
         <div class="trip-item__time">
-          <strong>${escapeHtml(item.time || "--:--")}</strong>
-          ${endText ? `<span>bis ${escapeHtml(endText)}</span>` : ""}
+          <strong>${escapeHtml(timeText)}</strong>
+          ${endText ? `<span>${escapeHtml(endText)}</span>` : ""}
         </div>
         <div class="trip-item__body">
           <span class="trip-type">${escapeHtml(TRIP_ITEM_LABELS[item.type])}</span>
           <h3>${escapeHtml(item.title || "Ohne Titel")}</h3>
+          ${item.playedRoomId ? `<span class="trip-complete">Gespielt</span>` : ""}
           ${item.provider ? `<p class="trip-provider">${escapeHtml(item.provider)}</p>` : ""}
           ${item.address || item.city ? `<address>${escapeHtml([item.address, item.city].filter(Boolean).join(", "))}</address>` : ""}
-          ${item.bookingReference ? `<p class="booking-reference">Buchung: ${escapeHtml(item.bookingReference)}</p>` : ""}
           ${item.notes ? `<p class="note">${escapeHtml(item.notes)}</p>` : ""}
           ${item.sourceName ? `<small class="trip-source">Importiert aus ${escapeHtml(item.sourceName)}</small>` : ""}
           <div class="trip-item__actions">
             ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route öffnen</a>` : ""}
             ${item.link ? `<a class="external-link" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">Buchung öffnen</a>` : ""}
+            ${item.type === "escape" && !item.playedRoomId ? `<button class="primary-action" type="button" data-complete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Gespielt</button>` : ""}
+            ${item.type === "escape" && item.playedRoomId ? `<button type="button" data-edit-room="${escapeHtml(item.playedRoomId)}">Bewertung bearbeiten</button>` : ""}
             <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
             <button type="button" data-delete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
           </div>
@@ -1715,6 +1717,34 @@
   function mapsRouteUrl(item) {
     const destination = [item.address, item.city].filter(Boolean).join(", ");
     return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : "";
+  }
+
+  function findMatchingWish(item) {
+    return findRoomByTitle(item, data.wishList);
+  }
+
+  function findMatchingPlayedRoom(item) {
+    return findRoomByTitle(item, data.played);
+  }
+
+  function findRoomByTitle(item, entries) {
+    const title = normalize(item.title);
+    if (!title) return null;
+    return entries.find((entry) => normalize(entry.title) === title)
+      || entries.find((entry) => {
+        const candidate = normalize(entry.title);
+        return candidate.length >= 6 && (title.includes(candidate) || candidate.includes(title));
+      })
+      || null;
+  }
+
+  function extractCityFromAddress(address) {
+    const parts = clean(address).split(",").map(clean).filter(Boolean);
+    if (!parts.length) return "";
+    const countries = new Set(["belgium", "belgique", "belgie", "france", "germany", "deutschland", "netherlands", "nederland", "luxembourg"]);
+    let candidate = parts[parts.length - 1];
+    if (countries.has(normalize(candidate)) && parts.length > 1) candidate = parts[parts.length - 2];
+    return clean(candidate.replace(/\b\d{4,6}\b/g, ""));
   }
 
   function renderMapView() {
@@ -2172,7 +2202,7 @@
 
   function renderModal() {
     if (!ui.modal) return "";
-    if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId);
+    if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
@@ -2180,7 +2210,7 @@
     return "";
   }
 
-  function renderRoomModal(room = {}, wishId = "") {
+  function renderRoomModal(room = {}, wishId = "", tripId = "", tripItemId = "") {
     const ratings = normalizeRatings(room.ratings || {}, data.members);
     const playedBy = normalizePlayedBy(room.playedBy, ratings, data.members);
     return `
@@ -2189,6 +2219,8 @@
           <form id="room-form">
             <input type="hidden" name="id" value="${escapeHtml(room.id || "")}">
             <input type="hidden" name="wishId" value="${escapeHtml(wishId)}">
+            <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
+            <input type="hidden" name="tripItemId" value="${escapeHtml(tripItemId)}">
             <div class="modal-head">
               <h2 id="room-modal-title">${room.id ? "Raum bearbeiten" : "Raum eintragen"}</h2>
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
@@ -2257,25 +2289,27 @@
   }
 
   function renderTripModal(trip = {}) {
+    const rangeValue = trip.startDate
+      ? [formatDate(trip.startDate), trip.endDate && trip.endDate !== trip.startDate ? formatDate(trip.endDate) : ""].filter(Boolean).join(" bis ")
+      : "";
     return `
       <div class="modal-backdrop" data-close-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-modal-title">
           <form id="trip-form">
             <input type="hidden" name="id" value="${escapeHtml(trip.id || "")}">
+            <input type="hidden" name="startDate" value="${escapeHtml(trip.startDate || "")}">
+            <input type="hidden" name="endDate" value="${escapeHtml(trip.endDate || "")}">
             <div class="modal-head">
               <h2 id="trip-modal-title">${trip.id ? "Trip bearbeiten" : "Trip anlegen"}</h2>
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
             </div>
-            <div class="form-grid">
+            <div class="form-grid trip-form-grid">
               ${field("name", "Name", trip.name, "text", true)}
-              ${field("destination", "Ziel / Region", trip.destination, "text", false)}
-              ${field("startDate", "Von", trip.startDate, "date", false)}
-              ${field("endDate", "Bis", trip.endDate, "date", false)}
+              <label>
+                <span>Von bis</span>
+                <input class="trip-range-input" id="trip-date-range" type="text" value="${escapeHtml(rangeValue)}" placeholder="Zeitraum auswählen" autocomplete="off" required>
+              </label>
             </div>
-            <label class="full-field">
-              <span>Notizen</span>
-              <textarea name="notes" rows="3">${escapeHtml(trip.notes || "")}</textarea>
-            </label>
             <div class="modal-actions">
               <button type="button" data-close-modal>Abbrechen</button>
               <button class="primary-action" type="submit">Speichern</button>
@@ -2289,6 +2323,9 @@
   function renderTripItemModal(tripId, item = {}, imported = false) {
     const trip = data.trips.find((entry) => entry.id === tripId);
     const defaultDate = item.date || trip?.startDate || "";
+    const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
+    const labels = tripItemLabels(type);
+    const address = [item.address, item.city].filter(Boolean).join(", ");
     return `
       <div class="modal-backdrop" data-close-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-item-modal-title">
@@ -2306,19 +2343,17 @@
             <div class="form-grid">
               <label>
                 <span>Art</span>
-                <select name="type">
-                  ${Object.entries(TRIP_ITEM_LABELS).map(([value, label]) => selectOption(value, label, item.type || "escape")).join("")}
+                <select name="type" id="trip-item-type">
+                  ${Object.entries(TRIP_ITEM_LABELS).map(([value, label]) => selectOption(value, label, type)).join("")}
                 </select>
               </label>
-              ${field("title", "Name", item.title, "text", true)}
-              ${field("provider", "Anbieter / Gastgeber", item.provider, "text", false)}
-              ${field("bookingReference", "Buchungsnummer", item.bookingReference, "text", false)}
-              ${field("date", "Datum / Check-in", defaultDate, "date", false)}
-              ${field("time", "Uhrzeit", item.time, "time", false)}
-              ${field("endDate", "Enddatum / Check-out", item.endDate, "date", false)}
-              ${field("endTime", "Endzeit", item.endTime, "time", false)}
-              ${field("address", "Adresse", item.address, "text", false)}
-              ${field("city", "Ort", item.city, "text", false)}
+              ${tripItemField("title", labels.title, item.title, "text", "title", true)}
+              ${tripItemField("provider", labels.provider, item.provider, "text", "provider")}
+              ${tripItemField("date", labels.date, defaultDate, "date", "date")}
+              ${tripItemField("time", labels.time, item.time, "time", "time", false, type === "accommodation")}
+              ${tripItemField("endDate", labels.endDate, item.endDate, "date", "endDate", false, type === "escape")}
+              ${tripItemField("endTime", labels.endTime, item.endTime, "time", "endTime", false, type === "accommodation")}
+              ${tripItemField("address", "Adresse", address, "text", "address")}
             </div>
             <label class="full-field">
               <span>Link</span>
@@ -2336,6 +2371,46 @@
         </section>
       </div>
     `;
+  }
+
+  function tripItemField(name, label, value, type, role, required = false, hidden = false) {
+    return `
+      <label data-trip-item-field="${escapeHtml(role)}" ${hidden ? "hidden" : ""}>
+        <span data-trip-item-label>${escapeHtml(label)}</span>
+        <input name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(value || "")}" ${required ? "required" : ""} ${hidden ? "disabled" : ""}>
+      </label>
+    `;
+  }
+
+  function tripItemLabels(type) {
+    if (type === "accommodation") {
+      return {
+        title: "Unterkunft",
+        provider: "Gastgeber",
+        date: "Check-in",
+        time: "Uhrzeit",
+        endDate: "Check-out",
+        endTime: "Endzeit",
+      };
+    }
+    if (type === "other") {
+      return {
+        title: "Name",
+        provider: "Anbieter",
+        date: "Datum",
+        time: "Uhrzeit",
+        endDate: "Enddatum",
+        endTime: "Endzeit",
+      };
+    }
+    return {
+      title: "Raum",
+      provider: "Anbieter",
+      date: "Datum",
+      time: "Uhrzeit",
+      endDate: "Enddatum",
+      endTime: "Endzeit",
+    };
   }
 
   function renderTripImportModal(tripId) {
@@ -2600,6 +2675,43 @@
       });
     });
 
+    app.querySelectorAll("[data-complete-trip-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.tripId);
+        const item = trip?.items.find((entry) => entry.id === button.dataset.completeTripItem);
+        if (!trip || !item) return;
+
+        const playedRoom = findMatchingPlayedRoom(item);
+        const wish = findMatchingWish(item);
+        if (playedRoom) {
+          item.playedRoomId = playedRoom.id;
+          saveData();
+          ui.modal = { type: "room", room: clone(playedRoom) };
+          render();
+          return;
+        }
+
+        ui.modal = {
+          type: "room",
+          tripId: trip.id,
+          tripItemId: item.id,
+          wishId: wish?.id || "",
+          room: {
+            title: item.title,
+            provider: item.provider || wish?.provider || "",
+            city: wish?.city || extractCityFromAddress(item.address),
+            date: item.date,
+            scare: null,
+            difficulty: null,
+            ratings: {},
+            notes: item.notes,
+            tags: [],
+          },
+        };
+        render();
+      });
+    });
+
     app.querySelectorAll("[data-edit-room]").forEach((button) => {
       button.addEventListener("click", () => {
         const room = data.played.find((entry) => entry.id === button.dataset.editRoom);
@@ -2695,10 +2807,17 @@
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
 
     const tripForm = app.querySelector("#trip-form");
-    if (tripForm) tripForm.addEventListener("submit", saveTripFromForm);
+    if (tripForm) {
+      initTripDateRangePicker(tripForm);
+      tripForm.addEventListener("submit", saveTripFromForm);
+    }
 
     const tripItemForm = app.querySelector("#trip-item-form");
-    if (tripItemForm) tripItemForm.addEventListener("submit", saveTripItemFromForm);
+    if (tripItemForm) {
+      updateTripItemFields(tripItemForm);
+      tripItemForm.querySelector("#trip-item-type")?.addEventListener("change", () => updateTripItemFields(tripItemForm));
+      tripItemForm.addEventListener("submit", saveTripItemFromForm);
+    }
 
     const tripImportFile = app.querySelector("#trip-import-file");
     if (tripImportFile) tripImportFile.addEventListener("change", () => {
@@ -2712,6 +2831,64 @@
     });
 
     if (ui.view === "map") window.requestAnimationFrame(renderMap);
+  }
+
+  function initTripDateRangePicker(form) {
+    const input = form.querySelector("#trip-date-range");
+    const startInput = form.elements.startDate;
+    const endInput = form.elements.endDate;
+    if (!input || !window.flatpickr) return;
+
+    const defaultDates = [startInput.value, endInput.value]
+      .filter(Boolean)
+      .map((value) => new Date(`${value}T00:00:00`));
+    const locale = {
+      ...(window.flatpickr.l10ns.de || {}),
+      rangeSeparator: " bis ",
+    };
+
+    window.flatpickr(input, {
+      mode: "range",
+      locale,
+      dateFormat: "j. F Y",
+      defaultDate: defaultDates,
+      disableMobile: true,
+      showMonths: window.innerWidth >= 760 ? 2 : 1,
+      monthSelectorType: "static",
+      onChange(selectedDates) {
+        startInput.value = selectedDates[0] ? localIsoDate(selectedDates[0]) : "";
+        endInput.value = selectedDates[1] ? localIsoDate(selectedDates[1]) : "";
+        input.setCustomValidity("");
+      },
+    });
+  }
+
+  function localIsoDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function updateTripItemFields(form) {
+    const type = form.elements.type.value;
+    const labels = tripItemLabels(type);
+    const visibility = {
+      title: true,
+      provider: true,
+      date: true,
+      time: type !== "accommodation",
+      endDate: type !== "escape",
+      endTime: type !== "accommodation",
+      address: true,
+    };
+
+    Object.entries(visibility).forEach(([role, visible]) => {
+      const fieldElement = form.querySelector(`[data-trip-item-field="${role}"]`);
+      if (!fieldElement) return;
+      fieldElement.hidden = !visible;
+      const input = fieldElement.querySelector("input");
+      if (input) input.disabled = !visible;
+      const label = fieldElement.querySelector("[data-trip-item-label]");
+      if (label && labels[role]) label.textContent = labels[role];
+    });
   }
 
   function saveRoomFromForm(event) {
@@ -2756,6 +2933,10 @@
     const wishId = clean(form.get("wishId"));
     if (wishId) data.wishList = data.wishList.filter((entry) => entry.id !== wishId);
 
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    const tripItem = trip?.items.find((entry) => entry.id === clean(form.get("tripItemId")));
+    if (tripItem) tripItem.playedRoomId = room.id;
+
     saveData();
     void geocodeCity(city);
     ui.modal = null;
@@ -2799,7 +2980,14 @@
     const id = clean(form.get("id")) || makeId("trip");
     const existing = data.trips.find((trip) => trip.id === id);
     const startDate = clean(form.get("startDate"));
-    const endDate = clean(form.get("endDate"));
+    const endDate = clean(form.get("endDate")) || startDate;
+
+    if (!startDate) {
+      const rangeInput = event.currentTarget.querySelector("#trip-date-range");
+      rangeInput.setCustomValidity("Bitte einen Zeitraum auswählen.");
+      event.currentTarget.reportValidity();
+      return;
+    }
 
     if (startDate && endDate && endDate < startDate) {
       event.currentTarget.elements.endDate.setCustomValidity("Das Enddatum muss nach dem Startdatum liegen.");
@@ -2811,10 +2999,10 @@
       ...(existing || {}),
       id,
       name: form.get("name"),
-      destination: form.get("destination"),
+      destination: "",
       startDate,
       endDate,
-      notes: form.get("notes"),
+      notes: "",
       items: existing?.items || [],
       createdAt: existing?.createdAt || new Date().toISOString(),
     });
@@ -2836,8 +3024,9 @@
 
     const id = clean(form.get("id")) || makeId("trip-item");
     const existing = trip.items.find((item) => item.id === id);
+    const type = clean(form.get("type")) || "escape";
     const date = clean(form.get("date"));
-    const endDate = clean(form.get("endDate"));
+    const endDate = type === "escape" ? "" : clean(form.get("endDate"));
     if (date && endDate && endDate < date) {
       event.currentTarget.elements.endDate.setCustomValidity("Das Enddatum muss nach dem Startdatum liegen.");
       event.currentTarget.reportValidity();
@@ -2847,16 +3036,16 @@
     const item = normalizeTripItem({
       ...(existing || {}),
       id,
-      type: form.get("type"),
+      type,
       title: form.get("title"),
       provider: form.get("provider"),
-      bookingReference: form.get("bookingReference"),
+      bookingReference: "",
       date,
-      time: form.get("time"),
+      time: type === "accommodation" ? "" : form.get("time"),
       endDate,
-      endTime: form.get("endTime"),
+      endTime: type === "accommodation" ? "" : form.get("endTime"),
       address: form.get("address"),
-      city: form.get("city"),
+      city: "",
       link: form.get("link"),
       notes: form.get("notes"),
       sourceName: form.get("sourceName"),
@@ -2920,13 +3109,61 @@
 
   async function recognizeBookingImage(file, status) {
     await ensureTesseract();
-    const result = await window.Tesseract.recognize(file, "deu+eng", {
+    setImportStatus(status, "Screenshot wird vorbereitet ...");
+    const preparedImage = await prepareImageForOcr(file);
+    const result = await window.Tesseract.recognize(preparedImage, "eng+fra+deu", {
       logger(message) {
         if (message.status !== "recognizing text") return;
         setImportStatus(status, `Screenshot wird gelesen ... ${Math.round((message.progress || 0) * 100)} %`);
       },
     });
-    return String(result?.data?.text || "").trim();
+    return cleanOcrText(result?.data?.text || "");
+  }
+
+  async function prepareImageForOcr(file) {
+    if (typeof createImageBitmap !== "function") return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.max(1, Math.min(2, 2600 / bitmap.width));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      let brightness = 0;
+      const sampleStep = Math.max(4, Math.floor(image.data.length / 20000 / 4) * 4);
+      for (let index = 0; index < image.data.length; index += sampleStep) {
+        brightness += image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114;
+      }
+      const sampleCount = Math.ceil(image.data.length / sampleStep);
+      const invert = brightness / sampleCount < 125;
+
+      for (let index = 0; index < image.data.length; index += 4) {
+        let gray = image.data[index] * 0.299 + image.data[index + 1] * 0.587 + image.data[index + 2] * 0.114;
+        if (invert) gray = 255 - gray;
+        gray = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
+        image.data[index] = gray;
+        image.data[index + 1] = gray;
+        image.data[index + 2] = gray;
+      }
+      context.putImageData(image, 0, 0);
+      return await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || file), "image/png"));
+    } catch (error) {
+      console.warn("OCR image preparation failed", error);
+      return file;
+    }
+  }
+
+  function cleanOcrText(value) {
+    return String(value || "")
+      .replace(/\r/g, "")
+      .replace(/[|¦]/g, "I")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
 
   function ensureTesseract() {
@@ -2998,34 +3235,42 @@
   }
 
   function parseBookingText(sourceText, sourceName, trip) {
-    const text = sourceText.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+    const text = cleanOcrText(sourceText);
     const lines = text.split("\n").map(clean).filter(Boolean);
     const type = detectBookingType(text);
+    const catalogMatch = findBookingCatalogMatch(text);
     const dates = unique(extractDates(text));
     const dateLabels = type === "accommodation"
-      ? ["check in", "check-in", "arrival", "ankunft", "arrivee", "arrivée"]
-      : ["datum", "date", "spieltag", "booking date", "reservation date"];
+      ? ["check in", "check-in", "arrival", "ankunft", "arrivee", "arrivée", "date d arrivee"]
+      : ["datum", "date", "spieltag", "booking date", "reservation date", "session date", "date of visit", "scheduled for", "when"];
     const endDateLabels = ["check out", "check-out", "departure", "abreise", "depart", "départ"];
     const date = extractLabeledDate(lines, dateLabels) || dates[0] || trip.startDate || "";
     const endDate = extractLabeledDate(lines, endDateLabels)
       || (type === "accommodation" ? dates.find((candidate) => candidate > date) || "" : "");
     const times = extractTimes(text);
+    const sessionTimes = extractSessionTimeRange(lines);
     const timeLabels = type === "accommodation"
       ? ["check in", "check-in", "arrival", "ankunft"]
-      : ["uhrzeit", "time", "start", "slot", "heure", "tijd"];
+      : ["uhrzeit", "time", "start time", "session time", "start", "slot", "heure", "tijd", "scheduled for"];
     const endTimeLabels = ["check out", "check-out", "departure", "abreise", "ende", "end time"];
+    const city = extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]);
+    const address = mergeAddressAndCity(extractAddress(lines), city);
+    const provider = catalogMatch?.provider
+      || extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser", "host", "gastgeber"])
+      || extractRepeatedBrand(lines)
+      || (text.toLowerCase().includes("airbnb") ? "Airbnb" : "");
 
     return normalizeTripItem({
       type,
-      title: extractBookingTitle(lines, type),
-      provider: extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "host", "gastgeber"]) || (text.toLowerCase().includes("airbnb") ? "Airbnb" : ""),
-      bookingReference: extractLabeledValue(lines, ["buchungsnummer", "buchungscode", "booking reference", "booking code", "reservation code", "confirmation code", "reference", "bestatigungscode", "bestätigungscode"]),
+      title: catalogMatch?.title || extractBookingTitle(lines, type, text),
+      provider,
+      bookingReference: "",
       date,
-      time: extractLabeledTime(lines, timeLabels) || times[0] || "",
+      time: type === "accommodation" ? "" : extractLabeledTime(lines, timeLabels) || sessionTimes[0] || likelyBookingTime(lines, times),
       endDate,
-      endTime: extractLabeledTime(lines, endTimeLabels),
-      address: extractAddress(lines),
-      city: extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]),
+      endTime: type === "accommodation" ? "" : extractLabeledTime(lines, endTimeLabels) || sessionTimes[1] || "",
+      address,
+      city: "",
       link: text.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[),.;]+$/, "") || "",
       notes: "",
       sourceName,
@@ -3038,21 +3283,137 @@
       : "escape";
   }
 
-  function extractBookingTitle(lines, type) {
+  function extractBookingTitle(lines, type, text = lines.join("\n")) {
+    const confirmedIndex = lines.findIndex((line) => /(your booking is confirmed|booking confirmed|reservation confirmed|buchung.*bestatigt|reservation.*confirmee)/i.test(normalize(line)));
+    if (confirmedIndex >= 0) {
+      const nextTitle = lines.slice(confirmedIndex + 1, confirmedIndex + 5).find((line) => !isBookingNoiseLine(line));
+      if (nextTitle) return cleanBookingTitle(nextTitle);
+    }
+
+    const textPatterns = [
+      /(?:game|room|experience|activity|escape room)\s*[:#-]\s*([^\n]{3,100})/i,
+      /(?:your booking for|you(?:'|’)re booked for|reservation for)\s+([^\n]{3,100})/i,
+    ];
+    for (const pattern of textPatterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) return cleanBookingTitle(match[1]);
+    }
+
     const subject = lines.find((line) => /^subject:/i.test(line));
-    if (subject) return clean(subject.replace(/^subject:\s*/i, "").replace(/^(re|fw|fwd):\s*/i, ""));
+    if (subject) return cleanBookingTitle(subject.replace(/^subject:\s*/i, "").replace(/^(re|fw|fwd):\s*/i, ""));
 
     const labeled = extractLabeledValue(lines, type === "accommodation"
       ? ["unterkunft", "property", "accommodation", "listing", "hotel"]
       : ["escape room", "room", "game", "spiel", "experience"]);
-    if (labeled) return labeled;
+    if (labeled) return cleanBookingTitle(labeled);
 
-    return lines.find((line) => (
-      line.length >= 3
-      && line.length <= 100
-      && !/^(from|to|date|sent|mime-version|content-|booking confirmation|buchungsbestätigung|bestätigung ihrer buchung)\b/i.test(line)
-      && !/^https?:\/\//i.test(line)
-    )) || (type === "accommodation" ? "Unterkunft" : "Escape Room");
+    return cleanBookingTitle(lines.find((line) => !isBookingNoiseLine(line)) || (type === "accommodation" ? "Unterkunft" : "Escape Room"));
+  }
+
+  function cleanBookingTitle(value) {
+    return clean(value)
+      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+      .replace(/^.*?\b(?:booking|reservation)\s+(?:is\s+)?(?:confirmed|confirmation|confirmee|confirmée)\s*[:#'"-]+\s*/i, "")
+      .replace(/^(booking|reservation|order)?\s*(is\s+)?(confirmed|confirmation|confirmee|confirmée)\s*[:#'"-]*\s*/i, "")
+      .replace(/^your\s+(booking|reservation)\s+(is\s+)?(confirmed|confirmation)\s*[:#'"-]*\s*/i, "")
+      .trim();
+  }
+
+  function isBookingNoiseLine(line) {
+    const normalizedLine = normalize(line);
+    if (line.length < 3 || line.length > 100) return true;
+    if (/^\d{1,2}[:.]\d{2}$/.test(line)) return true;
+    if (/^https?:\/\//i.test(line) || /@/.test(line)) return true;
+    return /^(from|to|date|sent|mime version|content|booking confirmation|booking details|your booking is confirmed|customer|price|participants|total price|amount paid|amount due|booking number|vat|view map)\b/.test(normalizedLine);
+  }
+
+  function findBookingCatalogMatch(text) {
+    const normalizedText = normalize(text);
+    const lineCandidates = text.split("\n")
+      .map((line) => ({ original: clean(line), normalized: normalize(line) }))
+      .filter((line) => line.normalized.length >= 4 && line.normalized.length <= 100);
+    const catalog = [...data.wishList, ...data.played];
+    let best = null;
+
+    catalog.forEach((entry) => {
+      const title = normalize(entry.title);
+      if (title.length < 4) return;
+      const closestLine = lineCandidates
+        .map((line) => ({ ...line, similarity: textSimilarity(title, line.normalized) }))
+        .sort((a, b) => b.similarity - a.similarity)[0];
+      const tokens = title.split(" ").filter((token) => token.length >= 3);
+      const exactLine = closestLine?.normalized === title;
+      const exactText = title.length >= 8 && normalizedText.includes(title);
+      const matchedTokens = tokens.filter((token) => normalizedText.includes(token)).length;
+      const coverage = tokens.length ? matchedTokens / tokens.length : 0;
+      let score = 0;
+      if (exactLine) score = 240 + title.length;
+      else if (closestLine?.similarity >= 0.78) score = closestLine.similarity * 180 + title.length / 100;
+      else if (exactText) score = 100 + title.length;
+      else if (coverage >= 0.75 && matchedTokens >= 2) score = coverage * 50 + title.length / 100;
+      if (score > (best?.score || 0)) {
+        best = {
+          title: closestLine?.similarity >= 0.78 ? cleanBookingTitle(closestLine.original) : entry.title,
+          provider: entry.provider,
+          score,
+        };
+      }
+    });
+
+    return best;
+  }
+
+  function textSimilarity(left, right) {
+    if (left === right) return 1;
+    const rows = Array.from({ length: left.length + 1 }, (_, index) => [index]);
+    for (let column = 0; column <= right.length; column += 1) rows[0][column] = column;
+    for (let row = 1; row <= left.length; row += 1) {
+      for (let column = 1; column <= right.length; column += 1) {
+        rows[row][column] = Math.min(
+          rows[row - 1][column] + 1,
+          rows[row][column - 1] + 1,
+          rows[row - 1][column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+        );
+      }
+    }
+    return 1 - rows[left.length][right.length] / Math.max(left.length, right.length);
+  }
+
+  function extractRepeatedBrand(lines) {
+    const candidates = new Map();
+    lines.forEach((line) => {
+      if (isBookingNoiseLine(line) || /\d/.test(line) || line.length > 50) return;
+      const key = normalize(line);
+      if (!key) return;
+      const candidate = candidates.get(key) || { line, count: 0 };
+      candidate.count += 1;
+      candidates.set(key, candidate);
+    });
+    return [...candidates.values()].sort((a, b) => b.count - a.count).find((candidate) => candidate.count >= 2)?.line || "";
+  }
+
+  function extractSessionTimeRange(lines) {
+    for (const line of lines) {
+      const times = extractTimes(line);
+      if (times.length >= 2 && /(?:-|–|—|\bto\b|\bbis\b|\ba\b|\bà\b)/i.test(line)) return times.slice(0, 2);
+    }
+    return [];
+  }
+
+  function likelyBookingTime(lines, allTimes) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const times = extractTimes(lines[index]);
+      if (!times.length) continue;
+      if (index < 4 && /^\d{1,2}[:.]\d{2}$/.test(lines[index])) continue;
+      return times[0];
+    }
+    return allTimes.find((time) => time !== allTimes[0]) || allTimes[0] || "";
+  }
+
+  function mergeAddressAndCity(address, city) {
+    const cleanedAddress = clean(address).replace(/\s*\(?view map\)?\s*$/i, "");
+    if (!city || normalize(cleanedAddress).includes(normalize(city))) return cleanedAddress;
+    return [cleanedAddress, city].filter(Boolean).join(", ");
   }
 
   function extractLabeledValue(lines, labels) {
@@ -3090,12 +3451,14 @@
     const matches = [];
     const isoPattern = /\b(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g;
     const numericPattern = /\b(0?[1-9]|[12]\d|3[01])[.\/-](0?[1-9]|1[0-2])[.\/-](\d{2}|20\d{2})\b/g;
+    const usNumericPattern = /\b(0?[1-9]|1[0-2])[\/-](1[3-9]|2\d|3[01])[\/-](\d{2}|20\d{2})\b/g;
     const monthPattern = /\b(0?[1-9]|[12]\d|3[01])\.?\s+([A-Za-zÀ-ÿ]+)\s+(20\d{2})\b/g;
     const monthFirstPattern = /\b([A-Za-zÀ-ÿ]+)\s+(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g;
     let match;
 
     while ((match = isoPattern.exec(text))) matches.push(validIsoDate(match[1], match[2], match[3]));
     while ((match = numericPattern.exec(text))) matches.push(validIsoDate(normalizeYear(match[3]), match[2], match[1]));
+    while ((match = usNumericPattern.exec(text))) matches.push(validIsoDate(normalizeYear(match[3]), match[1], match[2]));
     while ((match = monthPattern.exec(text))) matches.push(validIsoDate(match[3], monthNumber(match[2]), match[1]));
     while ((match = monthFirstPattern.exec(text))) matches.push(validIsoDate(match[3], monthNumber(match[1]), match[2]));
     return matches.filter(Boolean).sort();
@@ -3149,11 +3512,18 @@
 
   function extractAddress(lines) {
     const labeled = extractLabeledValue(lines, ["adresse", "address", "location", "lieu", "adres"]);
-    if (labeled) return labeled;
-    return lines.find((line) => (
+    if (labeled) return cleanAddress(labeled);
+    const address = lines.find((line) => (
       /\d/.test(line)
       && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
     )) || "";
+    return cleanAddress(address);
+  }
+
+  function cleanAddress(value) {
+    return clean(value)
+      .replace(/^[^0-9A-Za-zÀ-ÿ]+/, "")
+      .replace(/\s*\(?view map\)?\s*$/i, "");
   }
 
   function escapeRegExp(value) {

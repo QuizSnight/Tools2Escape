@@ -7,6 +7,7 @@ const edgePath = process.env.EDGE_PATH || "C:\\Program Files (x86)\\Microsoft\\E
 const port = Number(process.env.CDP_PORT || 9300 + Math.floor(Math.random() * 500));
 const qaDir = path.join(workspace, "qa");
 const fileUrl = `file:///${path.join(workspace, "index.html").replace(/\\/g, "/")}?qa`;
+const ocrFixture = process.env.T2E_OCR_FIXTURE || "";
 
 await fs.mkdir(qaDir, { recursive: true });
 const profileDir = await fs.mkdtemp(path.join(qaDir, "edge-profile-"));
@@ -149,6 +150,19 @@ try {
   await evalPage(cdp, "document.querySelector('[data-open-wish]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#wish-form'))", Boolean, "wish modal opens");
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-open-wish]').click();
+      const form = document.querySelector('#wish-form');
+      form.querySelector('[name="title"]').value = 'QA Trip Room';
+      form.querySelector('[name="provider"]').value = 'QA Escape';
+      form.querySelector('[name="country"]').value = 'Frankreich';
+      form.querySelector('[name="city"]').value = 'Lille';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "document.querySelectorAll('.wish-card').length", (value) => value === 36, "qa trip room added to up next");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('[data-open-trip]'))", Boolean, "trips view renders");
@@ -156,15 +170,55 @@ try {
     (() => {
       document.querySelector('[data-open-trip]').click();
       const form = document.querySelector('#trip-form');
+      window.__qaTripFormSimple = !form.querySelector('[name="destination"]') && !form.querySelector('[name="notes"]');
+      window.__qaTripRangePicker = Boolean(form.querySelector('#trip-date-range')._flatpickr);
       form.querySelector('[name="name"]').value = 'Belgien & Frankreich';
-      form.querySelector('[name="destination"]').value = 'Belgien · Frankreich';
-      form.querySelector('[name="startDate"]').value = '2026-10-12';
-      form.querySelector('[name="endDate"]').value = '2026-10-15';
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      form.querySelector('#trip-date-range')._flatpickr.setDate(['2026-10-12', '2026-10-15'], true, 'Y-m-d');
+      form.querySelector('#trip-date-range')._flatpickr.open();
       return true;
     })()
   `);
+  await screenshot(cdp, path.join(qaDir, "trip-range-picker.png"));
+  await evalPage(cdp, "document.querySelector('#trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(cdp, "document.querySelector('.trip-title-row h2')?.textContent", (value) => value === "Belgien & Frankreich", "trip detail opens after create");
+  await assertEval(cdp, "document.querySelectorAll('.trip-kpis .kpi').length === 3", Boolean, "trip overview omits appointment count");
+  await assertEval(cdp, "window.__qaTripFormSimple && window.__qaTripRangePicker", Boolean, "trip form only uses name and one range picker");
+
+  if (ocrFixture) {
+    await evalPage(cdp, "document.querySelector('[data-import-trip-item]').click()");
+    const documentResult = await cdp.send("DOM.getDocument");
+    const fileInput = await cdp.send("DOM.querySelector", { nodeId: documentResult.root.nodeId, selector: "#trip-import-file" });
+    await cdp.send("DOM.setFileInputFiles", { nodeId: fileInput.nodeId, files: [ocrFixture] });
+    await evalPage(cdp, `
+      (() => {
+        document.querySelector('#trip-import-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        return new Promise((resolve) => {
+          const deadline = Date.now() + 120000;
+          const timer = setInterval(() => {
+            if (document.querySelector('#trip-item-form') || document.querySelector('[data-import-status].is-error') || Date.now() > deadline) {
+              clearInterval(timer);
+              resolve(true);
+            }
+          }, 250);
+        });
+      })()
+    `);
+    await assertEval(
+      cdp,
+      "JSON.stringify(Object.fromEntries(['title', 'provider', 'date', 'time', 'endTime', 'address'].map((name) => [name, document.querySelector(`#trip-item-form [name=\"${name}\"]`)?.value || ''])))",
+      (value) => {
+        const fields = JSON.parse(value);
+        return fields.title === "Tokyo Lab"
+          && fields.provider === "Escape Rush"
+          && fields.date === "2023-10-28"
+          && fields.time === "19:45"
+          && fields.endTime === "20:55"
+          && fields.address.includes("30 rue de");
+      },
+      "real booking screenshot extracts room details",
+    );
+    await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+  }
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-import-trip-item]').click();
@@ -188,28 +242,61 @@ try {
   `);
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"type\"]')?.value === 'accommodation' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-12' && document.querySelector('#trip-item-form [name=\"endDate\"]')?.value === '2026-10-15' && document.querySelector('#trip-item-form [name=\"address\"]')?.value === 'Rue du Test 12'",
+    "document.querySelector('#trip-item-form [name=\"type\"]')?.value === 'accommodation' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-12' && document.querySelector('#trip-item-form [name=\"endDate\"]')?.value === '2026-10-15' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Rue du Test 12')",
     Boolean,
     "booking text import extracts accommodation details",
   );
+  await screenshot(cdp, path.join(qaDir, "trip-item-form.png"));
   await evalPage(cdp, "document.querySelector('#trip-item-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(cdp, "document.querySelectorAll('.trip-item').length === 1 && Boolean(document.querySelector('.trip-item--accommodation .route-link'))", Boolean, "trip item and route link render");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-open-trip-item]').click();
       const form = document.querySelector('#trip-item-form');
+      window.__qaEscapeLabels = {
+        provider: form.querySelector('[data-trip-item-field="provider"] span').textContent,
+        date: form.querySelector('[data-trip-item-field="date"] span').textContent,
+        timeVisible: !form.querySelector('[data-trip-item-field="time"]').hidden,
+        endDateHidden: form.querySelector('[data-trip-item-field="endDate"]').hidden,
+      };
+      form.querySelector('[name="type"]').value = 'accommodation';
+      form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaAccommodationLabels = {
+        provider: form.querySelector('[data-trip-item-field="provider"] span').textContent,
+        date: form.querySelector('[data-trip-item-field="date"] span').textContent,
+        timeHidden: form.querySelector('[data-trip-item-field="time"]').hidden,
+        endDate: form.querySelector('[data-trip-item-field="endDate"] span').textContent,
+        endTimeHidden: form.querySelector('[data-trip-item-field="endTime"]').hidden,
+      };
       form.querySelector('[name="type"]').value = 'escape';
-      form.querySelector('[name="title"]').value = 'Le Secret de Lille';
+      form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
+      form.querySelector('[name="title"]').value = 'QA Trip Room';
       form.querySelector('[name="provider"]').value = 'QA Escape';
       form.querySelector('[name="date"]').value = '2026-10-13';
       form.querySelector('[name="time"]').value = '14:30';
-      form.querySelector('[name="address"]').value = 'Rue Exemple 4';
-      form.querySelector('[name="city"]').value = 'Lille';
+      form.querySelector('[name="address"]').value = 'Rue Exemple 4, Lille';
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return true;
     })()
   `);
+  await assertEval(cdp, "window.__qaEscapeLabels.provider === 'Anbieter' && window.__qaEscapeLabels.date === 'Datum' && window.__qaEscapeLabels.timeVisible && window.__qaEscapeLabels.endDateHidden", Boolean, "escape room fields adapt to type");
+  await assertEval(cdp, "window.__qaAccommodationLabels.provider === 'Gastgeber' && window.__qaAccommodationLabels.date === 'Check-in' && window.__qaAccommodationLabels.timeHidden && window.__qaAccommodationLabels.endDate === 'Check-out' && window.__qaAccommodationLabels.endTimeHidden", Boolean, "accommodation fields adapt to type");
   await assertEval(cdp, "document.querySelectorAll('.trip-item').length === 2 && Boolean(document.querySelector('.trip-item--escape .route-link'))", Boolean, "manual escape room trip item renders");
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-complete-trip-item]').click();
+      const form = document.querySelector('#room-form');
+      form.querySelector('[name="difficulty"][value="2"]').checked = true;
+      form.querySelector('[name="scare"][value="1"]').checked = true;
+      form.querySelector('[name="rating-base-Sebi"][value="8"]').checked = true;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "Boolean(document.querySelector('.trip-item--escape .trip-complete')) && Boolean(document.querySelector('.trip-item--escape [data-edit-room]'))", Boolean, "trip escape room converts to played room");
+  await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click()");
+  await assertEval(cdp, "document.querySelectorAll('.wish-card').length === 35 && !Array.from(document.querySelectorAll('.wish-card h2')).some((node) => node.textContent === 'QA Trip Room')", Boolean, "played trip room is removed from up next");
+  await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await screenshot(cdp, path.join(qaDir, "trip-desktop.png"));
 
   await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click()");
@@ -270,7 +357,7 @@ try {
     "controversy threshold and rating details",
   );
   await assertEval(cdp, "document.querySelector('.member-table strong').textContent", (value) => value === "Sebi", "team stats sorted by count");
-  await assertEval(cdp, "document.querySelector('.member-table span').textContent", (value) => value === "237 gespielt · 230 Bewertungen", "team stats include unrated played rooms");
+  await assertEval(cdp, "document.querySelector('.member-table span').textContent", (value) => value === "238 gespielt · 231 Bewertungen", "team stats include trip room rating");
   await assertEval(
     cdp,
     "window.T2E_SEED_DATA.played.find((room) => room.title === 'Mission Zeitreise')?.playedBy?.join('|')",
@@ -320,6 +407,10 @@ try {
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await screenshot(cdp, path.join(qaDir, "trip-mobile.png"));
   await assertEval(cdp, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1", Boolean, "trip view has no horizontal overflow");
+  await evalPage(cdp, "document.querySelector('[data-open-trip-item]').click()");
+  await screenshot(cdp, path.join(qaDir, "trip-item-mobile-form.png"));
+  await assertEval(cdp, "!document.querySelector('#trip-item-form [name=\"city\"]') && !document.querySelector('#trip-item-form [name=\"bookingReference\"]')", Boolean, "mobile trip form omits city and booking reference");
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
   await evalPage(cdp, "document.querySelector('.trip-item')?.scrollIntoView({ block: 'start' })");
   await screenshot(cdp, path.join(qaDir, "trip-mobile-item.png"));
   await evalPage(cdp, "document.querySelector('[data-view=\"played\"]').click()");

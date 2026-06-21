@@ -1,4 +1,4 @@
-const CACHE_NAME = "tools2escape-v24";
+const CACHE_NAME = "tools2escape-v25";
 const SHARE_DB_NAME = "tools2escape-share-target";
 const SHARE_DB_VERSION = 1;
 const SHARE_STORE_NAME = "shares";

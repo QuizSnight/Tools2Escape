@@ -2501,9 +2501,9 @@
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
             </div>
             <label class="import-file-field">
-              <span>Datei</span>
-              <input id="trip-import-file" name="bookingFile" type="file" accept="image/*,.eml,.txt,message/rfc822">
-              <small data-import-file-name>Screenshot, E-Mail oder Textdatei</small>
+              <span>Dateien</span>
+              <input id="trip-import-file" name="bookingFile" type="file" accept="image/*,.eml,.txt,message/rfc822" multiple>
+              <small data-import-file-name>Mehrere Screenshots, E-Mail- oder Textdateien</small>
             </label>
             <label class="full-field">
               <span>E-Mail-Text</span>
@@ -2967,7 +2967,10 @@
     const tripImportFile = app.querySelector("#trip-import-file");
     if (tripImportFile) tripImportFile.addEventListener("change", () => {
       const label = app.querySelector("[data-import-file-name]");
-      if (label) label.textContent = tripImportFile.files[0]?.name || "Screenshot, E-Mail oder Textdatei";
+      const files = [...tripImportFile.files];
+      if (label) label.textContent = files.length > 1
+        ? `${files.length} Dateien ausgewählt`
+        : files[0]?.name || "Mehrere Screenshots, E-Mail- oder Textdateien";
     });
 
     const tripImportForm = app.querySelector("#trip-import-form");
@@ -3231,7 +3234,7 @@
     const form = new FormData(formElement);
     const tripId = clean(form.get("tripId"));
     const trip = data.trips.find((entry) => entry.id === tripId);
-    const file = formElement.elements.bookingFile.files[0];
+    const files = [...formElement.elements.bookingFile.files];
     const pastedText = String(form.get("sourceText") || "").trim();
     const status = formElement.querySelector("[data-import-status]");
     const submit = formElement.querySelector("[data-import-submit]");
@@ -3241,9 +3244,12 @@
     setImportStatus(status, "Buchung wird gelesen ...");
 
     try {
-      const sourceName = file?.name || "E-Mail-Text";
-      const fileText = file ? await readBookingFile(file, status) : "";
-      const sourceText = [fileText, pastedText].filter(Boolean).join("\n\n").trim();
+      const fileTexts = [];
+      for (const file of files) {
+        fileTexts.push(await readBookingFile(file, status));
+      }
+      const sourceName = files.map((file) => file.name).filter(Boolean).join(", ") || "E-Mail-Text";
+      const sourceText = [...fileTexts, pastedText].filter(Boolean).join("\n\n").trim();
       if (!sourceText) throw new Error("Bitte einen Screenshot, eine E-Mail-Datei oder E-Mail-Text hinzufügen.");
 
       setImportStatus(status, "Buchungsdetails werden erkannt ...");

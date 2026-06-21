@@ -285,28 +285,33 @@ try {
     (() => {
       document.querySelector('[data-import-trip-item]').click();
       const form = document.querySelector('#trip-import-form');
-      const email = [
+      const firstPage = [
         'Subject: Airbnb reservation confirmed - Brussels Loft',
-        'Content-Type: text/plain; charset=UTF-8',
-        '',
-        'Check-in: 12 October 2026 16:00',
+        'Check-in: 12 October 2026 16:00'
+      ].join('\\n');
+      const secondPage = [
         'Check-out: 15 October 2026 10:00',
         'Address: Rue du Test 12',
         'City: Brussels',
         'Booking reference: AIR-1234'
       ].join('\\n');
       const transfer = new DataTransfer();
-      transfer.items.add(new File([email], 'airbnb-booking.eml', { type: 'message/rfc822' }));
+      transfer.items.add(new File([firstPage], 'screenshot-1.txt', { type: 'text/plain' }));
+      transfer.items.add(new File([secondPage], 'screenshot-2.txt', { type: 'text/plain' }));
       form.querySelector('[name="bookingFile"]').files = transfer.files;
+      form.querySelector('[name="bookingFile"]').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaMultipleBookingFiles = form.querySelector('[name="bookingFile"]').multiple
+        && transfer.files.length === 2
+        && form.querySelector('[data-import-file-name]').textContent === '2 Dateien ausgewählt';
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return new Promise((resolve) => setTimeout(resolve, 150));
     })()
   `);
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"type\"]')?.value === 'accommodation' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-12' && document.querySelector('#trip-item-form [name=\"endDate\"]')?.value === '2026-10-15' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Rue du Test 12')",
+    "window.__qaMultipleBookingFiles && document.querySelector('#trip-item-form [name=\"type\"]')?.value === 'accommodation' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-12' && document.querySelector('#trip-item-form [name=\"endDate\"]')?.value === '2026-10-15' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Rue du Test 12')",
     Boolean,
-    "booking text import extracts accommodation details",
+    "multiple booking files combine accommodation details",
   );
   await screenshot(cdp, path.join(qaDir, "trip-item-form.png"));
   await evalPage(cdp, "document.querySelector('#trip-item-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");

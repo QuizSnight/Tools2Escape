@@ -240,11 +240,163 @@ h2 {
 }
 
 .map-toolbar {
-  grid-template-columns: minmax(140px, 0.45fr) minmax(160px, 0.7fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(140px, 0.45fr) minmax(160px, 0.7fr) minmax(160px, 0.55fr) minmax(220px, 1fr);
 }
 
 .trips-toolbar {
   grid-template-columns: minmax(220px, 1fr) repeat(2, auto);
+}
+
+.planning-toolbar {
+  grid-template-columns: minmax(170px, 0.65fr) minmax(180px, 0.8fr) minmax(160px, 0.55fr) minmax(220px, 1fr);
+}
+
+.planning-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.planning-summary > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.planning-summary strong {
+  font-size: 1.7rem;
+}
+
+.planning-summary span,
+.planning-summary p {
+  color: var(--muted);
+}
+
+.planning-summary p {
+  margin: 0;
+  text-align: right;
+}
+
+.planning-list {
+  display: grid;
+  gap: 10px;
+}
+
+.planning-room {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.planning-rank {
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: #e8f1ed;
+  color: var(--accent-strong);
+}
+
+.planning-rank span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.planning-rank strong {
+  font-size: 1.55rem;
+}
+
+.planning-room__body {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.planning-room__title,
+.planning-actions,
+.planning-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.planning-room__title {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planning-room h2,
+.planning-room p {
+  margin: 0;
+}
+
+.planning-room h2 {
+  font-size: 1rem;
+}
+
+.planning-room p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.planning-state {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #edf0f2;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.planning-state.is-played {
+  background: #dcece7;
+  color: var(--accent-strong);
+}
+
+.planning-state.is-upnext {
+  background: #fff0d5;
+  color: #80560d;
+}
+
+.planning-facts span {
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.planning-facts span:last-child {
+  border-right: 0;
+}
+
+.planning-actions {
+  justify-content: flex-end;
+}
+
+.planning-actions a,
+.planning-actions button,
+.map-room a,
+.map-room button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-decoration: none;
 }
 
 .kpi-grid {
@@ -734,6 +886,37 @@ h2 {
   padding: 10px 4px;
 }
 
+.map-room-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.map-room-list > small {
+  display: block;
+  padding-top: 5px;
+  border-top: 1px solid #edf0ef;
+}
+
+.map-room {
+  display: grid;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid #edf0ef;
+  font-size: 0.85rem;
+}
+
+.map-room > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.map-room small {
+  display: block;
+  margin-top: 2px;
+}
+
 .map-summary {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1130,6 +1313,7 @@ h2 {
 
   .topbar,
   .toolbar,
+  .planning-summary,
   .map-layout,
   .stats-layout,
   .data-layout {
@@ -1147,7 +1331,7 @@ h2 {
 
   .tabs {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
   }
 
@@ -1182,6 +1366,10 @@ h2 {
 
   .map-list {
     max-height: none;
+  }
+
+  .planning-summary p {
+    text-align: left;
   }
 
   .ratings-form {
@@ -1233,6 +1421,18 @@ h2 {
 
   .room-card__head {
     grid-template-columns: 1fr;
+  }
+
+  .planning-room {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .planning-room__title {
+    align-items: flex-start;
+  }
+
+  .planning-actions {
+    justify-content: flex-start;
   }
 
   .score-badge {

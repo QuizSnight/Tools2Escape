@@ -19,7 +19,7 @@ if (!process.env.T2E_PDF_FIXTURE) {
     "Tokyo Lab",
     "Saturday, 28 October 2023",
     "19:45 - 20:55",
-    "Address: 30 rue de l automne, Ixelles, Bruxelles 1050",
+  "Veranstaltungsort: Armin-T.-Wegner-Platz 3, 42103 Wuppertal (links neben der Kirche)",
   ]));
 }
 const profileDir = await fs.mkdtemp(path.join(qaDir, "edge-profile-"));
@@ -48,7 +48,7 @@ try {
   await assertEval(cdp, "document.title", (value) => value === "Tools2EscApp", "document title");
   await assertEval(
     cdp,
-    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && Boolean(document.querySelector('.brand-logo')) && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker') && Array.from(document.querySelectorAll('[data-view]')).map((button) => button.textContent).join('|') === 'Gespielt|Up Next|Trips|Karte|Statistik'",
+    "document.querySelector('h1')?.textContent === 'Tools2EscApp' && Boolean(document.querySelector('.brand-logo')) && !document.querySelector('.eyebrow') && !document.body.textContent.includes('Escape Tracker') && Array.from(document.querySelectorAll('[data-view]')).map((button) => button.textContent).join('|') === 'Gespielt|Up Next|Trips|TERPECA & ER|Karte|Statistik'",
     Boolean,
     "single app heading with logo",
   );
@@ -156,6 +156,16 @@ try {
   );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 
+  await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(cdp, "document.querySelectorAll('.planning-room').length === 100 && document.querySelector('#planning-source').value === 'terpeca'", Boolean, "TERPECA top 100 renders");
+  await evalPage(cdp, "document.querySelector('#planning-source').value = 'escaperoomers'; document.querySelector('#planning-source').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(cdp, "document.querySelectorAll('.planning-room').length === window.T2E_PLANNING_DATA.escaperoomers.length && Array.from(document.querySelectorAll('.planning-rank strong')).every((node) => Number(node.textContent) <= 20) && document.querySelectorAll('#planning-region option').length > 40", Boolean, "EscapeRoomers regional top 20 renders");
+  await screenshot(cdp, path.join(qaDir, "planning-desktop.png"));
+  await evalPage(cdp, "window.__qaPlanningWishTitle = document.querySelector('[data-planning-upnext]').closest('.planning-room').querySelector('h2').textContent; document.querySelector('[data-planning-upnext]').click(); document.querySelector('[data-view=\"upnext\"]').click();");
+  await assertEval(cdp, "Array.from(document.querySelectorAll('.wish-card h2')).some((node) => node.textContent === window.__qaPlanningWishTitle)", Boolean, "planning room can be added to up next");
+  await evalPage(cdp, "window.confirm = () => true; Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2').textContent === window.__qaPlanningWishTitle).querySelector('[data-delete-wish]').click();");
+  await assertEval(cdp, "document.querySelectorAll('.wish-card').length === 35", Boolean, "planning up next action can be cleaned up");
+
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.wish-card').length", (value) => value === 35, "up next cards count");
   await assertEval(cdp, "document.querySelector('[data-open-wish]')?.textContent", (value) => value === "Geplanten Raum ergänzen", "up next add button label");
@@ -195,6 +205,12 @@ try {
   await assertEval(cdp, "document.querySelector('.trip-title-row h2')?.textContent", (value) => value === "Belgien & Frankreich", "trip detail opens after create");
   await assertEval(cdp, "document.querySelectorAll('.trip-kpis .kpi').length === 3", Boolean, "trip overview omits appointment count");
   await assertEval(cdp, "window.__qaTripFormSimple && window.__qaTripRangePicker", Boolean, "trip form only uses name and one range picker");
+
+  await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-planning-trip]').click();");
+  await assertEval(cdp, "Boolean(document.querySelector('#planning-trip-form'))", Boolean, "planning room can be assigned to trip");
+  await evalPage(cdp, "document.querySelector('#planning-trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
+  await assertEval(cdp, "Boolean(document.querySelector('#trip-item-form [name=\"duration\"]')) && document.querySelector('#trip-item-form [name=\"title\"]')?.value", Boolean, "planning trip action prefills room and duration");
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click(); document.querySelector('[data-view=\"trips\"]').click();");
 
   await evalPage(cdp, `
     new Promise((resolve, reject) => {
@@ -248,7 +264,7 @@ try {
   await evalPage(cdp, "document.querySelector('#trip-share-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"endTime\"]')?.value === '20:55'",
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '70' && !document.querySelector('#trip-item-form [name=\"endTime\"]')",
     Boolean,
     "shared email extracts booking details",
   );
@@ -279,14 +295,14 @@ try {
     `);
     await assertEval(
       cdp,
-      "JSON.stringify(Object.fromEntries(['title', 'provider', 'date', 'time', 'endTime', 'address'].map((name) => [name, document.querySelector(`#trip-item-form [name=\"${name}\"]`)?.value || ''])))",
+      "JSON.stringify(Object.fromEntries(['title', 'provider', 'date', 'time', 'duration', 'address'].map((name) => [name, document.querySelector(`#trip-item-form [name=\"${name}\"]`)?.value || ''])))",
       (value) => {
         const fields = JSON.parse(value);
         return fields.title === "Tokyo Lab"
           && fields.provider === "Escape Rush"
           && fields.date === "2023-10-28"
           && fields.time === "19:45"
-          && fields.endTime === "20:55"
+          && fields.duration === "70"
           && fields.address.includes("30 rue de");
       },
       "real booking screenshot extracts room details",
@@ -319,7 +335,7 @@ try {
   `);
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"endTime\"]')?.value === '20:55'",
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'Tokyo Lab' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'Escape Rush' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2023-10-28' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '19:45' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '70' && document.querySelector('#trip-item-form [name=\"address\"]')?.value === 'Armin-T.-Wegner-Platz 3, 42103 Wuppertal' && document.querySelector('#trip-item-form [name=\"notes\"]')?.value.includes('Adresshinweis: links neben der Kirche')",
     Boolean,
     "text PDF extracts booking details",
   );
@@ -376,7 +392,7 @@ try {
         date: form.querySelector('[data-trip-item-field="date"] span').textContent,
         timeHidden: form.querySelector('[data-trip-item-field="time"]').hidden,
         endDate: form.querySelector('[data-trip-item-field="endDate"] span').textContent,
-        endTimeHidden: form.querySelector('[data-trip-item-field="endTime"]').hidden,
+        durationHidden: form.querySelector('[data-trip-item-field="duration"]').hidden,
       };
       form.querySelector('[name="type"]').value = 'escape';
       form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
@@ -390,7 +406,7 @@ try {
     })()
   `);
   await assertEval(cdp, "window.__qaEscapeLabels.provider === 'Anbieter' && window.__qaEscapeLabels.date === 'Datum' && window.__qaEscapeLabels.timeVisible && window.__qaEscapeLabels.endDateHidden", Boolean, "escape room fields adapt to type");
-  await assertEval(cdp, "window.__qaAccommodationLabels.provider === 'Gastgeber' && window.__qaAccommodationLabels.date === 'Check-in' && window.__qaAccommodationLabels.timeHidden && window.__qaAccommodationLabels.endDate === 'Check-out' && window.__qaAccommodationLabels.endTimeHidden", Boolean, "accommodation fields adapt to type");
+  await assertEval(cdp, "window.__qaAccommodationLabels.provider === 'Gastgeber' && window.__qaAccommodationLabels.date === 'Check-in' && window.__qaAccommodationLabels.timeHidden && window.__qaAccommodationLabels.endDate === 'Check-out' && window.__qaAccommodationLabels.durationHidden", Boolean, "accommodation fields adapt to type");
   await assertEval(cdp, "document.querySelectorAll('.trip-item').length === 2 && Boolean(document.querySelector('.trip-item--escape .route-link'))", Boolean, "manual escape room trip item renders");
   await evalPage(cdp, `
     (() => {
@@ -416,6 +432,8 @@ try {
   await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");
+  await evalPage(cdp, "document.querySelector('#map-source').value = 'terpeca'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#map-planning-status').value = 'all'; document.querySelector('#map-planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent === '100' && document.querySelectorAll('#map-region option').length > 10", Boolean, "TERPECA is available as map source");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"stats\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.panel').length", (value) => value >= 4, "stats panels");
@@ -620,7 +638,7 @@ async function evalPage(cdp, expression) {
     returnByValue: true,
   });
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Runtime evaluation failed");
+    throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Runtime evaluation failed");
   }
   return result.result.value;
 }

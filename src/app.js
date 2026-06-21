@@ -7,6 +7,13 @@
   const SHARE_STORE_NAME = "shares";
   const SHARE_PENDING_KEY = "pending";
   const config = window.T2E_CONFIG || {};
+  const planningData = window.T2E_PLANNING_DATA || {
+    updatedAt: "",
+    terpecaYear: 2025,
+    sources: {},
+    terpeca: [],
+    escaperoomers: [],
+  };
   const seed = window.T2E_SEED_DATA || {
     version: 1,
     sourceFile: "",
@@ -415,9 +422,14 @@
     wishCountry: "all",
     tripSearch: "",
     activeTripId: "",
+    planningSource: "terpeca",
+    planningRegion: "all",
+    planningStatus: "unplayed",
+    planningSearch: "",
     mapSource: "played",
     mapSearch: "",
     mapRegion: "all",
+    mapPlanningStatus: "unplayed",
     notice: "",
     modal: null,
   };
@@ -629,6 +641,9 @@
 
   function normalizeTripItem(item) {
     const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
+    const duration = type === "accommodation"
+      ? null
+      : numberOrNull(item.duration) ?? durationBetweenTimes(item.time, item.endTime);
     return {
       id: item.id || makeId("trip-item"),
       type,
@@ -637,7 +652,8 @@
       date: clean(item.date),
       time: clean(item.time),
       endDate: clean(item.endDate),
-      endTime: clean(item.endTime),
+      duration,
+      endTime: type === "accommodation" ? "" : addMinutesToTime(item.time, duration),
       address: clean(item.address),
       city: clean(item.city),
       bookingReference: clean(item.bookingReference),
@@ -1032,6 +1048,20 @@
 
   function getMapEntries() {
     const query = normalize(ui.mapSearch);
+    if (["terpeca", "escaperoomers"].includes(ui.mapSource)) {
+      return planningRooms(ui.mapSource)
+        .map((room) => ({ type: "catalog", entry: room }))
+        .filter((item) => mapEntryMatchesRegion(item))
+        .filter((item) => ui.mapPlanningStatus === "all" || planningRoomState(item.entry) === ui.mapPlanningStatus)
+        .filter((item) => !query || normalize([
+          item.entry.title,
+          item.entry.provider,
+          item.entry.city,
+          item.entry.country,
+          item.entry.region,
+        ].join(" ")).includes(query))
+        .sort((a, b) => a.entry.rank - b.entry.rank || a.entry.title.localeCompare(b.entry.title, "de"));
+    }
     return [
       ...(ui.mapSource !== "wish" ? data.played.map((room) => ({ type: "played", entry: room })) : []),
       ...(ui.mapSource !== "played" ? data.wishList.map((entry) => ({ type: "wish", entry })) : []),
@@ -1054,6 +1084,7 @@
 
   function mapEntryMatchesRegion(item) {
     if (ui.mapRegion === "all") return true;
+    if (item.type === "catalog") return clean(item.entry.region || item.entry.country) === ui.mapRegion;
     if (ui.mapRegion.startsWith("preset:")) {
       const preset = regionById(ui.mapRegion.slice(7));
       if (!preset) return false;
@@ -1072,21 +1103,23 @@
   function mapCityGroups(entries = getMapEntries()) {
     const groups = new Map();
     entries.forEach((item) => {
-      const cityKey = normalizeCity(item.entry.city);
+      const displayCity = clean(item.entry.city || item.entry.region || item.entry.country);
+      const cityKey = normalizeCity(displayCity);
       if (!cityKey) return;
       const group = groups.get(cityKey) || {
-        city: clean(item.entry.city),
-        coords: coordsForCity(item.entry.city),
+        city: displayCity,
+        coords: Array.isArray(item.entry.coords) ? item.entry.coords : coordsForCity(displayCity),
         played: 0,
         wish: 0,
+        catalog: 0,
         entries: [],
       };
       group[item.type] += 1;
       group.entries.push(item);
-      if (!group.coords) group.coords = coordsForCity(item.entry.city);
+      if (!group.coords) group.coords = Array.isArray(item.entry.coords) ? item.entry.coords : coordsForCity(displayCity);
       groups.set(cityKey, group);
     });
-    return [...groups.values()].sort((a, b) => (b.played + b.wish) - (a.played + a.wish) || a.city.localeCompare(b.city, "de"));
+    return [...groups.values()].sort((a, b) => (b.played + b.wish + b.catalog) - (a.played + a.wish + a.catalog) || a.city.localeCompare(b.city, "de"));
   }
 
   function coordsForCity(city) {
@@ -1410,6 +1443,7 @@
           ${ui.view === "played" ? renderPlayedView(rooms) : ""}
           ${ui.view === "upnext" ? renderWishView() : ""}
           ${ui.view === "trips" ? renderTripsView() : ""}
+          ${ui.view === "planning" ? renderPlanningView() : ""}
           ${ui.view === "map" ? renderMapView() : ""}
           ${ui.view === "stats" ? renderStatsView() : ""}
         </main>
@@ -1432,6 +1466,7 @@
         ${tabButton("played", "Gespielt")}
         ${tabButton("upnext", "Up Next")}
         ${tabButton("trips", "Trips")}
+        ${tabButton("planning", "TERPECA & ER")}
         ${tabButton("map", "Karte")}
         ${tabButton("stats", "Statistik")}
       </nav>
@@ -1598,6 +1633,147 @@
     `;
   }
 
+  function planningRooms(source = ui.planningSource) {
+    return source === "escaperoomers" ? planningData.escaperoomers : planningData.terpeca;
+  }
+
+  function planningRoomById(id) {
+    return [...planningData.terpeca, ...planningData.escaperoomers].find((room) => room.id === id) || null;
+  }
+
+  function planningRoomState(room) {
+    if (findPlanningMatch(room, data.played)) return "played";
+    if (findPlanningMatch(room, data.wishList)) return "upnext";
+    return "unplayed";
+  }
+
+  function findPlanningMatch(room, entries) {
+    const title = normalize(room.title);
+    const provider = normalize(room.provider);
+    const city = normalizeCity(room.city);
+    const candidates = entries.filter((entry) => normalize(entry.title) === title);
+    if (!candidates.length) return null;
+    const contextualMatch = candidates.find((entry) => {
+      const entryProvider = normalize(entry.provider);
+      const entryCity = normalizeCity(entry.city);
+      const providerMatches = provider && entryProvider && (
+        provider === entryProvider
+        || (provider.length >= 5 && entryProvider.length >= 5 && (provider.includes(entryProvider) || entryProvider.includes(provider)))
+      );
+      const cityMatches = city && entryCity && city === entryCity;
+      return providerMatches || cityMatches;
+    });
+    if (contextualMatch) return contextualMatch;
+    return candidates.length === 1 && title.length >= 10 ? candidates[0] : null;
+  }
+
+  function planningRegionOptions(source = ui.planningSource) {
+    const rooms = planningRooms(source);
+    const regions = [...new Set(rooms.map((room) => clean(room.region || room.country)).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "de"));
+    return [{ value: "all", label: `Alle Gebiete (${rooms.length})` }, ...regions.map((region) => ({
+      value: region,
+      label: `${region} (${rooms.filter((room) => clean(room.region || room.country) === region).length})`,
+    }))];
+  }
+
+  function filteredPlanningRooms(source = ui.planningSource, region = ui.planningRegion, status = ui.planningStatus, search = ui.planningSearch) {
+    const query = normalize(search);
+    return planningRooms(source)
+      .filter((room) => region === "all" || clean(room.region || room.country) === region)
+      .filter((room) => status === "all" || planningRoomState(room) === status)
+      .filter((room) => !query || normalize([
+        room.title,
+        room.provider,
+        room.city,
+        room.country,
+        room.region,
+      ].join(" ")).includes(query))
+      .sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title, "de"));
+  }
+
+  function renderPlanningView() {
+    const regions = planningRegionOptions();
+    const rooms = filteredPlanningRooms();
+    const sourceLabel = ui.planningSource === "terpeca" ? `TERPECA ${planningData.terpecaYear}` : "EscapeRoomers";
+    const updated = planningData.updatedAt ? formatDate(planningData.updatedAt.slice(0, 10)) : "";
+    return `
+      <section class="toolbar planning-toolbar">
+        <label>
+          <span>Quelle</span>
+          <select id="planning-source">
+            ${selectOption("terpeca", `TERPECA ${planningData.terpecaYear} (${planningData.terpeca.length})`, ui.planningSource)}
+            ${selectOption("escaperoomers", `EscapeRoomers (${planningData.escaperoomers.length})`, ui.planningSource)}
+          </select>
+        </label>
+        <label>
+          <span>Gebiet</span>
+          <select id="planning-region">
+            ${regions.map((option) => `<option value="${escapeHtml(option.value)}" ${ui.planningRegion === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="planning-status">
+            ${selectOption("unplayed", "Noch nicht gespielt", ui.planningStatus)}
+            ${selectOption("all", "Alle", ui.planningStatus)}
+            ${selectOption("upnext", "Up Next", ui.planningStatus)}
+            ${selectOption("played", "Gespielt", ui.planningStatus)}
+          </select>
+        </label>
+        <label class="search-box">
+          <span>Suche</span>
+          <input type="search" id="planning-search" value="${escapeHtml(ui.planningSearch)}" placeholder="Raum, Anbieter, Stadt">
+        </label>
+      </section>
+      <div class="planning-summary">
+        <div><strong>${rooms.length}</strong><span>Treffer aus ${escapeHtml(sourceLabel)}</span></div>
+        <p>${ui.planningSource === "escaperoomers" ? "Top 20 je regionaler Rangliste. Mehrfachplatzierungen bleiben sichtbar." : "Aktuelles internationales Top-100-Ranking."}${updated ? ` Datenstand ${escapeHtml(updated)}.` : ""}</p>
+      </div>
+      <section class="planning-list">
+        ${rooms.length ? rooms.map(renderPlanningRoom).join("") : renderEmptyState("Keine passenden Räume gefunden.")}
+      </section>
+    `;
+  }
+
+  function renderPlanningRoom(room, compact = false) {
+    const state = planningRoomState(room);
+    const stateLabel = state === "played" ? "Gespielt" : state === "upnext" ? "Up Next" : "Offen";
+    const location = [room.city || room.region, room.country].filter(Boolean).join(" · ");
+    const scare = typeof room.scare === "number" ? `${formatScore(room.scare)}/${room.scareScale || 5}` : "-";
+    const searchUrl = planningRoomSearchUrl(room);
+    return `
+      <article class="planning-room ${compact ? "is-compact" : ""}" data-planning-room="${escapeHtml(room.id)}">
+        <div class="planning-rank"><span>Platz</span><strong>${room.rank}</strong></div>
+        <div class="planning-room__body">
+          <div class="planning-room__title">
+            <div>
+              <h2>${escapeHtml(room.title)}</h2>
+              <p>${escapeHtml([room.provider, location].filter(Boolean).join(" · "))}</p>
+            </div>
+            <span class="planning-state is-${state}">${stateLabel}</span>
+          </div>
+          <div class="planning-facts">
+            <span><b>${room.duration || "-"}</b> Min.</span>
+            <span><b>${escapeHtml(scare)}</b> Horror</span>
+            ${room.actors ? "<span><b>Ja</b> Schauspieler</span>" : ""}
+          </div>
+          <div class="planning-actions">
+            ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer">Website</a>` : `<a href="${escapeHtml(searchUrl)}" target="_blank" rel="noreferrer">Websuche</a>`}
+            ${room.detailUrl ? `<a href="${escapeHtml(room.detailUrl)}" target="_blank" rel="noreferrer">Quelle</a>` : ""}
+            ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">Zu Up Next</button>` : ""}
+            ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">Trip zuordnen</button>` : ""}
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function planningRoomSearchUrl(room) {
+    const query = [room.title, room.provider, room.city || room.region, "Escape Room"].filter(Boolean).join(" ");
+    return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  }
+
   function renderTripsView() {
     const activeTrip = data.trips.find((trip) => trip.id === ui.activeTripId);
     if (activeTrip) return renderTripDetail(activeTrip);
@@ -1705,9 +1881,10 @@
     const routeUrl = mapsRouteUrl(item);
     const isAccommodation = item.type === "accommodation";
     const timeText = isAccommodation ? "Check-in" : item.time || "--:--";
+    const calculatedEndTime = addMinutesToTime(item.time, item.duration);
     const endText = isAccommodation
       ? item.endDate ? `Check-out ${formatDate(item.endDate)}` : ""
-      : item.endTime ? `bis ${item.endTime}` : "";
+      : [calculatedEndTime ? `bis ${calculatedEndTime}` : "", item.duration ? `${item.duration} Min.` : ""].filter(Boolean).join(" · ");
     return `
       <article class="trip-item trip-item--${escapeHtml(item.type)}">
         <div class="trip-item__time">
@@ -1782,6 +1959,27 @@
     return `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`;
   }
 
+  function durationBetweenTimes(startTime, endTime) {
+    const start = timeToMinutes(startTime);
+    const end = timeToMinutes(endTime);
+    if (start === null || end === null) return null;
+    const duration = end >= start ? end - start : end + 1440 - start;
+    return duration > 0 && duration <= 360 ? duration : null;
+  }
+
+  function addMinutesToTime(startTime, duration) {
+    const start = timeToMinutes(startTime);
+    const minutes = numberOrNull(duration);
+    if (start === null || minutes === null || minutes <= 0) return "";
+    const total = (start + Math.round(minutes)) % 1440;
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  }
+
+  function timeToMinutes(value) {
+    const match = clean(value).match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  }
+
   function formatWeekday(value) {
     const date = new Date(`${value}T00:00:00`);
     if (Number.isNaN(date.valueOf())) return "TAG";
@@ -1828,7 +2026,8 @@
   }
 
   function renderMapView() {
-    const options = regionOptions()
+    const isPlanningSource = ["terpeca", "escaperoomers"].includes(ui.mapSource);
+    const options = (isPlanningSource ? planningRegionOptions(ui.mapSource) : regionOptions())
       .map((option) => `<option value="${escapeHtml(option.value)}" ${ui.mapRegion === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
       .join("");
     const entries = getMapEntries();
@@ -1842,11 +2041,22 @@
             ${selectOption("played", `Gespielt (${data.played.length})`, ui.mapSource)}
             ${selectOption("wish", `Up Next (${data.wishList.length})`, ui.mapSource)}
             ${selectOption("all", `Alle (${data.played.length + data.wishList.length})`, ui.mapSource)}
+            ${selectOption("terpeca", `TERPECA ${planningData.terpecaYear} (${planningData.terpeca.length})`, ui.mapSource)}
+            ${selectOption("escaperoomers", `EscapeRoomers (${planningData.escaperoomers.length})`, ui.mapSource)}
           </select>
         </label>
         <label>
           <span>Gebiet</span>
           <select id="map-region">${options}</select>
+        </label>
+        <label ${isPlanningSource ? "" : "hidden"}>
+          <span>Status</span>
+          <select id="map-planning-status">
+            ${selectOption("unplayed", "Noch nicht gespielt", ui.mapPlanningStatus)}
+            ${selectOption("all", "Alle", ui.mapPlanningStatus)}
+            ${selectOption("upnext", "Up Next", ui.mapPlanningStatus)}
+            ${selectOption("played", "Gespielt", ui.mapPlanningStatus)}
+          </select>
         </label>
         <label class="search-box">
           <span>Suche</span>
@@ -1882,13 +2092,28 @@
   }
 
   function renderMapGroup(group) {
-    const examples = group.entries.slice(0, 3).map((item) => item.entry.title).filter(Boolean).join(", ");
     return `
       <article class="map-place ${group.coords ? "" : "is-muted"}">
         <strong>${escapeHtml(group.city)}</strong>
-        <span>${group.played ? `${group.played} gespielt` : ""}${group.played && group.wish ? " · " : ""}${group.wish ? `${group.wish} Up Next` : ""}</span>
-        ${examples ? `<small>${escapeHtml(examples)}</small>` : ""}
+        <span>${group.catalog ? `${group.catalog} Ranking-Räume` : `${group.played ? `${group.played} gespielt` : ""}${group.played && group.wish ? " · " : ""}${group.wish ? `${group.wish} Up Next` : ""}`}</span>
+        <div class="map-room-list">${group.entries.map(renderMapRoom).join("")}</div>
       </article>
+    `;
+  }
+
+  function renderMapRoom(item) {
+    const room = item.entry;
+    if (item.type !== "catalog") return `<small>${escapeHtml(room.title)}${room.provider ? ` · ${escapeHtml(room.provider)}` : ""}</small>`;
+    const state = planningRoomState(room);
+    return `
+      <div class="map-room">
+        <div><b>${room.rank}.</b> ${escapeHtml(room.title)}<small>${escapeHtml(room.provider || "")}</small></div>
+        <div>
+          ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer" aria-label="Website öffnen">Link</a>` : `<a href="${escapeHtml(planningRoomSearchUrl(room))}" target="_blank" rel="noreferrer">Suche</a>`}
+          ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">+ Up Next</button>` : ""}
+          ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
+        </div>
+      </div>
     `;
   }
 
@@ -1930,13 +2155,13 @@
 
     const mappedGroups = groups.filter((group) => group.coords);
     mappedGroups.forEach((group) => {
-      const total = group.played + group.wish;
+      const total = group.played + group.wish + group.catalog;
       const marker = window.L.marker(group.coords).addTo(mapState.layer);
       marker.bindPopup(`
         <strong>${escapeHtml(group.city)}</strong><br>
         ${group.played ? `${group.played} gespielt` : ""}
         ${group.played && group.wish ? " · " : ""}
-        ${group.wish ? `${group.wish} Up Next` : ""}
+        ${group.wish ? `${group.wish} Up Next` : ""}${group.catalog ? `${group.catalog} Ranking-Räume` : ""}
         <br><small>${escapeHtml(group.entries.slice(0, 5).map((item) => item.entry.title).join(", "))}${total > 5 ? " ..." : ""}</small>
       `);
     });
@@ -1967,6 +2192,7 @@
     if (!list) return;
     const visibleGroups = visibleMapGroups();
     list.innerHTML = renderMapList(visibleGroups, mapState.groups);
+    bindPlanningActions(list);
   }
 
   function queueMissingGeocodes(groups) {
@@ -2285,6 +2511,7 @@
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
     if (ui.modal.type === "tripShare") return renderTripShareModal();
@@ -2401,6 +2628,41 @@
     `;
   }
 
+  function renderPlanningTripModal(roomId) {
+    const room = planningRoomById(roomId);
+    if (!room) return "";
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="planning-trip-title">
+          <form id="planning-trip-form">
+            <input type="hidden" name="roomId" value="${escapeHtml(room.id)}">
+            <div class="modal-head">
+              <div>
+                <h2 id="planning-trip-title">Zum Trip hinzufügen</h2>
+                <p class="modal-subtitle">${escapeHtml(room.title)}</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <label class="full-field">
+              <span>Trip</span>
+              <select name="tripId" required>
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="full-field">
+              <span>Datum (optional)</span>
+              <input name="date" type="date">
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Details prüfen</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
   function renderTripItemModal(tripId, item = {}, imported = false) {
     const trip = data.trips.find((entry) => entry.id === tripId);
     const defaultDate = item.date || trip?.startDate || "";
@@ -2433,7 +2695,7 @@
               ${tripItemField("date", labels.date, defaultDate, "date", "date")}
               ${tripItemField("time", labels.time, item.time, "time", "time", false, type === "accommodation")}
               ${tripItemField("endDate", labels.endDate, item.endDate, "date", "endDate", false, type === "escape")}
-              ${tripItemField("endTime", labels.endTime, item.endTime, "time", "endTime", false, type === "accommodation")}
+              ${tripDurationField(item.duration, type === "accommodation")}
               ${tripItemField("address", "Adresse", address, "text", "address")}
             </div>
             <label class="full-field">
@@ -2463,6 +2725,15 @@
     `;
   }
 
+  function tripDurationField(value, hidden = false) {
+    return `
+      <label data-trip-item-field="duration" ${hidden ? "hidden" : ""}>
+        <span data-trip-item-label>Dauer (Minuten)</span>
+        <input name="duration" type="number" min="5" max="360" step="5" value="${escapeHtml(value || "")}" ${hidden ? "disabled" : ""}>
+      </label>
+    `;
+  }
+
   function tripItemLabels(type) {
     if (type === "accommodation") {
       return {
@@ -2471,7 +2742,7 @@
         date: "Check-in",
         time: "Uhrzeit",
         endDate: "Check-out",
-        endTime: "Endzeit",
+        duration: "Dauer (Minuten)",
       };
     }
     if (type === "other") {
@@ -2481,7 +2752,7 @@
         date: "Datum",
         time: "Uhrzeit",
         endDate: "Enddatum",
-        endTime: "Endzeit",
+        duration: "Dauer (Minuten)",
       };
     }
     return {
@@ -2490,7 +2761,7 @@
       date: "Datum",
       time: "Uhrzeit",
       endDate: "Enddatum",
-      endTime: "Endzeit",
+      duration: "Dauer (Minuten)",
     };
   }
 
@@ -2704,15 +2975,49 @@
       render();
     });
 
+    const planningSource = app.querySelector("#planning-source");
+    if (planningSource) planningSource.addEventListener("change", (event) => {
+      ui.planningSource = event.target.value;
+      ui.planningRegion = "all";
+      render();
+    });
+
+    const planningRegion = app.querySelector("#planning-region");
+    if (planningRegion) planningRegion.addEventListener("change", (event) => {
+      ui.planningRegion = event.target.value;
+      render();
+    });
+
+    const planningStatus = app.querySelector("#planning-status");
+    if (planningStatus) planningStatus.addEventListener("change", (event) => {
+      ui.planningStatus = event.target.value;
+      render();
+    });
+
+    const planningSearch = app.querySelector("#planning-search");
+    if (planningSearch) planningSearch.addEventListener("input", (event) => {
+      ui.planningSearch = event.target.value;
+      render();
+    });
+
+    bindPlanningActions(app);
+
     const mapSource = app.querySelector("#map-source");
     if (mapSource) mapSource.addEventListener("change", (event) => {
       ui.mapSource = event.target.value;
+      ui.mapRegion = "all";
       render();
     });
 
     const mapRegion = app.querySelector("#map-region");
     if (mapRegion) mapRegion.addEventListener("change", (event) => {
       ui.mapRegion = event.target.value;
+      render();
+    });
+
+    const mapPlanningStatus = app.querySelector("#map-planning-status");
+    if (mapPlanningStatus) mapPlanningStatus.addEventListener("change", (event) => {
+      ui.mapPlanningStatus = event.target.value;
       render();
     });
 
@@ -2955,6 +3260,9 @@
     const wishForm = app.querySelector("#wish-form");
     if (wishForm) wishForm.addEventListener("submit", saveWishFromForm);
 
+    const planningTripForm = app.querySelector("#planning-trip-form");
+    if (planningTripForm) planningTripForm.addEventListener("submit", openPlanningRoomForTrip);
+
     const tripForm = app.querySelector("#trip-form");
     if (tripForm) {
       initTripDateRangePicker(tripForm);
@@ -3033,7 +3341,7 @@
       date: true,
       time: type !== "accommodation",
       endDate: type !== "escape",
-      endTime: type !== "accommodation",
+      duration: type !== "accommodation",
       address: true,
     };
 
@@ -3131,6 +3439,61 @@
     setNotice("Plan gespeichert.");
   }
 
+  function bindPlanningActions(root) {
+    root.querySelectorAll("[data-planning-upnext]").forEach((button) => {
+      button.addEventListener("click", () => addPlanningRoomToWish(button.dataset.planningUpnext));
+    });
+    root.querySelectorAll("[data-planning-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "planningTrip", roomId: button.dataset.planningTrip };
+        render();
+      });
+    });
+  }
+
+  function addPlanningRoomToWish(roomId) {
+    const room = planningRoomById(roomId);
+    if (!room || findPlanningMatch(room, data.wishList) || findPlanningMatch(room, data.played)) return;
+    const sourceLabel = room.source === "terpeca" ? `TERPECA ${room.year || planningData.terpecaYear}` : `EscapeRoomers ${room.region}`;
+    data.wishList = [{
+      id: makeId("wish"),
+      title: room.title,
+      provider: room.provider,
+      country: room.country,
+      city: room.city || room.region,
+      link: room.website || room.detailUrl || planningRoomSearchUrl(room),
+      notes: `${sourceLabel} · Platz ${room.rank}${room.duration ? ` · ${room.duration} Min.` : ""}${typeof room.scare === "number" ? ` · Horror ${formatScore(room.scare)}/${room.scareScale || 5}` : ""}`,
+      status: "interessant",
+      priority: "normal",
+    }, ...data.wishList];
+    saveData();
+    setNotice(`${room.title} wurde zu Up Next hinzugefügt.`);
+  }
+
+  function openPlanningRoomForTrip(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const room = planningRoomById(clean(form.get("roomId")));
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    if (!room || !trip) return;
+    const sourceLabel = room.source === "terpeca" ? `TERPECA ${room.year || planningData.terpecaYear}` : `EscapeRoomers ${room.region}`;
+    ui.modal = {
+      type: "tripItem",
+      tripId: trip.id,
+      item: {
+        type: "escape",
+        title: room.title,
+        provider: room.provider,
+        date: clean(form.get("date")),
+        duration: room.duration,
+        address: room.city || room.region,
+        link: room.website || room.detailUrl || planningRoomSearchUrl(room),
+        notes: `${sourceLabel} · Platz ${room.rank}${typeof room.scare === "number" ? ` · Horror ${formatScore(room.scare)}/${room.scareScale || 5}` : ""}`,
+      },
+    };
+    render();
+  }
+
   function saveTripFromForm(event) {
     event.preventDefault();
     const returnToSharedBooking = Boolean(ui.modal?.fromShare && pendingShare);
@@ -3202,7 +3565,7 @@
       date,
       time: type === "accommodation" ? "" : form.get("time"),
       endDate,
-      endTime: type === "accommodation" ? "" : form.get("endTime"),
+      duration: type === "accommodation" ? null : numberOrNull(form.get("duration")),
       address: form.get("address"),
       city: "",
       link: form.get("link"),
@@ -3347,13 +3710,17 @@
         const page = await documentNode.getPage(pageNumber);
         const textContent = await page.getTextContent();
         const pageText = extractPdfPageText(textContent);
+        const annotations = await page.getAnnotations();
+        const pageLinks = annotations
+          .map((annotation) => clean(annotation.url || annotation.unsafeUrl))
+          .filter((url) => /^https?:\/\//i.test(url));
 
         if (pageText.replace(/\s/g, "").length >= 80) {
-          pageTexts.push(pageText);
+          pageTexts.push([pageText, ...pageLinks].filter(Boolean).join("\n"));
         } else {
           setImportStatus(status, `PDF-Seite ${pageNumber} von ${documentNode.numPages} wird per Texterkennung gelesen ...`);
           const pageImage = await renderPdfPage(page);
-          pageTexts.push(await recognizeBookingImage(pageImage, status));
+          pageTexts.push([await recognizeBookingImage(pageImage, status), ...pageLinks].filter(Boolean).join("\n"));
         }
         page.cleanup();
       }
@@ -3565,11 +3932,18 @@
       : ["uhrzeit", "time", "start time", "session time", "start", "slot", "heure", "tijd", "scheduled for"];
     const endTimeLabels = ["check out", "check-out", "departure", "abreise", "ende", "end time"];
     const city = extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]);
-    const address = mergeAddressAndCity(extractAddress(lines), city);
+    const addressDetails = extractAddressDetails(lines);
+    const address = mergeAddressAndCity(addressDetails.address, city);
     const provider = catalogMatch?.provider
       || extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser", "host", "gastgeber"])
       || extractRepeatedBrand(lines)
       || (text.toLowerCase().includes("airbnb") ? "Airbnb" : "");
+
+    const time = type === "accommodation" ? "" : extractLabeledTime(lines, timeLabels) || sessionTimes[0] || likelyBookingTime(lines, times);
+    const detectedEndTime = type === "accommodation" ? "" : extractLabeledTime(lines, endTimeLabels) || sessionTimes[1] || "";
+    const duration = type === "accommodation"
+      ? null
+      : extractBookingDuration(lines) ?? durationBetweenTimes(time, detectedEndTime) ?? catalogMatch?.duration ?? null;
 
     return normalizeTripItem({
       type,
@@ -3577,13 +3951,13 @@
       provider,
       bookingReference: "",
       date,
-      time: type === "accommodation" ? "" : extractLabeledTime(lines, timeLabels) || sessionTimes[0] || likelyBookingTime(lines, times),
+      time,
       endDate,
-      endTime: type === "accommodation" ? "" : extractLabeledTime(lines, endTimeLabels) || sessionTimes[1] || "",
+      duration,
       address,
       city: "",
-      link: text.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[),.;]+$/, "") || "",
-      notes: "",
+      link: catalogMatch?.website || extractBestBookingLink(text),
+      notes: extractImportantBookingNotes(lines, addressDetails.note),
       sourceName,
     });
   }
@@ -3643,19 +4017,20 @@
     const lineCandidates = text.split("\n")
       .map((line) => ({ original: clean(line), normalized: normalize(line) }))
       .filter((line) => line.normalized.length >= 4 && line.normalized.length <= 100);
-    const catalog = [...data.wishList, ...data.played];
+    const catalog = [...data.wishList, ...data.played, ...planningData.terpeca, ...planningData.escaperoomers];
     let best = null;
 
     catalog.forEach((entry) => {
       const title = normalize(entry.title);
       if (title.length < 4) return;
+      const tokens = title.split(" ").filter((token) => token.length >= 3);
+      const matchedTokens = tokens.filter((token) => normalizedText.includes(token)).length;
+      if (matchedTokens === 0) return;
       const closestLine = lineCandidates
         .map((line) => ({ ...line, similarity: textSimilarity(title, line.normalized) }))
         .sort((a, b) => b.similarity - a.similarity)[0];
-      const tokens = title.split(" ").filter((token) => token.length >= 3);
       const exactLine = closestLine?.normalized === title;
       const exactText = title.length >= 8 && normalizedText.includes(title);
-      const matchedTokens = tokens.filter((token) => normalizedText.includes(token)).length;
       const coverage = tokens.length ? matchedTokens / tokens.length : 0;
       let score = 0;
       if (exactLine) score = 240 + title.length;
@@ -3666,6 +4041,8 @@
         best = {
           title: closestLine?.similarity >= 0.78 ? cleanBookingTitle(closestLine.original) : entry.title,
           provider: entry.provider,
+          website: entry.website || entry.link || entry.detailUrl || "",
+          duration: entry.duration || null,
           score,
         };
       }
@@ -3709,6 +4086,20 @@
       if (times.length >= 2 && /(?:-|–|—|\bto\b|\bbis\b|\ba\b|\bà\b)/i.test(line)) return times.slice(0, 2);
     }
     return [];
+  }
+
+  function extractBookingDuration(lines) {
+    const candidates = lines.filter((line) => (
+      /(duration|dauer|spieldauer|game length|running time)/i.test(line)
+      || /\d+\s*(hour|hours|stunde|stunden|heure|heures)\b/i.test(line)
+    ));
+    for (const line of candidates) {
+      const hours = Number(line.match(/(\d+)\s*(?:hour|hours|stunde|stunden|heure|heures)\b/i)?.[1] || 0);
+      const minutes = Number(line.match(/(\d+)\s*(?:minute|minutes|minuten|min\.?|mins?)\b/i)?.[1] || 0);
+      const duration = hours * 60 + minutes;
+      if (duration >= 5 && duration <= 360) return duration;
+    }
+    return null;
   }
 
   function likelyBookingTime(lines, allTimes) {
@@ -3821,20 +4212,62 @@
     return `${values[0]}-${String(values[1]).padStart(2, "0")}-${String(values[2]).padStart(2, "0")}`;
   }
 
-  function extractAddress(lines) {
-    const labeled = extractLabeledValue(lines, ["adresse", "address", "location", "lieu", "adres"]);
-    if (labeled) return cleanAddress(labeled);
-    const address = lines.find((line) => (
-      /\d/.test(line)
-      && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
-    )) || "";
-    return cleanAddress(address);
+  function extractAddressDetails(lines) {
+    const labels = ["veranstaltungsort", "adresse", "address", "venue", "location", "lieu", "adres"];
+    const labeledIndex = lines.findIndex((line) => {
+      const normalizedLine = normalize(line);
+      return labels.some((label) => normalizedLine === normalize(label) || normalizedLine.startsWith(`${normalize(label)} `));
+    });
+    let value = labeledIndex >= 0
+      ? lines[labeledIndex]
+      : lines.find((line) => (
+        /\d/.test(line)
+        && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
+      )) || "";
+
+    if (value.includes("(") && !value.includes(")") && labeledIndex >= 0) {
+      for (let index = labeledIndex + 1; index < Math.min(lines.length, labeledIndex + 4); index += 1) {
+        value += ` ${lines[index]}`;
+        if (lines[index].includes(")")) break;
+      }
+    }
+
+    return splitAddressExtra(value);
   }
 
-  function cleanAddress(value) {
-    return clean(value)
+  function splitAddressExtra(value) {
+    const withoutLabel = clean(value)
+      .replace(/^(?:veranstaltungsort|adresse|address|venue|location|lieu|adres)\s*[:#-]?\s*/i, "")
       .replace(/^[^0-9A-Za-zÀ-ÿ]+/, "")
       .replace(/\s*\(?view map\)?\s*$/i, "");
+    const noteStart = withoutLabel.indexOf("(");
+    if (noteStart < 0) return { address: withoutLabel, note: "" };
+    return {
+      address: clean(withoutLabel.slice(0, noteStart)),
+      note: clean(withoutLabel.slice(noteStart + 1).replace(/\)+\s*$/, "")),
+    };
+  }
+
+  function extractImportantBookingNotes(lines, addressNote = "") {
+    const notes = [];
+    if (addressNote) notes.push(`Adresshinweis: ${addressNote}`);
+    lines.forEach((line, index) => {
+      const normalizedLine = normalize(line);
+      const important = /^(wichtiger hinweis|hinweis|important|please note|achtung|treffpunkt|meeting point|parking|parken|zugang|eingang|entrance|anreise|arrival instructions|participants|teilnehmer|booking number|booking reference|buchungsnummer|gesamtpreis|total price|amount paid|bezahlt|stornierung|cancellation)\b/.test(normalizedLine)
+        || /(arrive|erscheinen|kommen)\s+\d+\s*(minutes|minuten)\s+(early|fruher)/.test(normalizedLine);
+      if (!important) return;
+      let note = line;
+      if (/[:#-]\s*$/.test(line) && lines[index + 1]) note += ` ${lines[index + 1]}`;
+      notes.push(clean(note));
+    });
+    return unique(notes).slice(0, 6).join("\n");
+  }
+
+  function extractBestBookingLink(text) {
+    const urls = [...text.matchAll(/https?:\/\/[^\s<>"']+/gi)]
+      .map((match) => match[0].replace(/[),.;]+$/, ""))
+      .filter((url) => !/(google\.|maps\.|facebook\.|instagram\.|mailto|unsubscribe|abmelden)/i.test(url));
+    return urls[0] || "";
   }
 
   function escapeRegExp(value) {

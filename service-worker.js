@@ -1,4 +1,4 @@
-const CACHE_NAME = "tools2escape-v26";
+const CACHE_NAME = "tools2escape-v27";
 const SHARE_DB_NAME = "tools2escape-share-target";
 const SHARE_DB_VERSION = 1;
 const SHARE_STORE_NAME = "shares";
@@ -10,6 +10,7 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./src/config.js",
   "./src/seed-data.js",
+  "./src/planning-data.js",
   "./src/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

@@ -2,7 +2,9 @@
 
 Mobile-first Escape-Room-Tracker auf Basis der importierten Excel-Datei.
 
-Zusätzlich können mehrtägige Trips mit Escape Rooms, Unterkünften, Buchungsdaten und direkten Routenlinks geplant werden. Buchungsbestätigungen lassen sich als E-Mail-Text, `.eml`, `.txt`, PDF oder über mehrere Screenshots importieren; erkannte Details werden vor dem Speichern in einem Formular geprüft.
+Zusätzlich können mehrtägige Trips mit Escape Rooms, Unterkünften, Buchungsdaten und direkten Routenlinks geplant werden. Buchungsbestätigungen lassen sich als E-Mail-Text, `.eml`, `.txt`, PDF oder über mehrere Screenshots importieren; erkannte Details werden vor dem Speichern in einem Formular geprüft. Bei Escape Rooms berechnet die App die Endzeit aus Startzeit und Dauer.
+
+Unter `TERPECA & ER` stehen die TERPECA Top 100 sowie die Top-20-Platzierungen der regionalen EscapeRoomers-Listen als Planungsquelle bereit. Die Einträge lassen sich filtern, auf der Karte anzeigen, zu Up Next hinzufügen oder direkt einem Trip zuordnen.
 
 ## Öffnen
 
@@ -112,9 +114,16 @@ Neue Orte werden automatisch geocodiert. Dadurch können App und Google-Sheets-S
 ## Datengrundlage
 
 - `src/seed-data.js` enthält den Import aus `Ksch Spiele.xlsx`.
+- `src/planning-data.js` enthält den erzeugten TERPECA-/EscapeRoomers-Katalog.
 - Sobald Supabase konfiguriert ist, werden Änderungen online gespeichert und per Realtime an andere offene Tabs verteilt.
 - Der Importer kann erneut ausgeführt werden:
 
 ```powershell
 C:\Users\konta\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe scripts\export-seed.mjs "C:\Users\konta\Downloads\Ksch Spiele.xlsx" src\seed-data.js
+```
+
+Die Planungsquellen lassen sich mit Node aktualisieren. `--enrich-reviews` liest zusätzlich die in den EscapeRoomers-Reviews verlinkten Anbieter-Websites ein:
+
+```powershell
+node scripts\update-planning-data.mjs --enrich-reviews
 ```

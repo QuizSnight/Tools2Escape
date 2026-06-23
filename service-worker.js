@@ -1,4 +1,4 @@
-const CACHE_NAME = "tools2escape-v27";
+const CACHE_NAME = "tools2escape-v28";
 const SHARE_DB_NAME = "tools2escape-share-target";
 const SHARE_DB_VERSION = 1;
 const SHARE_STORE_NAME = "shares";
@@ -54,7 +54,13 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request)),
+    fetch(request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      })
+      .catch(() => caches.match(request)),
   );
 });
 

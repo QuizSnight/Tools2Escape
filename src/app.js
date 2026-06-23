@@ -1732,12 +1732,22 @@
   function planningTitleMatchScore(planningTitle, entryTitle) {
     if (!planningTitle || !entryTitle) return 0;
     if (planningTitle === entryTitle) return 120;
+    const compactPlanningTitle = planningCompactTitle(planningTitle);
+    const compactEntryTitle = planningCompactTitle(entryTitle);
+    if (compactPlanningTitle.length >= 6 && compactPlanningTitle === compactEntryTitle) return 115;
     const shorter = planningTitle.length < entryTitle.length ? planningTitle : entryTitle;
     const longer = planningTitle.length < entryTitle.length ? entryTitle : planningTitle;
     if (shorter.length < 6) return 0;
     if (longer.startsWith(`${shorter} `)) return 80;
     if (longer.includes(` ${shorter} `) || longer.endsWith(` ${shorter}`)) return 60;
+    const compactShorter = compactPlanningTitle.length < compactEntryTitle.length ? compactPlanningTitle : compactEntryTitle;
+    const compactLonger = compactPlanningTitle.length < compactEntryTitle.length ? compactEntryTitle : compactPlanningTitle;
+    if (compactShorter.length >= 8 && compactLonger.startsWith(compactShorter)) return 65;
     return 0;
+  }
+
+  function planningCompactTitle(value) {
+    return normalize(value).replace(/\s+/g, "");
   }
 
   function planningStatusCounts(source = ui.planningSource, region = ui.planningRegion, search = ui.planningSearch) {

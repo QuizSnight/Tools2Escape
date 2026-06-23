@@ -165,6 +165,12 @@ try {
     Boolean,
     "TERPECA alternate title matches played room",
   );
+  await assertEval(
+    cdp,
+    "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.textContent.includes(\"Molly's Game\")); return card?.querySelector('.planning-state')?.textContent === 'Gespielt'; })()",
+    Boolean,
+    "TERPECA apostrophe title matches played room",
+  );
   await evalPage(cdp, "document.querySelector('#planning-source').value = 'escaperoomers'; document.querySelector('#planning-source').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "document.querySelectorAll('.planning-room').length === window.T2E_PLANNING_DATA.escaperoomers.length && Array.from(document.querySelectorAll('.planning-rank strong')).every((node) => Number(node.textContent) <= 20) && document.querySelectorAll('#planning-region option').length > 40", Boolean, "EscapeRoomers regional top 20 renders");
   await screenshot(cdp, path.join(qaDir, "planning-desktop.png"));

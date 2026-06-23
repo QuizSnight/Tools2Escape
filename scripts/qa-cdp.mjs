@@ -577,6 +577,43 @@ try {
   await screenshot(cdp, path.join(qaDir, "mobile.png"));
   await assertEval(cdp, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1", Boolean, "no horizontal overflow");
 
+  await evalPage(cdp, `
+    (() => {
+      const seed = JSON.parse(JSON.stringify(window.T2E_SEED_DATA));
+      seed.played = seed.played.slice(0, 49).map((room, index) => ({
+        ...room,
+        id: 'qa-milestone-' + index,
+        playedBy: ['Sebi'],
+        ratings: Object.fromEntries(seed.members.map((member) => [member, member === 'Sebi' ? 8 : null])),
+      }));
+      seed.wishList = [];
+      seed.trips = [];
+      localStorage.setItem('tools2escape:v2', JSON.stringify(seed));
+      return true;
+    })()
+  `);
+  await cdp.send("Page.reload", { ignoreCache: true });
+  await waitForApp(cdp);
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-open-room]').click();
+      const form = document.querySelector('#room-form');
+      form.querySelector('[name="title"]').value = 'QA Jubiläum';
+      form.querySelector('[name="provider"]').value = 'QA';
+      form.querySelector('[name="city"]').value = 'Köln';
+      form.querySelector('[name="rating-base-Sebi"][value="8"]').checked = true;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "document.querySelector('.celebration-modal')?.textContent.includes('Sebi') && document.querySelector('.celebration-modal')?.textContent.includes('50. Raum')",
+    Boolean,
+    "room milestone celebration appears",
+  );
+  await evalPage(cdp, "document.querySelector('[data-close-celebration]').click()");
+
   await cdp.close();
 } finally {
   edge.kill();

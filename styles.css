@@ -1209,6 +1209,30 @@ h2 {
   padding: 18px;
 }
 
+.celebration-modal {
+  max-width: 460px;
+}
+
+.celebration-content {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.celebration-messages {
+  display: grid;
+  gap: 10px;
+  font-size: 1.05rem;
+}
+
+.celebration-messages p {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #cfe1dc;
+  border-radius: 8px;
+  background: #f4faf7;
+}
+
 .modal-head {
   display: flex;
   align-items: center;

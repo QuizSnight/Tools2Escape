@@ -26,6 +26,7 @@
     regionPresets: [],
   };
   const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
+  const ROOM_MILESTONES = new Set([50, 100, 200, 250, 300, 400, 500]);
   const REGION_LABELS = {
     HH: "Hamburg (HH)",
     BENELUX: "BeNeLux",
@@ -466,6 +467,7 @@
     mapPlanningStatus: "unplayed",
     notice: "",
     modal: null,
+    celebrations: [],
   };
 
   const cloud = {
@@ -1007,6 +1009,19 @@
     return (room.playedBy || []).includes(member) || typeof room.ratings[member] === "number";
   }
 
+  function playedCountsByMember(rooms = data.played) {
+    return Object.fromEntries(data.members.map((member) => [
+      member,
+      rooms.filter((room) => memberPlayedRoom(room, member)).length,
+    ]));
+  }
+
+  function roomMilestoneCelebrations(beforeCounts, afterCounts) {
+    return data.members
+      .map((member) => ({ member, count: afterCounts[member] || 0 }))
+      .filter((entry) => ROOM_MILESTONES.has(entry.count) && entry.count > (beforeCounts[entry.member] || 0));
+  }
+
   function playedMembersForRoom(room) {
     return data.members.filter((member) => memberPlayedRoom(room, member));
   }
@@ -1497,6 +1512,7 @@
           ${ui.view === "stats" ? renderStatsView() : ""}
         </main>
         ${renderModal()}
+        ${renderCelebrationModal()}
       </div>
     `;
     bindEvents();
@@ -2636,6 +2652,29 @@
     return "";
   }
 
+  function renderCelebrationModal() {
+    if (!ui.celebrations.length) return "";
+    const messages = ui.celebrations.map((entry) => `
+      <p><strong>${escapeHtml(entry.member)}</strong>: Das ist dein ${entry.count}. Raum gewesen!</p>
+    `).join("");
+    return `
+      <div class="modal-backdrop celebration-backdrop" data-close-celebration>
+        <section class="modal modal-small celebration-modal" role="dialog" aria-modal="true" aria-labelledby="celebration-title">
+          <div class="celebration-content">
+            <div class="modal-head">
+              <h2 id="celebration-title">Herzlichen Glückwunsch!</h2>
+              <button type="button" class="icon-button" data-close-celebration aria-label="Schließen">x</button>
+            </div>
+            <div class="celebration-messages">${messages}</div>
+            <div class="modal-actions">
+              <button class="primary-action" type="button" data-close-celebration>Sehr schön</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function renderRoomModal(room = {}, wishId = "", tripId = "", tripItemId = "") {
     const ratings = normalizeRatings(room.ratings || {}, data.members);
     const playedBy = normalizePlayedBy(room.playedBy, ratings, data.members);
@@ -3397,6 +3436,14 @@
       });
     });
 
+    app.querySelectorAll("[data-close-celebration]").forEach((element) => {
+      element.addEventListener("click", (event) => {
+        if (event.target !== element && !element.matches("button")) return;
+        ui.celebrations = [];
+        render();
+      });
+    });
+
     const roomForm = app.querySelector("#room-form");
     if (roomForm) roomForm.addEventListener("submit", saveRoomFromForm);
 
@@ -3567,6 +3614,7 @@
     const values = Object.values(ratings).filter((value) => typeof value === "number");
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     const existing = data.played.find((room) => room.id === id);
+    const countsBeforeSave = playedCountsByMember();
     const city = clean(form.get("city"));
     const room = {
       ...(existing || {}),
@@ -3600,9 +3648,10 @@
     const tripItem = trip?.items.find((entry) => entry.id === clean(form.get("tripItemId")));
     if (tripItem) tripItem.playedRoomId = room.id;
 
+    ui.modal = null;
+    ui.celebrations = roomMilestoneCelebrations(countsBeforeSave, playedCountsByMember());
     saveData();
     void geocodeCity(city);
-    ui.modal = null;
     setNotice("Raum gespeichert.");
   }
 

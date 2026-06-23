@@ -1317,6 +1317,18 @@ h2 {
   display: block;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+#planning-link-select {
+  min-height: 190px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

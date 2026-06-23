@@ -174,11 +174,16 @@ try {
       window.__qaManualPlanningTitle = window.__qaManualPlanningCard?.querySelector('h2')?.textContent || '';
       window.__qaManualPlanningCard?.querySelector('[data-planning-link]')?.click();
       const form = document.querySelector('#planning-link-form');
+      const search = form.querySelector('#planning-link-search');
+      search.value = 'Secret';
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+      window.__qaPlanningLinkSearchCount = Array.from(form.querySelectorAll('#planning-link-select option')).filter((option) => !option.disabled).length;
       form.querySelector('[name="playedRoomId"]').value = window.T2E_SEED_DATA.played.find((room) => room.title === 'Secret Subway').id;
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return true;
     })()
   `);
+  await assertEval(cdp, "window.__qaPlanningLinkSearchCount > 0 && window.__qaPlanningLinkSearchCount < window.T2E_SEED_DATA.played.length", Boolean, "manual planning link search filters played rooms");
   await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle); return card?.querySelector('.planning-state')?.textContent === 'Gespielt'; })()", Boolean, "manual planning link marks source room as played");
   await evalPage(cdp, "Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle).querySelector('[data-planning-link]').click(); document.querySelector('[data-remove-planning-link]').click();");
   await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle); return card?.querySelector('.planning-state')?.textContent !== 'Gespielt'; })()", Boolean, "manual planning link can be removed");

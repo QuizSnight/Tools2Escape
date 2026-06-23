@@ -2779,7 +2779,7 @@
       .sort((a, b) => `${a.title} ${a.city}`.localeCompare(`${b.title} ${b.city}`, "de"))
       .map((played) => {
         const label = [played.title, played.provider, played.city].filter(Boolean).join(" · ");
-        return `<option value="${escapeHtml(played.id)}" ${current?.id === played.id ? "selected" : ""}>${escapeHtml(label)}</option>`;
+        return `<option value="${escapeHtml(played.id)}" data-search="${escapeHtml(normalize(label))}" ${current?.id === played.id ? "selected" : ""}>${escapeHtml(label)}</option>`;
       })
       .join("");
     return `
@@ -2795,10 +2795,15 @@
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
             </div>
             <label class="full-field">
+              <span>Raum suchen</span>
+              <input id="planning-link-search" type="search" placeholder="Titel, Anbieter oder Stadt" autocomplete="off">
+            </label>
+            <label class="full-field">
               <span>Gespielter Raum</span>
-              <select name="playedRoomId" required>
+              <select id="planning-link-select" name="playedRoomId" size="8" required>
                 ${options}
               </select>
+              <small class="field-hint" data-planning-link-count>${data.played.length} Räume</small>
             </label>
             <div class="modal-actions">
               ${data.planningLinks?.[room.id] ? `<button type="button" data-remove-planning-link="${escapeHtml(room.id)}">Zuordnung lösen</button>` : ""}
@@ -3387,6 +3392,33 @@
 
     const planningLinkForm = app.querySelector("#planning-link-form");
     if (planningLinkForm) planningLinkForm.addEventListener("submit", savePlanningLinkFromForm);
+
+    const planningLinkSearch = app.querySelector("#planning-link-search");
+    if (planningLinkSearch) {
+      const select = app.querySelector("#planning-link-select");
+      const count = app.querySelector("[data-planning-link-count]");
+      const filterOptions = () => {
+        const query = normalize(planningLinkSearch.value);
+        const options = [...select.options];
+        let visible = 0;
+        let firstValue = "";
+        options.forEach((option) => {
+          const matches = !query || option.dataset.search.includes(query);
+          option.hidden = !matches;
+          option.disabled = !matches;
+          if (matches) {
+            visible += 1;
+            if (!firstValue) firstValue = option.value;
+          }
+        });
+        const selectedOption = options.find((option) => option.value === select.value);
+        if (!selectedOption || selectedOption.disabled) select.value = firstValue;
+        if (!visible) select.selectedIndex = -1;
+        if (count) count.textContent = visible === 1 ? "1 Treffer" : `${visible} Treffer`;
+      };
+      planningLinkSearch.addEventListener("input", filterOptions);
+      filterOptions();
+    }
 
     const removePlanningLinkButton = app.querySelector("[data-remove-planning-link]");
     if (removePlanningLinkButton) removePlanningLinkButton.addEventListener("click", () => {

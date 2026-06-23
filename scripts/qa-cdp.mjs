@@ -466,6 +466,31 @@ try {
   await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'terpeca'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#map-planning-status').value = 'all'; document.querySelector('#map-planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent === '100' && document.querySelectorAll('#map-region option').length > 10", Boolean, "TERPECA is available as map source");
+  await evalPage(cdp, "document.querySelector('#map-source').value = 'escaperoomers'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(
+    cdp,
+    "document.querySelector('[data-map-list]')?.textContent.includes('Wähle zuerst ein EscapeRoomers-Gebiet') && document.querySelectorAll('.map-place').length === 0 && document.querySelectorAll('#map-region option').length > 40",
+    Boolean,
+    "EscapeRoomers map source waits for a region",
+  );
+  await evalPage(cdp, `
+    (() => {
+      const region = document.querySelector('#map-region');
+      const option = Array.from(region.options).find((entry) => entry.textContent.startsWith('Deutschland'))
+        || Array.from(region.options).find((entry) => entry.value !== 'all');
+      region.value = option.value;
+      region.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('#map-planning-status').value = 'all';
+      document.querySelector('#map-planning-status').dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const text = document.querySelector('[data-map-list]')?.textContent || ''; const renderedRooms = document.querySelectorAll('.map-room').length; return { stillWaiting: text.includes('Wähle zuerst ein EscapeRoomers-Gebiet'), region: document.querySelector('#map-region')?.value, renderedRooms }; })()",
+    (value) => !value.stillWaiting && value.region !== "all" && value.renderedRooms <= 20,
+    "EscapeRoomers map region limits visible workload",
+  );
 
   await evalPage(cdp, "document.querySelector('[data-view=\"stats\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.panel').length", (value) => value >= 4, "stats panels");

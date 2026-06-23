@@ -1113,6 +1113,7 @@
   function getMapEntries() {
     const query = normalize(ui.mapSearch);
     if (["terpeca", "escaperoomers"].includes(ui.mapSource)) {
+      if (mapRequiresPlanningRegionSelection()) return [];
       return planningRooms(ui.mapSource)
         .map((room) => ({ type: "catalog", entry: room }))
         .filter((item) => mapEntryMatchesRegion(item))
@@ -1156,6 +1157,10 @@
       return detectedRegionNamesForCity(item.entry.city).includes(preset.name) || countryBelongsToRegion(item.entry.country, preset.name);
     }
     return true;
+  }
+
+  function mapRequiresPlanningRegionSelection() {
+    return ui.mapSource === "escaperoomers" && ui.mapRegion === "all";
   }
 
   function countryBelongsToRegion(country, regionName) {
@@ -2161,12 +2166,16 @@
 
   function renderMapView() {
     const isPlanningSource = ["terpeca", "escaperoomers"].includes(ui.mapSource);
-    const planningCounts = isPlanningSource ? planningStatusCounts(ui.mapSource, ui.mapRegion, ui.mapSearch) : { all: 0, unplayed: 0, upnext: 0, played: 0 };
+    const requiresRegionSelection = mapRequiresPlanningRegionSelection();
+    const planningCounts = isPlanningSource && !requiresRegionSelection
+      ? planningStatusCounts(ui.mapSource, ui.mapRegion, ui.mapSearch)
+      : { all: isPlanningSource ? planningRooms(ui.mapSource).length : 0, unplayed: 0, upnext: 0, played: 0 };
     const options = (isPlanningSource ? planningRegionOptions(ui.mapSource) : regionOptions())
       .map((option) => `<option value="${escapeHtml(option.value)}" ${ui.mapRegion === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
       .join("");
     const entries = getMapEntries();
     const groups = mapCityGroups(entries);
+    const mapList = requiresRegionSelection ? renderMapRegionPrompt() : renderMapList(groups, groups, entries.length);
 
     return `
       <section class="toolbar map-toolbar">
@@ -2201,7 +2210,7 @@
           <div id="map-canvas" class="map-canvas" aria-label="Karte"></div>
         </div>
         <aside class="map-list" data-map-list>
-          ${renderMapList(groups, groups, entries.length)}
+          ${mapList}
         </aside>
       </section>
     `;
@@ -2220,6 +2229,16 @@
       </div>
       ${groups.length ? groups.map(renderMapGroup).join("") : renderEmptyState("Keine Räume im aktuellen Kartenausschnitt.")}
       ${missingGroups.length ? `<p class="map-missing">Ohne Kartenpunkt: ${escapeHtml(missingGroups.map((group) => group.city).join(", "))}</p>` : ""}
+    `;
+  }
+
+  function renderMapRegionPrompt() {
+    return `
+      <div class="map-summary">
+        <strong>0</strong>
+        <span>Bitte Gebiet auswählen</span>
+      </div>
+      ${renderEmptyState("Wähle zuerst ein EscapeRoomers-Gebiet aus. Danach lädt die Karte nur diese regionale Top-20-Liste.")}
     `;
   }
 
@@ -2323,6 +2342,10 @@
   function updateVisibleMapList() {
     const list = app.querySelector("[data-map-list]");
     if (!list) return;
+    if (mapRequiresPlanningRegionSelection()) {
+      list.innerHTML = renderMapRegionPrompt();
+      return;
+    }
     const visibleGroups = visibleMapGroups();
     list.innerHTML = renderMapList(visibleGroups, mapState.groups);
     bindPlanningActions(list);

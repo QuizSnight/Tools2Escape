@@ -41,6 +41,40 @@
     FINLAND: "Finnland",
     CROATIA: "Kroatien",
   };
+  const COUNTRY_LABELS_DE = {
+    Austria: "Österreich",
+    Belgium: "Belgien",
+    Bulgaria: "Bulgarien",
+    Canada: "Kanada",
+    Croatia: "Kroatien",
+    "Czech Republic": "Tschechien",
+    Denmark: "Dänemark",
+    Estonia: "Estland",
+    Finland: "Finnland",
+    France: "Frankreich",
+    Germany: "Deutschland",
+    Greece: "Griechenland",
+    Hungary: "Ungarn",
+    Ireland: "Irland",
+    Israel: "Israel",
+    Italy: "Italien",
+    Kosovo: "Kosovo",
+    Latvia: "Lettland",
+    Luxembourg: "Luxemburg",
+    Netherlands: "Niederlande",
+    "North Macedonia": "Nordmazedonien",
+    Poland: "Polen",
+    Portugal: "Portugal",
+    Romania: "Rumänien",
+    Scandinavia: "Skandinavien",
+    Serbia: "Serbien",
+    Slovakia: "Slowakei",
+    Slovenia: "Slowenien",
+    Spain: "Spanien",
+    Switzerland: "Schweiz",
+    "United Kingdom": "UK",
+    "United States": "USA",
+  };
   const ATHENS_CITIES = new Set(["athen", "athens"]);
   const HAMBURG_CITIES = new Set(["hamburg"]);
   const NRW_CITIES = new Set([
@@ -581,6 +615,9 @@
       trips: Array.isArray(input.trips) ? input.trips : [],
       other: Array.isArray(input.other) ? input.other : [],
       regionPresets: Array.isArray(input.regionPresets) ? input.regionPresets : [],
+      planningLinks: input.planningLinks && typeof input.planningLinks === "object" && !Array.isArray(input.planningLinks)
+        ? input.planningLinks
+        : {},
     };
 
     merged.played = merged.played.map((room) => {
@@ -897,6 +934,18 @@
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
+  }
+
+  function germanCountry(value) {
+    const text = clean(value);
+    if (!text) return "";
+    const match = Object.entries(COUNTRY_LABELS_DE).find(([english, german]) =>
+      normalize(text) === normalize(english) || normalize(text) === normalize(german));
+    return match ? match[1] : text;
+  }
+
+  function planningRegionLabel(value) {
+    return germanCountry(value);
   }
 
   function normalizeCity(value) {
@@ -1642,20 +1691,30 @@
   }
 
   function planningRoomState(room) {
+    if (manualPlanningPlayedRoom(room)) return "played";
     if (findPlanningMatch(room, data.played)) return "played";
     if (findPlanningMatch(room, data.wishList)) return "upnext";
     return "unplayed";
+  }
+
+  function manualPlanningPlayedRoom(room) {
+    const playedRoomId = data.planningLinks?.[room.id];
+    return playedRoomId ? data.played.find((entry) => entry.id === playedRoomId) || null : null;
   }
 
   function findPlanningMatch(room, entries) {
     const title = normalize(room.title);
     const provider = normalize(room.provider);
     const city = normalizeCity(room.city);
-    const candidates = entries.filter((entry) => normalize(entry.title) === title);
+    if (!title) return null;
+    const candidates = entries
+      .map((entry) => ({ entry, score: planningTitleMatchScore(title, normalize(entry.title)) }))
+      .filter((candidate) => candidate.score > 0)
+      .sort((a, b) => b.score - a.score);
     if (!candidates.length) return null;
     const contextualMatch = candidates.find((entry) => {
-      const entryProvider = normalize(entry.provider);
-      const entryCity = normalizeCity(entry.city);
+      const entryProvider = normalize(entry.entry.provider);
+      const entryCity = normalizeCity(entry.entry.city);
       const providerMatches = provider && entryProvider && (
         provider === entryProvider
         || (provider.length >= 5 && entryProvider.length >= 5 && (provider.includes(entryProvider) || entryProvider.includes(provider)))
@@ -1663,8 +1722,51 @@
       const cityMatches = city && entryCity && city === entryCity;
       return providerMatches || cityMatches;
     });
-    if (contextualMatch) return contextualMatch;
-    return candidates.length === 1 && title.length >= 10 ? candidates[0] : null;
+    if (contextualMatch) return contextualMatch.entry;
+    const exactMatches = candidates.filter((candidate) => candidate.score >= 100);
+    if (exactMatches.length === 1 && title.length >= 6) return exactMatches[0].entry;
+    const strongMatches = candidates.filter((candidate) => candidate.score >= 60);
+    return strongMatches.length === 1 ? strongMatches[0].entry : null;
+  }
+
+  function planningTitleMatchScore(planningTitle, entryTitle) {
+    if (!planningTitle || !entryTitle) return 0;
+    if (planningTitle === entryTitle) return 120;
+    const shorter = planningTitle.length < entryTitle.length ? planningTitle : entryTitle;
+    const longer = planningTitle.length < entryTitle.length ? entryTitle : planningTitle;
+    if (shorter.length < 6) return 0;
+    if (longer.startsWith(`${shorter} `)) return 80;
+    if (longer.includes(` ${shorter} `) || longer.endsWith(` ${shorter}`)) return 60;
+    return 0;
+  }
+
+  function planningStatusCounts(source = ui.planningSource, region = ui.planningRegion, search = ui.planningSearch) {
+    const query = normalize(search);
+    const counts = { all: 0, unplayed: 0, upnext: 0, played: 0 };
+    planningRooms(source)
+      .filter((room) => region === "all" || clean(room.region || room.country) === region)
+      .filter((room) => !query || normalize([
+        room.title,
+        room.provider,
+        room.city,
+        room.country,
+        room.region,
+      ].join(" ")).includes(query))
+      .forEach((room) => {
+        const state = planningRoomState(room);
+        counts.all += 1;
+        counts[state] += 1;
+      });
+    return counts;
+  }
+
+  function planningStatusOptions(current, counts) {
+    return [
+      ["unplayed", "Noch nicht gespielt"],
+      ["all", "Alle"],
+      ["upnext", "Up Next"],
+      ["played", "Gespielt"],
+    ].map(([value, label]) => selectOption(value, `${label} (${counts[value] || 0})`, current)).join("");
   }
 
   function planningRegionOptions(source = ui.planningSource) {
@@ -1673,7 +1775,7 @@
       .sort((a, b) => a.localeCompare(b, "de"));
     return [{ value: "all", label: `Alle Gebiete (${rooms.length})` }, ...regions.map((region) => ({
       value: region,
-      label: `${region} (${rooms.filter((room) => clean(room.region || room.country) === region).length})`,
+      label: `${planningRegionLabel(region)} (${rooms.filter((room) => clean(room.region || room.country) === region).length})`,
     }))];
   }
 
@@ -1695,6 +1797,7 @@
   function renderPlanningView() {
     const regions = planningRegionOptions();
     const rooms = filteredPlanningRooms();
+    const statusCounts = planningStatusCounts();
     const sourceLabel = ui.planningSource === "terpeca" ? `TERPECA ${planningData.terpecaYear}` : "EscapeRoomers";
     const updated = planningData.updatedAt ? formatDate(planningData.updatedAt.slice(0, 10)) : "";
     return `
@@ -1715,10 +1818,7 @@
         <label>
           <span>Status</span>
           <select id="planning-status">
-            ${selectOption("unplayed", "Noch nicht gespielt", ui.planningStatus)}
-            ${selectOption("all", "Alle", ui.planningStatus)}
-            ${selectOption("upnext", "Up Next", ui.planningStatus)}
-            ${selectOption("played", "Gespielt", ui.planningStatus)}
+            ${planningStatusOptions(ui.planningStatus, statusCounts)}
           </select>
         </label>
         <label class="search-box">
@@ -1739,9 +1839,10 @@
   function renderPlanningRoom(room, compact = false) {
     const state = planningRoomState(room);
     const stateLabel = state === "played" ? "Gespielt" : state === "upnext" ? "Up Next" : "Offen";
-    const location = [room.city || room.region, room.country].filter(Boolean).join(" · ");
+    const location = [room.city || planningRegionLabel(room.region), germanCountry(room.country)].filter(Boolean).join(" · ");
     const scare = typeof room.scare === "number" ? `${formatScore(room.scare)}/${room.scareScale || 5}` : "-";
     const searchUrl = planningRoomSearchUrl(room);
+    const manualMatch = manualPlanningPlayedRoom(room);
     return `
       <article class="planning-room ${compact ? "is-compact" : ""}" data-planning-room="${escapeHtml(room.id)}">
         <div class="planning-rank"><span>Platz</span><strong>${room.rank}</strong></div>
@@ -1762,6 +1863,7 @@
             ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer">Website</a>` : `<a href="${escapeHtml(searchUrl)}" target="_blank" rel="noreferrer">Websuche</a>`}
             ${room.detailUrl ? `<a href="${escapeHtml(room.detailUrl)}" target="_blank" rel="noreferrer">Quelle</a>` : ""}
             ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">Zu Up Next</button>` : ""}
+            <button type="button" data-planning-link="${escapeHtml(room.id)}">${manualMatch ? "Zuordnung ändern" : "Gespielt zuordnen"}</button>
             ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">Trip zuordnen</button>` : ""}
           </div>
         </div>
@@ -1772,6 +1874,12 @@
   function planningRoomSearchUrl(room) {
     const query = [room.title, room.provider, room.city || room.region, "Escape Room"].filter(Boolean).join(" ");
     return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  }
+
+  function planningRoomSourceLabel(room) {
+    return room.source === "terpeca"
+      ? `TERPECA ${room.year || planningData.terpecaYear}`
+      : `EscapeRoomers ${planningRegionLabel(room.region)}`;
   }
 
   function renderTripsView() {
@@ -2027,6 +2135,7 @@
 
   function renderMapView() {
     const isPlanningSource = ["terpeca", "escaperoomers"].includes(ui.mapSource);
+    const planningCounts = isPlanningSource ? planningStatusCounts(ui.mapSource, ui.mapRegion, ui.mapSearch) : { all: 0, unplayed: 0, upnext: 0, played: 0 };
     const options = (isPlanningSource ? planningRegionOptions(ui.mapSource) : regionOptions())
       .map((option) => `<option value="${escapeHtml(option.value)}" ${ui.mapRegion === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
       .join("");
@@ -2052,10 +2161,7 @@
         <label ${isPlanningSource ? "" : "hidden"}>
           <span>Status</span>
           <select id="map-planning-status">
-            ${selectOption("unplayed", "Noch nicht gespielt", ui.mapPlanningStatus)}
-            ${selectOption("all", "Alle", ui.mapPlanningStatus)}
-            ${selectOption("upnext", "Up Next", ui.mapPlanningStatus)}
-            ${selectOption("played", "Gespielt", ui.mapPlanningStatus)}
+            ${planningStatusOptions(ui.mapPlanningStatus, planningCounts)}
           </select>
         </label>
         <label class="search-box">
@@ -2111,6 +2217,7 @@
         <div>
           ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer" aria-label="Website öffnen">Link</a>` : `<a href="${escapeHtml(planningRoomSearchUrl(room))}" target="_blank" rel="noreferrer">Suche</a>`}
           ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">+ Up Next</button>` : ""}
+          <button type="button" data-planning-link="${escapeHtml(room.id)}">Zuordnen</button>
           ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
         </div>
       </div>
@@ -2511,6 +2618,7 @@
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "planningLink") return renderPlanningLinkModal(ui.modal.roomId);
     if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
@@ -2656,6 +2764,46 @@
             <div class="modal-actions">
               <button type="button" data-close-modal>Abbrechen</button>
               <button class="primary-action" type="submit">Details prüfen</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderPlanningLinkModal(roomId) {
+    const room = planningRoomById(roomId);
+    if (!room) return "";
+    const current = manualPlanningPlayedRoom(room) || findPlanningMatch(room, data.played);
+    const options = [...data.played]
+      .sort((a, b) => `${a.title} ${a.city}`.localeCompare(`${b.title} ${b.city}`, "de"))
+      .map((played) => {
+        const label = [played.title, played.provider, played.city].filter(Boolean).join(" · ");
+        return `<option value="${escapeHtml(played.id)}" ${current?.id === played.id ? "selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="planning-link-title">
+          <form id="planning-link-form">
+            <input type="hidden" name="roomId" value="${escapeHtml(room.id)}">
+            <div class="modal-head">
+              <div>
+                <h2 id="planning-link-title">Gespielten Raum zuordnen</h2>
+                <p class="modal-subtitle">${escapeHtml([room.title, room.provider, room.city || planningRegionLabel(room.region), germanCountry(room.country)].filter(Boolean).join(" · "))}</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <label class="full-field">
+              <span>Gespielter Raum</span>
+              <select name="playedRoomId" required>
+                ${options}
+              </select>
+            </label>
+            <div class="modal-actions">
+              ${data.planningLinks?.[room.id] ? `<button type="button" data-remove-planning-link="${escapeHtml(room.id)}">Zuordnung lösen</button>` : ""}
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Zuordnen</button>
             </div>
           </form>
         </section>
@@ -3237,6 +3385,14 @@
     const roomForm = app.querySelector("#room-form");
     if (roomForm) roomForm.addEventListener("submit", saveRoomFromForm);
 
+    const planningLinkForm = app.querySelector("#planning-link-form");
+    if (planningLinkForm) planningLinkForm.addEventListener("submit", savePlanningLinkFromForm);
+
+    const removePlanningLinkButton = app.querySelector("[data-remove-planning-link]");
+    if (removePlanningLinkButton) removePlanningLinkButton.addEventListener("click", () => {
+      removePlanningLink(removePlanningLinkButton.dataset.removePlanningLink);
+    });
+
     app.querySelectorAll("[data-rating-base]").forEach((input) => {
       input.addEventListener("change", () => {
         const group = input.closest("[data-rating-group]");
@@ -3443,6 +3599,12 @@
     root.querySelectorAll("[data-planning-upnext]").forEach((button) => {
       button.addEventListener("click", () => addPlanningRoomToWish(button.dataset.planningUpnext));
     });
+    root.querySelectorAll("[data-planning-link]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "planningLink", roomId: button.dataset.planningLink };
+        render();
+      });
+    });
     root.querySelectorAll("[data-planning-trip]").forEach((button) => {
       button.addEventListener("click", () => {
         ui.modal = { type: "planningTrip", roomId: button.dataset.planningTrip };
@@ -3454,12 +3616,12 @@
   function addPlanningRoomToWish(roomId) {
     const room = planningRoomById(roomId);
     if (!room || findPlanningMatch(room, data.wishList) || findPlanningMatch(room, data.played)) return;
-    const sourceLabel = room.source === "terpeca" ? `TERPECA ${room.year || planningData.terpecaYear}` : `EscapeRoomers ${room.region}`;
+    const sourceLabel = planningRoomSourceLabel(room);
     data.wishList = [{
       id: makeId("wish"),
       title: room.title,
       provider: room.provider,
-      country: room.country,
+      country: germanCountry(room.country),
       city: room.city || room.region,
       link: room.website || room.detailUrl || planningRoomSearchUrl(room),
       notes: `${sourceLabel} · Platz ${room.rank}${room.duration ? ` · ${room.duration} Min.` : ""}${typeof room.scare === "number" ? ` · Horror ${formatScore(room.scare)}/${room.scareScale || 5}` : ""}`,
@@ -3470,13 +3632,35 @@
     setNotice(`${room.title} wurde zu Up Next hinzugefügt.`);
   }
 
+  function savePlanningLinkFromForm(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const room = planningRoomById(clean(form.get("roomId")));
+    const playedRoom = data.played.find((entry) => entry.id === clean(form.get("playedRoomId")));
+    if (!room || !playedRoom) return;
+    data.planningLinks = { ...(data.planningLinks || {}), [room.id]: playedRoom.id };
+    ui.modal = null;
+    saveData();
+    setNotice(`${room.title} ist jetzt mit ${playedRoom.title} verknüpft.`);
+  }
+
+  function removePlanningLink(roomId) {
+    const room = planningRoomById(roomId);
+    if (!room || !data.planningLinks?.[room.id]) return;
+    data.planningLinks = { ...data.planningLinks };
+    delete data.planningLinks[room.id];
+    ui.modal = null;
+    saveData();
+    setNotice("Zuordnung gelöst.");
+  }
+
   function openPlanningRoomForTrip(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const room = planningRoomById(clean(form.get("roomId")));
     const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
     if (!room || !trip) return;
-    const sourceLabel = room.source === "terpeca" ? `TERPECA ${room.year || planningData.terpecaYear}` : `EscapeRoomers ${room.region}`;
+    const sourceLabel = planningRoomSourceLabel(room);
     ui.modal = {
       type: "tripItem",
       tripId: trip.id,

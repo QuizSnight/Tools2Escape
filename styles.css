@@ -958,6 +958,24 @@ h2 {
   gap: 12px;
 }
 
+.wish-card {
+  min-height: 0;
+  padding: 12px;
+  gap: 9px;
+}
+
+.wish-card h2 {
+  font-size: 0.98rem;
+}
+
+.wish-card .note {
+  font-size: 0.86rem;
+}
+
+.wish-card .card-actions {
+  margin-top: 0;
+}
+
 .room-card__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

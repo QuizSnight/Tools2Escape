@@ -29,6 +29,40 @@ const EXCLUDED_SEARCH_HOSTS = [
   "escapethereview.",
   "google.",
 ];
+const COUNTRY_LABELS_DE = new Map(Object.entries({
+  Austria: "Österreich",
+  Belgium: "Belgien",
+  Bulgaria: "Bulgarien",
+  Canada: "Kanada",
+  Croatia: "Kroatien",
+  "Czech Republic": "Tschechien",
+  Denmark: "Dänemark",
+  Estonia: "Estland",
+  Finland: "Finnland",
+  France: "Frankreich",
+  Germany: "Deutschland",
+  Greece: "Griechenland",
+  Hungary: "Ungarn",
+  Ireland: "Irland",
+  Israel: "Israel",
+  Italy: "Italien",
+  Kosovo: "Kosovo",
+  Latvia: "Lettland",
+  Luxembourg: "Luxemburg",
+  Netherlands: "Niederlande",
+  "North Macedonia": "Nordmazedonien",
+  Poland: "Polen",
+  Portugal: "Portugal",
+  Romania: "Rumänien",
+  Scandinavia: "Skandinavien",
+  Serbia: "Serbien",
+  Slovakia: "Slowakei",
+  Slovenia: "Slowenien",
+  Spain: "Spanien",
+  Switzerland: "Schweiz",
+  "United Kingdom": "UK",
+  "United States": "USA",
+}));
 
 await main();
 
@@ -162,8 +196,8 @@ function parseTerpeca(csvSource, htmlSource) {
         title: clean(row[columns["Game Title"]]),
         provider: clean(row[columns.Company]),
         city: clean(location.split(",")[0]),
-        country: clean(row[columns.Country]),
-        region: clean(row[columns.Country]),
+        country: germanCountry(row[columns.Country]),
+        region: germanCountry(row[columns.Country]),
         coords: coordinates.length === 2 && coordinates.every(Number.isFinite) ? coordinates : null,
         duration: detail.duration || null,
         scare: detail.scare,
@@ -229,8 +263,9 @@ function parseEscapeRoomersList(source, sourceUrl) {
   const table = source.match(/<table[^>]*>([\s\S]*?)<\/table>/i)?.[1];
   if (!table) return [];
   const title = clean(stripTags(source.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ""));
-  const region = title.replace(/^Ranked Playlist\s*/i, "").trim() || regionFromUrl(sourceUrl);
-  const country = countryForEscapeRoomersRegion(region, sourceUrl);
+  const rawRegion = title.replace(/^Ranked Playlist\s*/i, "").trim() || regionFromUrl(sourceUrl);
+  const region = rawRegion;
+  const country = germanCountry(countryForEscapeRoomersRegion(rawRegion, sourceUrl));
   const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].slice(1);
 
   return rows.map((rowMatch) => {
@@ -303,6 +338,14 @@ function countryForEscapeRoomersRegion(region, sourceUrl) {
     [["golf south", "gulf south", "south atlantic", "west coast", "/usa/"], "United States"],
   ];
   return mappings.find(([needles]) => needles.some((needle) => key.includes(needle)))?.[1] || region;
+}
+
+function germanCountry(value) {
+  const text = clean(value);
+  if (!text) return "";
+  const match = [...COUNTRY_LABELS_DE.entries()].find(([english, german]) =>
+    normalize(text) === normalize(english) || normalize(text) === normalize(german));
+  return match ? match[1] : text;
 }
 
 function regionFromUrl(value) {

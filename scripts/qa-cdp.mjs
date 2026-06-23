@@ -158,9 +158,30 @@ try {
 
   await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "document.querySelectorAll('.planning-room').length === 100 && document.querySelector('#planning-source').value === 'terpeca'", Boolean, "TERPECA top 100 renders");
+  await assertEval(cdp, "Array.from(document.querySelectorAll('#planning-status option')).every((option) => /\\(\\d+\\)$/.test(option.textContent))", Boolean, "planning status filters show counts");
+  await assertEval(
+    cdp,
+    "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.textContent.includes('Kuriosum: Artifact of Darkness')); return card?.querySelector('.planning-state')?.textContent === 'Gespielt'; })()",
+    Boolean,
+    "TERPECA alternate title matches played room",
+  );
   await evalPage(cdp, "document.querySelector('#planning-source').value = 'escaperoomers'; document.querySelector('#planning-source').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "document.querySelectorAll('.planning-room').length === window.T2E_PLANNING_DATA.escaperoomers.length && Array.from(document.querySelectorAll('.planning-rank strong')).every((node) => Number(node.textContent) <= 20) && document.querySelectorAll('#planning-region option').length > 40", Boolean, "EscapeRoomers regional top 20 renders");
   await screenshot(cdp, path.join(qaDir, "planning-desktop.png"));
+  await evalPage(cdp, `
+    (() => {
+      window.__qaManualPlanningCard = Array.from(document.querySelectorAll('.planning-room')).find((card) => card.querySelector('.planning-state')?.textContent !== 'Gespielt');
+      window.__qaManualPlanningTitle = window.__qaManualPlanningCard?.querySelector('h2')?.textContent || '';
+      window.__qaManualPlanningCard?.querySelector('[data-planning-link]')?.click();
+      const form = document.querySelector('#planning-link-form');
+      form.querySelector('[name="playedRoomId"]').value = window.T2E_SEED_DATA.played.find((room) => room.title === 'Secret Subway').id;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle); return card?.querySelector('.planning-state')?.textContent === 'Gespielt'; })()", Boolean, "manual planning link marks source room as played");
+  await evalPage(cdp, "Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle).querySelector('[data-planning-link]').click(); document.querySelector('[data-remove-planning-link]').click();");
+  await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.planning-room')).find((node) => node.querySelector('h2')?.textContent === window.__qaManualPlanningTitle); return card?.querySelector('.planning-state')?.textContent !== 'Gespielt'; })()", Boolean, "manual planning link can be removed");
   await evalPage(cdp, "window.__qaPlanningWishTitle = document.querySelector('[data-planning-upnext]').closest('.planning-room').querySelector('h2').textContent; document.querySelector('[data-planning-upnext]').click(); document.querySelector('[data-view=\"upnext\"]').click();");
   await assertEval(cdp, "Array.from(document.querySelectorAll('.wish-card h2')).some((node) => node.textContent === window.__qaPlanningWishTitle)", Boolean, "planning room can be added to up next");
   await evalPage(cdp, "window.confirm = () => true; Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2').textContent === window.__qaPlanningWishTitle).querySelector('[data-delete-wish]').click();");

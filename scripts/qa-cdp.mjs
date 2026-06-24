@@ -311,6 +311,7 @@ try {
     Boolean,
     "desktop trip planning uses map/open rooms left and calendar right",
   );
+  await assertEval(cdp, "getComputedStyle(document.querySelector('.trip-plan-map-shell')).position === 'static'", Boolean, "trip planning map does not stick while scrolling");
   await evalPage(cdp, `
     (() => {
       const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
@@ -344,11 +345,11 @@ try {
   `);
   await assertEval(
     cdp,
-    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); return card?.textContent.includes('Termin bearbeiten') && card?.textContent.includes('Rue Persist 44'); })()",
+    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); const text = card?.textContent || ''; return card?.textContent.includes('Termin bearbeiten') && card?.textContent.includes('Rue Persist 44') && !/Belgien\\s*·\\s*Belgien/.test(text) && !card.querySelector('.trip-plan-card__head small'); })()",
     Boolean,
-    "scheduled trip plan card keeps edited address and edit label",
+    "scheduled trip plan card keeps edited address, edit label and compact location",
   );
-  await assertEval(cdp, "Boolean(Array.from(document.querySelectorAll('.trip-plan-stay-marker')).find((node) => node.textContent.includes('Zur Unterkunft'))?.querySelector('.route-link--small')) || !document.querySelector('.trip-plan-stay-marker')", Boolean, "accommodation calendar marker can expose route button");
+  await assertEval(cdp, "(() => { const marker = Array.from(document.querySelectorAll('.trip-plan-stay-marker')).find((node) => node.textContent.includes('Zur Unterkunft')); return Boolean(marker?.querySelector('.route-link--small')) && marker.textContent.includes(' - Ankunft'); })() || !document.querySelector('.trip-plan-stay-marker')", Boolean, "accommodation calendar marker combines route and arrival details");
   await evalPage(cdp, "Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-plan-to-trip]').click()");
   await assertEval(
     cdp,
@@ -496,6 +497,12 @@ try {
     "(() => { const cards = Array.from(document.querySelectorAll('.trip-plan-card')); const card = cards.find((entry) => entry.querySelector('h4')?.textContent === 'Tokyo Lab'); return { found: Boolean(card), titles: cards.map((entry) => entry.querySelector('h4')?.textContent), text: card?.textContent || '', slots: Array.from(card?.querySelectorAll('[data-trip-slot]') || []).map((button) => button.textContent), date: card?.querySelector('[data-trip-plan-field=\"date\"]')?.value || '' }; })()",
     (value) => value.found && value.text.includes('Escape Rush') && value.text.includes('70 Min.') && value.text.includes('35,00') && value.slots.includes('19:45'),
     "room website import extracts title, price, duration, address and slots into trip planning",
+  );
+  await assertEval(
+    cdp,
+    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'Tokyo Lab'); return Boolean(card?.querySelector('h4 a.title-link')) && !Array.from(card?.querySelectorAll('.trip-item__actions a') || []).some((link) => /Website/i.test(link.textContent)); })()",
+    Boolean,
+    "trip planning links website through title only",
   );
 
   if (ocrFixture) {
@@ -655,6 +662,21 @@ try {
     })()
   `);
   await assertEval(cdp, "window.__qaSettlementConfirm.includes('gezahlt?') && document.querySelector('.trip-settlement')?.textContent.includes('Alles ausgeglichen')", Boolean, "settlement paid button records balancing payment");
+  await evalPage(cdp, `
+    (() => {
+      const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('[data-pay-plan-item]'));
+      card.querySelector('[data-pay-plan-item]').click();
+      const form = document.querySelector('#trip-expense-form');
+      form.querySelector('[name="amount"]').value = '0';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "Boolean(document.querySelector('.trip-plan-card .paid-action')) && document.querySelector('.trip-plan-card .paid-action')?.textContent.includes('✓ bezahlt')", Boolean, "paid planning room shows green paid button");
+  await assertEval(cdp, "document.querySelectorAll('.trip-expense-list:not(.trip-expense-list--modal) .trip-expense').length <= 3 && Boolean(document.querySelector('[data-open-trip-expenses]'))", Boolean, "tricount preview shows only last three payments");
+  await evalPage(cdp, "document.querySelector('[data-open-trip-expenses]').click()");
+  await assertEval(cdp, "Boolean(document.querySelector('#trip-expenses-modal-title')) && document.querySelectorAll('.trip-expense-list--modal .trip-expense').length > 3", Boolean, "all trip payments open in modal");
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-complete-trip-item]').click();

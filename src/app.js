@@ -520,6 +520,9 @@
     layer: null,
     routeLayer: null,
     container: null,
+    tripId: "",
+    viewByTripId: new Map(),
+    listenerAttached: false,
     routeCache: new Map(),
     pendingRoutes: new Set(),
   };
@@ -774,6 +777,8 @@
       participants: participants.length ? unique(participants) : [...members],
       date: clean(expense.date),
       notes: clean(expense.notes),
+      sourceType: clean(expense.sourceType),
+      sourceId: clean(expense.sourceId),
       settlement: expense.settlement && typeof expense.settlement === "object"
         ? {
           from: clean(expense.settlement.from),
@@ -1169,6 +1174,43 @@
     const date = new Date(`${value}T00:00:00`);
     if (Number.isNaN(date.valueOf())) return value;
     return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+  }
+
+  function formatDurationLabel(value) {
+    const duration = numberOrNull(value);
+    return duration === null ? "" : `${formatScore(duration)} Min.`;
+  }
+
+  function linkedTitle(title, url, className = "") {
+    const content = escapeHtml(title || "Ohne Titel");
+    return url
+      ? `<a ${className ? `class="${escapeHtml(className)}"` : ""} href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${content}</a>`
+      : content;
+  }
+
+  function tripPlanSubtitle(item) {
+    const country = germanCountry(item.country);
+    const location = clean(item.address || item.city);
+    const locationWithCountry = country && !locationIncludesCountry(location, country || item.country)
+      ? [location, country].filter(Boolean).join(", ")
+      : location;
+    return [item.provider, locationWithCountry].filter(Boolean).join(" · ");
+  }
+
+  function locationIncludesCountry(location, country) {
+    const normalizedLocation = normalize(location);
+    if (!normalizedLocation) return false;
+    return countryAliases(country).some((alias) => alias && normalizedLocation.includes(alias));
+  }
+
+  function countryAliases(country) {
+    const aliases = [country, germanCountry(country)];
+    Object.entries(COUNTRY_LABELS_DE).forEach(([english, german]) => {
+      if ([country, germanCountry(country)].some((value) => normalize(value) === normalize(english) || normalize(value) === normalize(german))) {
+        aliases.push(english, german);
+      }
+    });
+    return unique(aliases.map(normalize).filter(Boolean));
   }
 
   function getPlayedRooms() {
@@ -2369,31 +2411,51 @@
       : approximateArrivalText(reference, leg);
     const title = position === "start" ? "Start Unterkunft" : "Zur Unterkunft";
     const routeUrl = mapsRouteUrl(accommodation);
+    const details = [leg ? tripTravelSummary(leg) : "", timing].filter(Boolean).join(" - ");
     return `
       <div class="trip-plan-stay-marker">
-        <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(accommodation.title || accommodation.provider || "Unterkunft")}</span>
-        ${leg ? `<small>${escapeHtml(tripTravelSummary(leg))}</small>` : ""}
-        ${timing ? `<small>${escapeHtml(timing)}</small>` : ""}
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(accommodation.title || accommodation.provider || "Unterkunft")}</span>
+          ${details ? `<small>${escapeHtml(details)}</small>` : ""}
+        </div>
         ${routeUrl ? `<a class="route-link route-link--small" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
       </div>
     `;
+  }
+
+  function renderPaidAction(isPaid, attributes) {
+    return isPaid
+      ? `<button class="paid-action" type="button" disabled>✓ bezahlt</button>`
+      : `<button type="button" ${attributes}>als bezahlt markieren</button>`;
+  }
+
+  function tripPlanItemIsPaid(trip, item) {
+    return (trip.expenses || []).some((expense) =>
+      (expense.sourceType === "trip-plan" && expense.sourceId === item.id)
+      || (item.tripItemId && expense.sourceType === "trip-item" && expense.sourceId === item.tripItemId)
+      || (!expense.sourceType && normalize(expense.title) === normalize(item.title) && numberOrNull(expense.amount) > 0));
+  }
+
+  function tripItemIsPaid(trip, item) {
+    return (trip.expenses || []).some((expense) =>
+      (expense.sourceType === "trip-item" && expense.sourceId === item.id)
+      || (expense.sourceType === "trip-plan" && (trip.planItems || []).some((planItem) => planItem.tripItemId === item.id && planItem.id === expense.sourceId))
+      || (!expense.sourceType && normalize(expense.title) === normalize(item.title) && numberOrNull(expense.amount) > 0));
   }
 
   function renderTripPlanCard(trip, item, analysis) {
     const routeUrl = mapsRouteUrl(item);
     const endTime = addMinutesToTime(item.time, item.duration);
     const warnings = analysis.warningsById.get(item.id) || [];
-    const leg = analysis.legsByTargetId.get(item.id);
-    const travelText = leg ? tripPlanLegText(leg) : "";
     const priceText = item.pricePerPerson ? `${formatCurrency(item.pricePerPerson)} p.P. bei 5` : "";
     const actionLabel = item.tripItemId || item.date || item.time ? "Termin bearbeiten" : "Termin erstellen";
+    const isPaid = tripPlanItemIsPaid(trip, item);
     return `
       <article class="trip-plan-card ${warnings.length ? "has-warning" : ""}" draggable="true" data-plan-drag="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">
         <div class="trip-plan-card__head">
-          <h4>${escapeHtml(item.title || "Ohne Titel")}</h4>
-          <p>${escapeHtml([item.provider, item.address || item.city, item.country].filter(Boolean).join(" · "))}</p>
-          ${travelText ? `<small>${escapeHtml(travelText)}</small>` : ""}
+          <h4>${linkedTitle(item.title || "Ohne Titel", item.link, "title-link")}</h4>
+          <p>${escapeHtml(tripPlanSubtitle(item))}</p>
         </div>
         <div class="trip-plan-fields">
           <select aria-label="Datum" data-trip-plan-field="date" data-trip-id="${escapeHtml(trip.id)}" data-plan-id="${escapeHtml(item.id)}">
@@ -2404,21 +2466,20 @@
           </select>
           <label class="duration-inline">
             <input aria-label="Dauer" type="number" min="15" step="5" inputmode="numeric" placeholder="Dauer" value="${escapeHtml(item.duration || "")}" data-trip-plan-field="duration" data-trip-id="${escapeHtml(trip.id)}" data-plan-id="${escapeHtml(item.id)}">
-            <span>Min.</span>
+            <span>${item.duration ? "Min." : ""}</span>
           </label>
         </div>
         ${item.date && item.availableSlots?.length ? renderTripAvailableSlots(trip, item) : ""}
         <div class="trip-plan-meta">
           ${item.time ? `<span>${escapeHtml(endTime ? `${item.time} bis ${endTime}` : item.time)}</span>` : `<span>Zeit offen</span>`}
-          ${item.duration ? `<span>${escapeHtml(`${item.duration} Min.`)}</span>` : `<span>Dauer offen</span>`}
+          ${item.duration ? `<span>${escapeHtml(formatDurationLabel(item.duration))}</span>` : `<span>Dauer offen</span>`}
           ${priceText ? `<span>${escapeHtml(priceText)}</span>` : ""}
         </div>
         ${warnings.length ? `<div class="trip-plan-warnings">${warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
         <div class="trip-item__actions">
           ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
-          ${item.link ? `<a class="external-link" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">Website</a>` : ""}
           <button class="primary-action" type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">${escapeHtml(actionLabel)}</button>
-          <button type="button" data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">als bezahlt markieren</button>
+          ${renderPaidAction(isPaid, `data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}"`)}
           <button type="button" data-delete-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Entfernen</button>
         </div>
       </article>
@@ -2451,13 +2512,15 @@
   }
 
   function renderTripItem(item, tripId, timelineEntry = null) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
     const routeUrl = mapsRouteUrl(item);
     const isAccommodation = item.type === "accommodation";
+    const isPaid = trip ? tripItemIsPaid(trip, item) : false;
     const timeText = timelineEntry?.timeLabel || (isAccommodation ? "Check-in" : item.time || "--:--");
     const calculatedEndTime = addMinutesToTime(item.time, item.duration);
     const endText = timelineEntry?.detailText || (isAccommodation
       ? item.endDate ? `Check-out ${formatDate(item.endDate)}` : ""
-      : [calculatedEndTime ? `bis ${calculatedEndTime}` : "", item.duration ? `${item.duration} Min.` : ""].filter(Boolean).join(" · "));
+      : [calculatedEndTime ? `bis ${calculatedEndTime}` : "", formatDurationLabel(item.duration)].filter(Boolean).join(" · "));
     return `
       <article class="trip-item trip-item--${escapeHtml(item.type)}">
         <div class="trip-item__time">
@@ -2466,7 +2529,7 @@
         </div>
         <div class="trip-item__body">
           <span class="trip-type">${escapeHtml(TRIP_ITEM_LABELS[item.type])}</span>
-          <h3>${escapeHtml(item.title || "Ohne Titel")}</h3>
+          <h3>${linkedTitle(item.title || "Ohne Titel", item.link, "title-link")}</h3>
           ${timelineEntry?.hint ? `<p class="trip-timing-hint">${escapeHtml(timelineEntry.hint)}</p>` : ""}
           ${item.playedRoomId ? `<span class="trip-complete">Gespielt</span>` : ""}
           ${item.provider ? `<p class="trip-provider">${escapeHtml(item.provider)}</p>` : ""}
@@ -2476,8 +2539,7 @@
           ${item.sourceName ? `<small class="trip-source">Importiert aus ${escapeHtml(item.sourceName)}</small>` : ""}
           <div class="trip-item__actions">
             ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route öffnen</a>` : ""}
-            ${item.link ? `<a class="external-link" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">Buchung öffnen</a>` : ""}
-            <button type="button" data-pay-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">als bezahlt markieren</button>
+            ${renderPaidAction(isPaid, `data-pay-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}"`)}
             ${item.type === "escape" && !item.playedRoomId ? `<button class="primary-action" type="button" data-complete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Gespielt</button>` : ""}
             ${item.type === "escape" && item.playedRoomId ? `<button type="button" data-edit-room="${escapeHtml(item.playedRoomId)}">Bewertung bearbeiten</button>` : ""}
             <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
@@ -2500,6 +2562,7 @@
 
   function renderTripExpenses(trip) {
     const expenses = [...(trip.expenses || [])].sort((a, b) => `${b.date || ""} ${b.title}`.localeCompare(`${a.date || ""} ${a.title}`, "de"));
+    const previewExpenses = expenses.slice(0, 3);
     const summary = tripExpenseSummary(trip);
     return `
       <section class="trip-expenses">
@@ -2515,7 +2578,8 @@
         </div>
         <div class="trip-expense-layout">
           <div class="trip-expense-list">
-            ${expenses.length ? expenses.map((expense) => renderTripExpense(expense, trip.id)).join("") : renderEmptyState("Noch keine Ausgaben eingetragen.")}
+            ${previewExpenses.length ? previewExpenses.map((expense) => renderTripExpense(expense, trip.id)).join("") : renderEmptyState("Noch keine Ausgaben eingetragen.")}
+            ${expenses.length > 3 ? `<button type="button" data-open-trip-expenses="${escapeHtml(trip.id)}">Alle Zahlungen ansehen</button>` : ""}
           </div>
           <div class="trip-settlement">
             <h4>Gesamtabrechnung</h4>
@@ -2555,6 +2619,28 @@
     `;
   }
 
+  function renderTripExpensesListModal(tripId) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    if (!trip) return "";
+    const expenses = [...(trip.expenses || [])].sort((a, b) => `${b.date || ""} ${b.title}`.localeCompare(`${a.date || ""} ${a.title}`, "de"));
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-expenses-modal-title">
+          <div class="modal-head">
+            <div>
+              <h2 id="trip-expenses-modal-title">Alle Zahlungen</h2>
+              <p class="modal-subtitle">${escapeHtml(trip.name || "Trip")}</p>
+            </div>
+            <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+          </div>
+          <div class="trip-expense-list trip-expense-list--modal">
+            ${expenses.length ? expenses.map((expense) => renderTripExpense(expense, trip.id)).join("") : renderEmptyState("Noch keine Ausgaben eingetragen.")}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function sortTrips(a, b) {
     const today = new Date().toISOString().slice(0, 10);
     const aPast = a.endDate && a.endDate < today;
@@ -2571,8 +2657,15 @@
   }
 
   function sortTripPlanItems(a, b) {
-    return `${a.date || "9999-12-31"} ${a.time || "99:99"} ${a.city || a.address} ${a.title}`
-      .localeCompare(`${b.date || "9999-12-31"} ${b.time || "99:99"} ${b.city || b.address} ${b.title}`, "de");
+    return `${a.date || "9999-12-31"} ${a.time || "99:99"} ${tripPlanSortLocation(a)} ${a.title}`
+      .localeCompare(`${b.date || "9999-12-31"} ${b.time || "99:99"} ${tripPlanSortLocation(b)} ${b.title}`, "de");
+  }
+
+  function tripPlanSortLocation(item) {
+    return [
+      germanCountry(item.country),
+      item.city || extractCityFromAddress(item.address) || item.address,
+    ].map(normalize).join(" ");
   }
 
   function groupTripItems(items) {
@@ -3219,6 +3312,24 @@
     bindPlanSourceActions(list);
   }
 
+  function currentTripPlanMapView() {
+    if (!tripPlanMapState.map) return null;
+    try {
+      const center = tripPlanMapState.map.getCenter();
+      const zoom = tripPlanMapState.map.getZoom();
+      if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng) || !Number.isFinite(zoom)) return null;
+      return { center: [center.lat, center.lng], zoom };
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberTripPlanMapView(tripId = tripPlanMapState.tripId) {
+    const view = currentTripPlanMapView();
+    if (tripId && view) tripPlanMapState.viewByTripId.set(tripId, view);
+    return view;
+  }
+
   function renderTripPlanMap() {
     const canvas = app.querySelector("#trip-plan-map");
     if (!canvas) return;
@@ -3228,6 +3339,9 @@
     queueMissingGeocodes(groups.slice(0, 6));
     const analysis = tripPlanAnalysis(trip);
     queueTripPlanRoutes(analysis.routeLegs);
+    const preservedView = tripPlanMapState.tripId === trip.id
+      ? rememberTripPlanMapView(trip.id) || tripPlanMapState.viewByTripId.get(trip.id)
+      : tripPlanMapState.viewByTripId.get(trip.id);
 
     if (!window.L) {
       canvas.innerHTML = '<div class="map-fallback">Karte lädt...</div>';
@@ -3235,10 +3349,12 @@
     }
 
     if (tripPlanMapState.map && tripPlanMapState.container !== canvas) {
+      rememberTripPlanMapView();
       tripPlanMapState.map.remove();
       tripPlanMapState.map = null;
       tripPlanMapState.layer = null;
       tripPlanMapState.routeLayer = null;
+      tripPlanMapState.listenerAttached = false;
     }
 
     if (!tripPlanMapState.map) {
@@ -3248,6 +3364,12 @@
         maxZoom: 19,
       }).addTo(tripPlanMapState.map);
       tripPlanMapState.container = canvas;
+    }
+    tripPlanMapState.tripId = trip.id;
+
+    if (!tripPlanMapState.listenerAttached) {
+      tripPlanMapState.map.on("moveend zoomend", () => rememberTripPlanMapView(trip.id));
+      tripPlanMapState.listenerAttached = true;
     }
 
     if (tripPlanMapState.layer) tripPlanMapState.layer.remove();
@@ -3284,14 +3406,16 @@
       }
       marker.bindPopup(`
         <strong>${escapeHtml(item.title)}</strong><br>
-        ${escapeHtml([item.provider, item.city || item.address, item.country].filter(Boolean).join(" · "))}
+        ${escapeHtml(tripPlanSubtitle(item))}
         ${item.date || item.time ? `<br><small>${escapeHtml([formatDate(item.date), item.time].filter(Boolean).join(" · "))}</small>` : ""}
       `);
     });
 
     window.setTimeout(() => {
       tripPlanMapState.map.invalidateSize();
-      if (mappedItems.length) {
+      if (preservedView) {
+        tripPlanMapState.map.setView(preservedView.center, preservedView.zoom, { animate: false });
+      } else if (mappedItems.length) {
         const bounds = window.L.latLngBounds(mappedItems.map((item) => item.coords));
         tripPlanMapState.map.fitBounds(bounds, { padding: [22, 22], maxZoom: 10 });
       } else {
@@ -3698,6 +3822,7 @@
     if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported, ui.modal.planItemId);
     if (ui.modal.type === "tripExpense") return renderTripExpenseModal(ui.modal.tripId, ui.modal.expense);
+    if (ui.modal.type === "tripExpensesList") return renderTripExpensesListModal(ui.modal.tripId);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
     if (ui.modal.type === "tripUrlImport") return renderTripUrlImportModal(ui.modal.tripId);
     if (ui.modal.type === "tripShare") return renderTripShareModal();
@@ -4057,6 +4182,8 @@
           <form id="trip-expense-form">
             <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
             <input type="hidden" name="id" value="${escapeHtml(expense.id || "")}">
+            <input type="hidden" name="sourceType" value="${escapeHtml(expense.sourceType || "")}">
+            <input type="hidden" name="sourceId" value="${escapeHtml(expense.sourceId || "")}">
             <div class="modal-head">
               <div>
                 <h2 id="trip-expense-modal-title">${expense.id ? "Ausgabe bearbeiten" : "Ausgabe ergänzen"}</h2>
@@ -4531,6 +4658,13 @@
     app.querySelectorAll("[data-open-trip-expense]").forEach((button) => {
       button.addEventListener("click", () => {
         ui.modal = { type: "tripExpense", tripId: button.dataset.openTripExpense, expense: {} };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-open-trip-expenses]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "tripExpensesList", tripId: button.dataset.openTripExpenses };
         render();
       });
     });
@@ -5360,6 +5494,8 @@
         date: item.date || trip.startDate,
         participants: [...data.members],
         notes: [item.provider, item.link].filter(Boolean).join(" · "),
+        sourceType: "trip-plan",
+        sourceId: item.id,
       },
     };
     render();
@@ -5378,6 +5514,8 @@
         date: item.date || trip.startDate,
         participants: [...data.members],
         notes: [TRIP_ITEM_LABELS[item.type], item.provider, item.address].filter(Boolean).join(" · "),
+        sourceType: "trip-item",
+        sourceId: item.id,
       },
     };
     render();
@@ -5585,6 +5723,8 @@
       participants,
       date: form.get("date"),
       notes: form.get("notes"),
+      sourceType: form.get("sourceType"),
+      sourceId: form.get("sourceId"),
     }, data.members);
     trip.expenses = existing
       ? (trip.expenses || []).map((entry) => (entry.id === id ? expense : entry))

@@ -507,6 +507,7 @@
     layer: null,
     container: null,
     groups: [],
+    viewportKey: "",
     listListenerAttached: false,
     geocodeCache: loadGeocodeCache(),
     pendingGeocodes: new Set(),
@@ -2688,10 +2689,33 @@
     `;
   }
 
+  function mapViewportKey() {
+    return [
+      ui.mapSource,
+      ui.mapRegion,
+      ui.mapPlanningStatus,
+      normalize(ui.mapSearch),
+    ].join("|");
+  }
+
+  function currentMapView(viewportKey) {
+    if (!mapState.map || mapState.viewportKey !== viewportKey) return null;
+    try {
+      const center = mapState.map.getCenter();
+      const zoom = mapState.map.getZoom();
+      if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng) || !Number.isFinite(zoom)) return null;
+      return { center: [center.lat, center.lng], zoom };
+    } catch {
+      return null;
+    }
+  }
+
   function renderMap() {
     const canvas = app.querySelector("#map-canvas");
     if (!canvas) return;
     const groups = mapCityGroups();
+    const viewportKey = mapViewportKey();
+    const preservedView = currentMapView(viewportKey);
     mapState.groups = groups;
     queueMissingGeocodes(groups);
 
@@ -2700,11 +2724,14 @@
       return;
     }
 
+    const shouldFitMap = !preservedView;
+
     if (mapState.map && mapState.container !== canvas) {
       mapState.map.remove();
       mapState.map = null;
       mapState.layer = null;
       mapState.listListenerAttached = false;
+      if (!preservedView) mapState.viewportKey = "";
     }
 
     if (!mapState.map) {
@@ -2739,11 +2766,17 @@
 
     window.setTimeout(() => {
       mapState.map.invalidateSize();
-      if (mappedGroups.length) {
-        const bounds = window.L.latLngBounds(mappedGroups.map((group) => group.coords));
-        mapState.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 11 });
-      } else {
-        mapState.map.setView([51.1657, 10.4515], 5);
+      if (preservedView && !shouldFitMap) {
+        mapState.map.setView(preservedView.center, preservedView.zoom, { animate: false });
+        mapState.viewportKey = viewportKey;
+      } else if (shouldFitMap) {
+        if (mappedGroups.length) {
+          const bounds = window.L.latLngBounds(mappedGroups.map((group) => group.coords));
+          mapState.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 11 });
+        } else {
+          mapState.map.setView([51.1657, 10.4515], 5);
+        }
+        mapState.viewportKey = viewportKey;
       }
       updateVisibleMapList();
     }, 60);
@@ -2758,9 +2791,23 @@
     });
   }
 
+  function syncMapViewportMeta() {
+    const canvas = app.querySelector("#map-canvas");
+    if (!canvas || !mapState.map) return;
+    try {
+      const center = mapState.map.getCenter();
+      canvas.dataset.mapZoom = String(mapState.map.getZoom());
+      canvas.dataset.mapCenter = `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`;
+    } catch {
+      canvas.dataset.mapZoom = "";
+      canvas.dataset.mapCenter = "";
+    }
+  }
+
   function updateVisibleMapList() {
     const list = app.querySelector("[data-map-list]");
     if (!list) return;
+    syncMapViewportMeta();
     if (mapRequiresPlanningRegionSelection()) {
       list.innerHTML = renderMapRegionPrompt();
       return;

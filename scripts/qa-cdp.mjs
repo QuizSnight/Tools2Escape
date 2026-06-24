@@ -541,6 +541,14 @@ try {
   await assertEval(cdp, "Boolean(document.querySelector('#map-canvas')) && document.querySelectorAll('.map-place').length > 0", Boolean, "map view renders city groups");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent", (value) => value === "36", "map source filters up next rooms");
+  await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
+  await evalPage(cdp, "window.__qaInitialMapZoom = Number(document.querySelector('#map-canvas')?.dataset.mapZoom || 0)");
+  await evalPage(cdp, "if (window.L) { for (let index = 0; index < 5; index += 1) document.querySelector('.leaflet-control-zoom-in')?.click(); }");
+  await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
+  await assertEval(cdp, "window.L ? Number(document.querySelector('#map-canvas')?.dataset.mapZoom || 0) > window.__qaInitialMapZoom : true", Boolean, "map zoom controls update viewport");
+  await evalPage(cdp, "window.__qaMapViewport = `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}`; document.querySelector('[data-toggle-bulk-plan=\"map\"]')?.click();");
+  await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
+  await assertEval(cdp, "window.L ? `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}` === window.__qaMapViewport : true", Boolean, "map list actions keep current viewport");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");

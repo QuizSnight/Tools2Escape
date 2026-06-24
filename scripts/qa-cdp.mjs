@@ -210,8 +210,9 @@ try {
       const form = document.querySelector('#wish-form');
       form.querySelector('[name="title"]').value = 'QA Trip Room';
       form.querySelector('[name="provider"]').value = 'QA Escape';
-      form.querySelector('[name="country"]').value = 'Frankreich';
-      form.querySelector('[name="city"]').value = 'Lille';
+      form.querySelector('[name="country"]').value = 'Belgien';
+      form.querySelector('[name="city"]').value = 'Brüssel';
+      form.querySelector('[name="notes"]').value = 'Info: Dauer 90 Min.; Schauspieler: ja';
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return true;
     })()
@@ -243,16 +244,19 @@ try {
   await evalPage(cdp, "document.querySelector('#plan-candidate-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(
     cdp,
-    "document.querySelector('.trip-plan-card h4')?.textContent === 'QA Trip Room' && Boolean(document.querySelector('#trip-plan-map'))",
+    "document.querySelector('.trip-plan-card h4')?.textContent === 'QA Trip Room' && document.querySelector('.trip-plan-card [data-trip-plan-field=\"duration\"]')?.value === '90' && Boolean(document.querySelector('#trip-plan-map'))",
     Boolean,
-    "trip planning candidate renders with map",
+    "trip planning candidate renders with map and automatic duration",
   );
   await evalPage(cdp, `
     (() => {
       const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
-      card.querySelector('[data-trip-plan-field="date"]').value = '2026-10-13';
-      card.querySelector('[data-trip-plan-field="date"]').dispatchEvent(new Event('change', { bubbles: true }));
+      const target = document.querySelector('[data-plan-drop-date="2026-10-13"][data-trip-id]');
+      const drop = new Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => card.dataset.tripId + '|' + card.dataset.planDrag } });
+      target.dispatchEvent(drop);
       const moved = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
+      window.__qaTripPlanDragged = moved.closest('[data-plan-drop-date]')?.dataset.planDropDate === '2026-10-13';
       moved.querySelector('[data-trip-plan-field="time"]').value = '16:30';
       moved.querySelector('[data-trip-plan-field="time"]').dispatchEvent(new Event('change', { bubbles: true }));
       moved.querySelector('[data-trip-plan-field="duration"]').value = '75';
@@ -263,9 +267,9 @@ try {
   `);
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75'",
+    "window.__qaTripPlanDragged && document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75' && !Array.from(document.querySelectorAll('#trip-item-form [name=\"time\"] option')).some((option) => option.value.endsWith(':07'))",
     Boolean,
-    "trip planning candidate opens scheduled item form",
+    "trip planning candidate can be dragged into day and opens scheduled item form",
   );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 
@@ -274,9 +278,9 @@ try {
   await evalPage(cdp, "document.querySelector('#wish-trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(
     cdp,
-    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'QA Escape' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Lille')",
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'QA Escape' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Brüssel') && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '90'",
     Boolean,
-    "up next trip action prefills room details",
+    "up next trip action prefills room details and duration",
   );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 

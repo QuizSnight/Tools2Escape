@@ -217,7 +217,20 @@ try {
       return true;
     })()
   `);
-  await assertEval(cdp, "document.querySelectorAll('.wish-card').length", (value) => value === 36, "qa trip room added to up next");
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-open-wish]').click();
+      const form = document.querySelector('#wish-form');
+      form.querySelector('[name="title"]').value = 'QA Bulk Room';
+      form.querySelector('[name="provider"]').value = 'QA Escape';
+      form.querySelector('[name="country"]').value = 'Belgien';
+      form.querySelector('[name="city"]').value = 'Brüssel';
+      form.querySelector('[name="notes"]').value = 'Info: Dauer 60 Min.';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "document.querySelectorAll('.wish-card').length", (value) => value === 37, "qa trip rooms added to up next");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('[data-open-trip]'))", Boolean, "trips view renders");
@@ -244,9 +257,21 @@ try {
   await evalPage(cdp, "document.querySelector('#plan-candidate-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
   await assertEval(
     cdp,
-    "document.querySelector('.trip-plan-card h4')?.textContent === 'QA Trip Room' && document.querySelector('.trip-plan-card [data-trip-plan-field=\"duration\"]')?.value === '90' && Boolean(document.querySelector('#trip-plan-map'))",
+    "document.querySelector('[data-view=\"upnext\"]').classList.contains('is-active') && !document.querySelector('.trip-plan-card')",
     Boolean,
-    "trip planning candidate renders with map and automatic duration",
+    "planning a room keeps the current up next view",
+  );
+  await evalPage(cdp, "window.__qaPlanDuplicateAlert = ''; window.alert = (message) => { window.__qaPlanDuplicateAlert = message; }; Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Trip Room').querySelector('[data-plan-wish]').click(); document.querySelector('#plan-candidate-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));");
+  await assertEval(cdp, "window.__qaPlanDuplicateAlert === 'Raum bereits in der Planung enthalten' && Boolean(document.querySelector('#plan-candidate-form'))", Boolean, "duplicate planning shows message and keeps modal open");
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+  await evalPage(cdp, "document.querySelector('[data-toggle-bulk-plan=\"upnext\"]').click(); Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Bulk Room').querySelector('[data-bulk-plan-checkbox]').click(); document.querySelector('[data-bulk-plan-add]').click();");
+  await assertEval(cdp, "document.querySelector('[data-view=\"upnext\"]').classList.contains('is-active') && document.body.textContent.includes('1 Raum wurde zur Planung hinzugefügt')", Boolean, "bulk up next planning stays on current view");
+  await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Trip Room') && Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Bulk Room') && Array.from(document.querySelectorAll('.trip-plan-card')).find((card) => card.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-trip-plan-field=\"duration\"]')?.value === '90' && Boolean(document.querySelector('#trip-plan-map'))",
+    Boolean,
+    "trip planning candidates render with map and automatic duration",
   );
   await evalPage(cdp, `
     (() => {
@@ -272,6 +297,15 @@ try {
     "trip planning candidate can be dragged into day and opens scheduled item form",
   );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+
+  await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'unplayed'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-toggle-bulk-plan=\"planning\"]').click(); document.querySelector('.planning-room [data-bulk-plan-checkbox]').click(); document.querySelector('[data-bulk-plan-add]').click();");
+  await assertEval(cdp, "document.querySelector('[data-view=\"planning\"]').classList.contains('is-active') && document.body.textContent.includes('Raum wurde zur Planung hinzugefügt')", Boolean, "bulk TERPECA planning stays on current view");
+
+  await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click(); document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
+  await assertEval(cdp, "Boolean(document.querySelector('.map-room [data-plan-wish]')) && Boolean(document.querySelector('.map-room [data-wish-trip]'))", Boolean, "map up next rooms expose planning actions");
+  await evalPage(cdp, "document.querySelector('.map-room [data-plan-wish]').click()");
+  await assertEval(cdp, "Boolean(document.querySelector('#plan-candidate-form'))", Boolean, "map up next planning action opens plan modal");
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click(); document.querySelector('[data-view=\"trips\"]').click();");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click(); Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Trip Room').querySelector('[data-wish-trip]').click();");
   await assertEval(cdp, "Boolean(document.querySelector('#wish-trip-form'))", Boolean, "up next room can be assigned to trip");
@@ -499,14 +533,14 @@ try {
   `);
   await assertEval(cdp, "Boolean(document.querySelector('.trip-item--escape .trip-complete')) && Boolean(document.querySelector('.trip-item--escape [data-edit-room]'))", Boolean, "trip escape room converts to played room");
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click()");
-  await assertEval(cdp, "document.querySelectorAll('.wish-card').length === 35 && !Array.from(document.querySelectorAll('.wish-card h2')).some((node) => node.textContent === 'QA Trip Room')", Boolean, "played trip room is removed from up next");
+  await assertEval(cdp, "document.querySelectorAll('.wish-card').length === 36 && !Array.from(document.querySelectorAll('.wish-card h2')).some((node) => node.textContent === 'QA Trip Room')", Boolean, "played trip room is removed from up next");
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await screenshot(cdp, path.join(qaDir, "trip-desktop.png"));
 
   await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#map-canvas')) && document.querySelectorAll('.map-place').length > 0", Boolean, "map view renders city groups");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
-  await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent", (value) => value === "35", "map source filters up next rooms");
+  await assertEval(cdp, "document.querySelector('.map-summary strong')?.textContent", (value) => value === "36", "map source filters up next rooms");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");

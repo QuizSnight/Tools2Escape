@@ -476,6 +476,10 @@
     mapSearch: "",
     mapRegion: "all",
     mapPlanningStatus: "unplayed",
+    planTargetTripId: "",
+    bulkPlanMode: false,
+    bulkPlanContext: "",
+    bulkPlanSelection: [],
     notice: "",
     modal: null,
     celebrations: [],
@@ -1722,6 +1726,7 @@
         </label>
         <button class="primary-action" data-open-wish type="button">Geplanten Raum ergänzen</button>
       </section>
+      ${renderBulkPlanControls("upnext")}
       <section class="wish-grid">
         ${wishes.length ? wishes.map(renderWishCard).join("") : renderEmptyState("Keine Pläne gefunden.")}
       </section>
@@ -1730,7 +1735,8 @@
 
   function renderWishCard(entry) {
     return `
-      <article class="wish-card">
+      <article class="wish-card ${bulkPlanningActive("upnext") ? "is-selectable" : ""}">
+        ${renderBulkPlanCheckbox("upnext", "upnext", entry.id, entry.title)}
         <div>
           <h2>${escapeHtml(entry.title || "Ohne Titel")}</h2>
           <p>${escapeHtml([entry.provider, entry.city, entry.country].filter(Boolean).join(" · "))}</p>
@@ -1746,6 +1752,56 @@
         </div>
       </article>
     `;
+  }
+
+  function renderBulkPlanControls(context) {
+    if (!data.trips.length) return "";
+    const active = bulkPlanningActive(context);
+    const selectedCount = ui.bulkPlanSelection.length;
+    return `
+      <section class="bulk-plan-bar ${active ? "is-active" : ""}">
+        <div>
+          <strong>Mehrere zur Planung hinzufügen</strong>
+          <span>${active ? `${selectedCount} ausgewählt` : "Räume markieren und gesammelt in einen Trip legen"}</span>
+        </div>
+        <label ${active ? "" : "hidden"}>
+          <span>Trip</span>
+          <select data-bulk-plan-trip>
+            ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}" ${selectedPlanningTripId() === trip.id ? "selected" : ""}>${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+          </select>
+        </label>
+        <div class="bulk-plan-actions">
+          ${active ? `<button class="primary-action" type="button" data-bulk-plan-add>Ausgewählte hinzufügen (${selectedCount})</button>` : ""}
+          <button type="button" data-toggle-bulk-plan="${escapeHtml(context)}">${active ? "Abbrechen" : "Mehrere zur Planung hinzufügen"}</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderBulkPlanCheckbox(context, sourceType, sourceId, title) {
+    if (!bulkPlanningActive(context)) return "";
+    const key = bulkPlanKey(sourceType, sourceId);
+    return `
+      <label class="bulk-plan-check" title="${escapeHtml(title || "Raum auswählen")}">
+        <input type="checkbox" data-bulk-plan-checkbox data-bulk-plan-source="${escapeHtml(sourceType)}" data-bulk-plan-id="${escapeHtml(sourceId)}" ${ui.bulkPlanSelection.includes(key) ? "checked" : ""}>
+        <span>Auswählen</span>
+      </label>
+    `;
+  }
+
+  function bulkPlanningActive(context) {
+    return ui.bulkPlanMode && ui.bulkPlanContext === context;
+  }
+
+  function bulkPlanKey(sourceType, sourceId) {
+    return `${sourceType}:${sourceId}`;
+  }
+
+  function selectedPlanningTripId() {
+    const trips = [...data.trips].sort(sortTrips);
+    if (trips.some((trip) => trip.id === ui.planTargetTripId)) return ui.planTargetTripId;
+    if (trips.some((trip) => trip.id === ui.activeTripId)) return ui.activeTripId;
+    return trips[0]?.id || "";
   }
 
   function planningRooms(source = ui.planningSource) {
@@ -1931,6 +1987,7 @@
           <input type="search" id="planning-search" value="${escapeHtml(ui.planningSearch)}" placeholder="Raum, Anbieter, Stadt">
         </label>
       </section>
+      ${renderBulkPlanControls("planning")}
       <div class="planning-summary">
         <div><strong>${rooms.length}</strong><span>Treffer aus ${escapeHtml(sourceLabel)}</span></div>
         <p>${ui.planningSource === "escaperoomers" ? "Top 20 je regionaler Rangliste. Mehrfachplatzierungen bleiben sichtbar." : "Aktuelles internationales Top-100-Ranking."}${updated ? ` Datenstand ${escapeHtml(updated)}.` : ""}</p>
@@ -1949,7 +2006,8 @@
     const searchUrl = planningRoomSearchUrl(room);
     const manualMatch = manualPlanningPlayedRoom(room);
     return `
-      <article class="planning-room ${compact ? "is-compact" : ""}" data-planning-room="${escapeHtml(room.id)}">
+      <article class="planning-room ${compact ? "is-compact" : ""} ${bulkPlanningActive("planning") ? "is-selectable" : ""}" data-planning-room="${escapeHtml(room.id)}">
+        ${renderBulkPlanCheckbox("planning", "planning", room.id, room.title)}
         <div class="planning-rank"><span>Platz</span><strong>${room.rank}</strong></div>
         <div class="planning-room__body">
           <div class="planning-room__title">
@@ -2549,6 +2607,7 @@
           <input type="search" id="map-search" value="${escapeHtml(ui.mapSearch)}" placeholder="Raum, Anbieter, Stadt">
         </label>
       </section>
+      ${renderBulkPlanControls("map")}
 
       <section class="map-layout">
         <div class="map-shell">
@@ -2599,10 +2658,24 @@
 
   function renderMapRoom(item) {
     const room = item.entry;
+    if (item.type === "wish") {
+      return `
+        <div class="map-room ${bulkPlanningActive("map") ? "is-selectable" : ""}">
+          ${renderBulkPlanCheckbox("map", "upnext", room.id, room.title)}
+          <div>${escapeHtml(room.title)}<small>${escapeHtml([room.provider, room.city, room.country].filter(Boolean).join(" · "))}</small></div>
+          <div>
+            ${room.link ? `<a href="${escapeHtml(room.link)}" target="_blank" rel="noreferrer">Link</a>` : ""}
+            ${data.trips.length ? `<button type="button" data-plan-wish="${escapeHtml(room.id)}">Planen</button>` : ""}
+            ${data.trips.length ? `<button type="button" data-wish-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
+          </div>
+        </div>
+      `;
+    }
     if (item.type !== "catalog") return `<small>${escapeHtml(room.title)}${room.provider ? ` · ${escapeHtml(room.provider)}` : ""}</small>`;
     const state = planningRoomState(room);
     return `
-      <div class="map-room">
+      <div class="map-room ${bulkPlanningActive("map") ? "is-selectable" : ""}">
+        ${renderBulkPlanCheckbox("map", "planning", room.id, room.title)}
         <div><b>${room.rank}.</b> ${escapeHtml(room.title)}<small>${escapeHtml(room.provider || "")}</small></div>
         <div>
           ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer" aria-label="Website öffnen">Link</a>` : `<a href="${escapeHtml(planningRoomSearchUrl(room))}" target="_blank" rel="noreferrer">Suche</a>`}
@@ -2695,6 +2768,7 @@
     const visibleGroups = visibleMapGroups();
     list.innerHTML = renderMapList(visibleGroups, mapState.groups);
     bindPlanningActions(list);
+    bindPlanSourceActions(list);
   }
 
   function renderTripPlanMap() {
@@ -3328,7 +3402,7 @@
             <label class="full-field">
               <span>Trip</span>
               <select name="tripId" required>
-                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}" ${selectedPlanningTripId() === trip.id ? "selected" : ""}>${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
               </select>
             </label>
             <label class="full-field">
@@ -3363,7 +3437,7 @@
             <label class="full-field">
               <span>Trip</span>
               <select name="tripId" required>
-                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}" ${selectedPlanningTripId() === trip.id ? "selected" : ""}>${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
               </select>
             </label>
             <label class="full-field">
@@ -3399,7 +3473,7 @@
             <label class="full-field">
               <span>Trip</span>
               <select name="tripId" required>
-                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}" ${selectedPlanningTripId() === trip.id ? "selected" : ""}>${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
               </select>
             </label>
             <label class="full-field">
@@ -4034,19 +4108,8 @@
       });
     });
 
-    app.querySelectorAll("[data-wish-trip]").forEach((button) => {
-      button.addEventListener("click", () => {
-        ui.modal = { type: "wishTrip", wishId: button.dataset.wishTrip };
-        render();
-      });
-    });
-
-    app.querySelectorAll("[data-plan-wish]").forEach((button) => {
-      button.addEventListener("click", () => {
-        ui.modal = { type: "planCandidate", sourceType: "upnext", sourceId: button.dataset.planWish };
-        render();
-      });
-    });
+    bindPlanSourceActions(app);
+    bindBulkPlanControls(app);
 
     app.querySelectorAll("[data-trip-plan-field]").forEach((field) => {
       field.addEventListener("change", () => {
@@ -4215,6 +4278,58 @@
     });
 
     if (ui.view === "map") window.requestAnimationFrame(renderMap);
+  }
+
+  function bindPlanSourceActions(root) {
+    root.querySelectorAll("[data-wish-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "wishTrip", wishId: button.dataset.wishTrip };
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-plan-wish]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "planCandidate", sourceType: "upnext", sourceId: button.dataset.planWish };
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-bulk-plan-checkbox]").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const key = bulkPlanKey(checkbox.dataset.bulkPlanSource, checkbox.dataset.bulkPlanId);
+        ui.bulkPlanSelection = checkbox.checked
+          ? unique([...ui.bulkPlanSelection, key])
+          : ui.bulkPlanSelection.filter((entry) => entry !== key);
+        render();
+      });
+    });
+  }
+
+  function bindBulkPlanControls(root) {
+    root.querySelectorAll("[data-toggle-bulk-plan]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const context = button.dataset.toggleBulkPlan;
+        const active = bulkPlanningActive(context);
+        ui.bulkPlanMode = !active;
+        ui.bulkPlanContext = active ? "" : context;
+        ui.bulkPlanSelection = [];
+        ui.planTargetTripId = selectedPlanningTripId();
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-bulk-plan-trip]").forEach((select) => {
+      select.addEventListener("change", () => {
+        ui.planTargetTripId = select.value;
+      });
+    });
+
+    root.querySelectorAll("[data-bulk-plan-add]").forEach((button) => {
+      button.addEventListener("click", () => {
+        addBulkPlanSelection();
+      });
+    });
   }
 
   function initTripDateRangePicker(form) {
@@ -4506,19 +4621,56 @@
     const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
     const candidate = tripPlanCandidateFromSource(clean(form.get("sourceType")), clean(form.get("sourceId")));
     if (!trip || !candidate) return;
-    const existing = findTripPlanDuplicate(trip, candidate);
-    const planItem = normalizeTripPlanItem({
-      ...(existing || candidate),
-      date: clean(form.get("date")) || existing?.date || candidate.date,
-    });
-    trip.planItems = existing
-      ? trip.planItems.map((entry) => (entry.id === existing.id ? planItem : entry))
-      : [planItem, ...(trip.planItems || [])];
-    ui.view = "trips";
-    ui.activeTripId = trip.id;
+    ui.planTargetTripId = trip.id;
+    const result = addTripPlanCandidate(trip, candidate, clean(form.get("date")));
+    if (result === "duplicate") {
+      alert("Raum bereits in der Planung enthalten");
+      return;
+    }
     ui.modal = null;
     saveData();
-    setNotice(existing ? "Kandidat aktualisiert." : "Kandidat zur Tripplanung hinzugefügt.");
+    setNotice("Raum zur Planung hinzugefügt.");
+  }
+
+  function addTripPlanCandidate(trip, candidate, date = "") {
+    if (findTripPlanDuplicate(trip, candidate)) return "duplicate";
+    const planItem = normalizeTripPlanItem({
+      ...candidate,
+      date: clean(date) || candidate.date,
+    });
+    trip.planItems = [planItem, ...(trip.planItems || [])];
+    return "added";
+  }
+
+  function addBulkPlanSelection() {
+    const trip = data.trips.find((entry) => entry.id === selectedPlanningTripId());
+    if (!trip) return;
+    if (!ui.bulkPlanSelection.length) {
+      setNotice("Bitte mindestens einen Raum auswählen.");
+      return;
+    }
+
+    let added = 0;
+    let duplicates = 0;
+    ui.bulkPlanSelection.forEach((key) => {
+      const [sourceType, sourceId] = key.split(":");
+      const candidate = tripPlanCandidateFromSource(sourceType, sourceId);
+      if (!candidate) return;
+      const result = addTripPlanCandidate(trip, candidate);
+      if (result === "duplicate") duplicates += 1;
+      if (result === "added") added += 1;
+    });
+
+    ui.planTargetTripId = trip.id;
+    ui.bulkPlanSelection = [];
+    if (added) saveData();
+    if (duplicates) alert("Raum bereits in der Planung enthalten");
+    if (added) {
+      setNotice(`${added} ${added === 1 ? "Raum wurde" : "Räume wurden"} zur Planung hinzugefügt.`);
+    } else if (!duplicates) {
+      setNotice("Keine passenden Räume ausgewählt.");
+    }
+    render();
   }
 
   function findTripPlanDuplicate(trip, candidate) {

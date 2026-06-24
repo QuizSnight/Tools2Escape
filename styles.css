@@ -282,6 +282,77 @@ h2 {
   text-align: right;
 }
 
+.bulk-plan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.bulk-plan-bar.is-active {
+  border-color: rgba(15, 118, 110, 0.45);
+  background: #eef8f6;
+}
+
+.bulk-plan-bar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.bulk-plan-bar strong {
+  font-size: 0.95rem;
+}
+
+.bulk-plan-bar span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.bulk-plan-bar label {
+  min-width: min(320px, 100%);
+}
+
+.bulk-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-plan-check {
+  display: inline-grid;
+  align-self: start;
+  margin: 10px 0 0 10px;
+}
+
+.bulk-plan-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bulk-plan-check span {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.bulk-plan-check input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .planning-list {
   display: grid;
   gap: 10px;
@@ -294,6 +365,14 @@ h2 {
   border-radius: 8px;
   background: var(--surface);
   overflow: hidden;
+}
+
+.planning-room.is-selectable {
+  grid-template-columns: auto 72px minmax(0, 1fr);
+}
+
+.planning-room > .bulk-plan-check {
+  place-self: start;
 }
 
 .planning-rank {
@@ -1128,6 +1207,18 @@ h2 {
   font-size: 0.85rem;
 }
 
+.map-room.is-selectable {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.map-room.is-selectable > div:last-child {
+  grid-column: 2;
+}
+
+.map-room > .bulk-plan-check {
+  margin: 0;
+}
+
 .map-room > div:last-child {
   display: flex;
   flex-wrap: wrap;
@@ -1184,6 +1275,15 @@ h2 {
   min-height: 0;
   padding: 12px;
   gap: 9px;
+}
+
+.wish-card.is-selectable {
+  align-content: start;
+}
+
+.wish-card > .bulk-plan-check {
+  margin: 0;
+  align-self: start;
 }
 
 .wish-card h2 {

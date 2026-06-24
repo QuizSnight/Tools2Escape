@@ -27,6 +27,16 @@
   };
   const REGION_ORDER = ["DE", "Athen", "NRW", "HH", "BENELUX", "SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
   const ROOM_MILESTONES = new Set([50, 100, 200, 250, 300, 400, 500]);
+  const GENERIC_PLANNING_TITLE_KEYS = new Set([
+    "asylum",
+    "cabininthwoods",
+    "cabininthewoods",
+    "inferno",
+    "orphanage",
+    "theasylum",
+    "theorphanage",
+    "wonderland",
+  ]);
   const REGION_LABELS = {
     HH: "Hamburg (HH)",
     BENELUX: "BeNeLux",
@@ -1758,6 +1768,7 @@
     const title = normalize(room.title);
     const provider = normalize(room.provider);
     const city = normalizeCity(room.city);
+    const country = normalize(germanCountry(room.country || room.region));
     if (!title) return null;
     const candidates = entries
       .map((entry) => ({ entry, score: planningTitleMatchScore(title, normalize(entry.title)) }))
@@ -1767,6 +1778,8 @@
     const contextualMatch = candidates.find((entry) => {
       const entryProvider = normalize(entry.entry.provider);
       const entryCity = normalizeCity(entry.entry.city);
+      const entryCountry = normalize(germanCountry(entry.entry.country || ""));
+      if (entryCountry && country && entryCountry !== country) return false;
       const providerMatches = provider && entryProvider && (
         provider === entryProvider
         || (provider.length >= 5 && entryProvider.length >= 5 && (provider.includes(entryProvider) || entryProvider.includes(provider)))
@@ -1776,9 +1789,35 @@
     });
     if (contextualMatch) return contextualMatch.entry;
     const exactMatches = candidates.filter((candidate) => candidate.score >= 100);
-    if (exactMatches.length === 1 && title.length >= 6) return exactMatches[0].entry;
-    const strongMatches = candidates.filter((candidate) => candidate.score >= 60);
-    return strongMatches.length === 1 ? strongMatches[0].entry : null;
+    if (exactMatches.length === 1 && title.length >= 6 && !planningTitleIsAmbiguous(room.title)) {
+      const entryCountry = normalize(germanCountry(exactMatches[0].entry.country || ""));
+      if (!entryCountry || !country || entryCountry === country) return exactMatches[0].entry;
+    }
+    return null;
+  }
+
+  function planningTitleIsAmbiguous(value) {
+    const title = normalize(value);
+    const compactTitle = planningCompactTitle(value);
+    if (GENERIC_PLANNING_TITLE_KEYS.has(compactTitle)) return true;
+    if (!title || compactTitle.length < 6) return true;
+    const identities = new Set(
+      [...planningData.terpeca, ...planningData.escaperoomers]
+        .filter((room) => {
+          const roomTitle = normalize(room.title);
+          return roomTitle === title || planningCompactTitle(room.title) === compactTitle;
+        })
+        .map((room) => planningRoomIdentity(room))
+        .filter((identity) => identity !== "||"),
+    );
+    return identities.size > 1;
+  }
+
+  function planningRoomIdentity(room) {
+    const city = normalizeCity(room.city);
+    const country = normalize(germanCountry(room.country || room.region));
+    if (city || country) return [city, country].join("|");
+    return [normalize(room.provider), country].join("|");
   }
 
   function planningTitleMatchScore(planningTitle, entryTitle) {

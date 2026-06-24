@@ -356,6 +356,7 @@
     brugge: [51.2093, 3.2247],
     bruhl: [50.8293, 6.9057],
     brussel: [50.8503, 4.3517],
+    brussels: [50.8503, 4.3517],
     bruxelles: [50.8503, 4.3517],
     budapest: [47.4979, 19.0402],
     burgum: [53.1928, 5.9903],
@@ -383,6 +384,7 @@
     helsinki: [60.1699, 24.9384],
     herne: [51.5369, 7.2009],
     hilversum: [52.2292, 5.1669],
+    lille: [50.6292, 3.0573],
     katwijk: [52.1942, 4.4222],
     koblenz: [50.3569, 7.5890],
     koln: [50.9375, 6.9603],
@@ -683,13 +685,13 @@
       priority: clean(entry.priority) || "normal",
     }));
 
-    merged.trips = merged.trips.map(normalizeTrip);
+    merged.trips = merged.trips.map((trip) => normalizeTrip(trip, merged.members));
 
     merged.updatedAt = input.updatedAt || new Date().toISOString();
     return merged;
   }
 
-  function normalizeTrip(trip) {
+  function normalizeTrip(trip, members = seed.members) {
     return {
       id: trip.id || makeId("trip"),
       name: clean(trip.name),
@@ -699,6 +701,7 @@
       notes: clean(trip.notes),
       items: Array.isArray(trip.items) ? trip.items.map(normalizeTripItem) : [],
       planItems: Array.isArray(trip.planItems) ? trip.planItems.map(normalizeTripPlanItem) : [],
+      expenses: Array.isArray(trip.expenses) ? trip.expenses.map((expense) => normalizeTripExpense(expense, members)) : [],
       createdAt: clean(trip.createdAt) || new Date().toISOString(),
     };
   }
@@ -747,6 +750,22 @@
       link: clean(item.link),
       notes: clean(item.notes),
       coords: coords && coords.length === 2 ? coords : null,
+    };
+  }
+
+  function normalizeTripExpense(expense, members = seed.members) {
+    const participants = Array.isArray(expense.participants)
+      ? expense.participants.map(clean).filter((member) => members.includes(member))
+      : [];
+    const payer = clean(expense.payer);
+    return {
+      id: expense.id || makeId("trip-expense"),
+      title: clean(expense.title),
+      amount: Math.max(0, numberOrNull(expense.amount) || 0),
+      payer: members.includes(payer) ? payer : members[0],
+      participants: participants.length ? unique(participants) : [...members],
+      date: clean(expense.date),
+      notes: clean(expense.notes),
     };
   }
 
@@ -1104,6 +1123,10 @@
     return score === null ? "-" : score.toFixed(1);
   }
 
+  function formatCurrency(value) {
+    return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(numberOrNull(value) || 0);
+  }
+
   function formatDate(value) {
     if (!value) return "";
     const date = new Date(`${value}T00:00:00`);
@@ -1126,6 +1149,58 @@
       if (ui.sort === "difficulty-desc") return (b.difficulty ?? -1) - (a.difficulty ?? -1);
       return a.title.localeCompare(b.title, "de");
     });
+  }
+
+  function tripExpenseSummary(trip) {
+    const balances = Object.fromEntries(data.members.map((member) => [member, 0]));
+    let totalCents = 0;
+    (trip.expenses || []).forEach((expense) => {
+      const amountCents = Math.round((numberOrNull(expense.amount) || 0) * 100);
+      if (amountCents <= 0 || !Object.prototype.hasOwnProperty.call(balances, expense.payer)) return;
+      const participants = (expense.participants || []).filter((member) => Object.prototype.hasOwnProperty.call(balances, member));
+      if (!participants.length) return;
+      totalCents += amountCents;
+      balances[expense.payer] += amountCents;
+      const baseShare = Math.floor(amountCents / participants.length);
+      let remainder = amountCents - baseShare * participants.length;
+      participants.forEach((member) => {
+        const share = baseShare + (remainder > 0 ? 1 : 0);
+        remainder -= 1;
+        balances[member] -= share;
+      });
+    });
+
+    const debtors = Object.entries(balances)
+      .filter(([, cents]) => cents < 0)
+      .map(([member, cents]) => ({ member, cents: -cents }))
+      .sort((a, b) => b.cents - a.cents);
+    const creditors = Object.entries(balances)
+      .filter(([, cents]) => cents > 0)
+      .map(([member, cents]) => ({ member, cents }))
+      .sort((a, b) => b.cents - a.cents);
+    const settlements = [];
+    let debtorIndex = 0;
+    let creditorIndex = 0;
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const amount = Math.min(debtors[debtorIndex].cents, creditors[creditorIndex].cents);
+      if (amount > 0) {
+        settlements.push({
+          from: debtors[debtorIndex].member,
+          to: creditors[creditorIndex].member,
+          amount: amount / 100,
+        });
+      }
+      debtors[debtorIndex].cents -= amount;
+      creditors[creditorIndex].cents -= amount;
+      if (debtors[debtorIndex].cents <= 0) debtorIndex += 1;
+      if (creditors[creditorIndex].cents <= 0) creditorIndex += 1;
+    }
+
+    return {
+      total: totalCents / 100,
+      balances: data.members.map((member) => ({ member, amount: (balances[member] || 0) / 100 })),
+      settlements,
+    };
   }
 
   function getContextRooms() {
@@ -1164,7 +1239,7 @@
       return planningRooms(ui.mapSource)
         .map((room) => ({ type: "catalog", entry: room }))
         .filter((item) => mapEntryMatchesRegion(item))
-        .filter((item) => ui.mapPlanningStatus === "all" || planningRoomState(item.entry) === ui.mapPlanningStatus)
+        .filter((item) => planningStateMatchesStatus(planningRoomState(item.entry), ui.mapPlanningStatus))
         .filter((item) => !query || normalize([
           item.entry.title,
           item.entry.provider,
@@ -1820,6 +1895,12 @@
     return "unplayed";
   }
 
+  function planningStateMatchesStatus(state, status) {
+    if (status === "all") return true;
+    if (status === "unplayed") return state === "unplayed" || state === "upnext";
+    return state === status;
+  }
+
   function manualPlanningPlayedRoom(room) {
     const playedRoomId = data.planningLinks?.[room.id];
     return playedRoomId ? data.played.find((entry) => entry.id === playedRoomId) || null : null;
@@ -1918,6 +1999,7 @@
         const state = planningRoomState(room);
         counts.all += 1;
         counts[state] += 1;
+        if (state === "upnext") counts.unplayed += 1;
       });
     return counts;
   }
@@ -1945,7 +2027,7 @@
     const query = normalize(search);
     return planningRooms(source)
       .filter((room) => region === "all" || clean(room.region || room.country) === region)
-      .filter((room) => status === "all" || planningRoomState(room) === status)
+      .filter((room) => planningStateMatchesStatus(planningRoomState(room), status))
       .filter((room) => !query || normalize([
         room.title,
         room.provider,
@@ -2101,7 +2183,7 @@
 
   function renderTripDetail(trip) {
     const items = [...trip.items].sort(sortTripItems);
-    const dayGroups = groupTripItems(items);
+    const dayGroups = tripTimelineGroups(trip);
     const escapeCount = items.filter((item) => item.type === "escape").length;
     const accommodationCount = items.filter((item) => item.type === "accommodation").length;
 
@@ -2130,9 +2212,10 @@
       </section>
 
       ${renderTripPlanning(trip)}
+      ${renderTripExpenses(trip)}
 
       <section class="trip-timeline">
-        ${dayGroups.length ? dayGroups.map(([date, dayItems]) => renderTripDay(date, dayItems, trip.id)).join("") : renderEmptyState("Für diesen Trip sind noch keine Termine eingetragen.")}
+        ${dayGroups.length ? dayGroups.map(([date, dayEntries]) => renderTripDay(date, dayEntries, trip.id)).join("") : renderEmptyState("Für diesen Trip sind noch keine Termine eingetragen.")}
       </section>
     `;
   }
@@ -2187,11 +2270,50 @@
           </div>
         </header>
         <div class="trip-plan-cards" data-plan-drop-date="${escapeHtml(date)}" data-trip-id="${escapeHtml(trip.id)}">
+          ${date ? renderTripPlanAccommodationMarker(trip, date, "start", candidates) : ""}
           ${candidates.length
-            ? candidates.map((item) => renderTripPlanCard(trip, item, analysis)).join("")
+            ? renderTripPlanCards(trip, candidates, analysis)
             : `<p class="trip-plan-empty">${date ? "Raum hier hineinziehen" : "Keine offenen Kandidaten"}</p>`}
+          ${date ? renderTripPlanAccommodationMarker(trip, date, "end", candidates) : ""}
         </div>
       </section>
+    `;
+  }
+
+  function renderTripPlanCards(trip, candidates, analysis) {
+    return candidates.map((item, index) => {
+      const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
+      return `${leg ? renderTripTravelRow(leg) : ""}${renderTripPlanCard(trip, item, analysis)}`;
+    }).join("");
+  }
+
+  function renderTripPlanAccommodationMarker(trip, date, position, candidates) {
+    const accommodation = position === "start"
+      ? tripAccommodationStartForDate(trip, date)
+      : tripAccommodationEndForDate(trip, date);
+    if (!accommodation) return "";
+    const timedCandidates = [...candidates]
+      .filter((item) => item.time)
+      .sort(sortTripPlanItems);
+    const reference = position === "start"
+      ? timedCandidates[0]
+      : [...timedCandidates].reverse().find((item) => item.duration);
+    const leg = reference
+      ? position === "start"
+        ? tripTravelLeg(accommodation, reference)
+        : tripTravelLeg(reference, accommodation)
+      : null;
+    const timing = position === "start"
+      ? latestDepartureText(reference, leg)
+      : approximateArrivalText(reference, leg);
+    const title = position === "start" ? "Start Unterkunft" : "Zur Unterkunft";
+    return `
+      <div class="trip-plan-stay-marker">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(accommodation.title || accommodation.provider || "Unterkunft")}</span>
+        ${leg ? `<small>${escapeHtml(tripTravelSummary(leg))}</small>` : ""}
+        ${timing ? `<small>${escapeHtml(timing)}</small>` : ""}
+      </div>
     `;
   }
 
@@ -2252,20 +2374,20 @@
           </div>
         </header>
         <div class="trip-day__items">
-          ${items.map((item) => renderTripItem(item, tripId)).join("")}
+          ${items.map((entry) => entry.kind === "travel" ? renderTripTravelRow(entry.leg) : renderTripItem(entry.item, tripId, entry)).join("")}
         </div>
       </section>
     `;
   }
 
-  function renderTripItem(item, tripId) {
+  function renderTripItem(item, tripId, timelineEntry = null) {
     const routeUrl = mapsRouteUrl(item);
     const isAccommodation = item.type === "accommodation";
-    const timeText = isAccommodation ? "Check-in" : item.time || "--:--";
+    const timeText = timelineEntry?.timeLabel || (isAccommodation ? "Check-in" : item.time || "--:--");
     const calculatedEndTime = addMinutesToTime(item.time, item.duration);
-    const endText = isAccommodation
+    const endText = timelineEntry?.detailText || (isAccommodation
       ? item.endDate ? `Check-out ${formatDate(item.endDate)}` : ""
-      : [calculatedEndTime ? `bis ${calculatedEndTime}` : "", item.duration ? `${item.duration} Min.` : ""].filter(Boolean).join(" · ");
+      : [calculatedEndTime ? `bis ${calculatedEndTime}` : "", item.duration ? `${item.duration} Min.` : ""].filter(Boolean).join(" · "));
     return `
       <article class="trip-item trip-item--${escapeHtml(item.type)}">
         <div class="trip-item__time">
@@ -2275,6 +2397,7 @@
         <div class="trip-item__body">
           <span class="trip-type">${escapeHtml(TRIP_ITEM_LABELS[item.type])}</span>
           <h3>${escapeHtml(item.title || "Ohne Titel")}</h3>
+          ${timelineEntry?.hint ? `<p class="trip-timing-hint">${escapeHtml(timelineEntry.hint)}</p>` : ""}
           ${item.playedRoomId ? `<span class="trip-complete">Gespielt</span>` : ""}
           ${item.provider ? `<p class="trip-provider">${escapeHtml(item.provider)}</p>` : ""}
           ${item.address || item.city ? `<address>${escapeHtml([item.address, item.city].filter(Boolean).join(", "))}</address>` : ""}
@@ -2288,6 +2411,73 @@
             <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
             <button type="button" data-delete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
           </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderTripTravelRow(leg) {
+    if (!leg) return "";
+    return `
+      <div class="trip-travel-row">
+        <span>${escapeHtml(tripTravelSummary(leg))}</span>
+        <small>${escapeHtml([leg.sourceTitle, leg.targetTitle].filter(Boolean).join(" -> "))}</small>
+      </div>
+    `;
+  }
+
+  function renderTripExpenses(trip) {
+    const expenses = [...(trip.expenses || [])].sort((a, b) => `${b.date || ""} ${b.title}`.localeCompare(`${a.date || ""} ${a.title}`, "de"));
+    const summary = tripExpenseSummary(trip);
+    return `
+      <section class="trip-expenses">
+        <header class="trip-section-head">
+          <div>
+            <span>Tricount</span>
+            <h3>Ausgaben & Abrechnung</h3>
+          </div>
+          <strong>${escapeHtml(formatCurrency(summary.total))}</strong>
+        </header>
+        <div class="trip-expense-actions">
+          <button class="primary-action" type="button" data-open-trip-expense="${escapeHtml(trip.id)}">Ausgabe ergänzen</button>
+        </div>
+        <div class="trip-expense-layout">
+          <div class="trip-expense-list">
+            ${expenses.length ? expenses.map((expense) => renderTripExpense(expense, trip.id)).join("") : renderEmptyState("Noch keine Ausgaben eingetragen.")}
+          </div>
+          <div class="trip-settlement">
+            <h4>Gesamtabrechnung</h4>
+            ${summary.settlements.length
+              ? summary.settlements.map((settlement) => `
+                <p><b>${escapeHtml(settlement.from)}</b> zahlt <b>${escapeHtml(settlement.to)}</b> ${escapeHtml(formatCurrency(settlement.amount))}</p>
+              `).join("")
+              : `<p>Alles ausgeglichen.</p>`}
+            <div class="trip-balances">
+              ${summary.balances.map((entry) => `
+                <span class="${entry.amount >= 0 ? "is-positive" : "is-negative"}">${escapeHtml(entry.member)} ${escapeHtml(formatCurrency(entry.amount))}</span>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripExpense(expense, tripId) {
+    const participantText = expense.participants.length === data.members.length
+      ? "alle"
+      : expense.participants.join(", ");
+    return `
+      <article class="trip-expense">
+        <div>
+          <h4>${escapeHtml(expense.title || "Ausgabe")}</h4>
+          <p>${escapeHtml([expense.date ? formatDate(expense.date) : "", `gezahlt von ${expense.payer}`, `für ${participantText}`].filter(Boolean).join(" · "))}</p>
+          ${expense.notes ? `<small>${escapeHtml(expense.notes)}</small>` : ""}
+        </div>
+        <strong>${escapeHtml(formatCurrency(expense.amount))}</strong>
+        <div class="trip-expense__actions">
+          <button type="button" data-edit-trip-expense="${escapeHtml(expense.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
+          <button type="button" data-delete-trip-expense="${escapeHtml(expense.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
         </div>
       </article>
     `;
@@ -2321,6 +2511,97 @@
       groups.get(key).push(item);
     });
     return [...groups.entries()];
+  }
+
+  function tripTimelineGroups(trip) {
+    const dates = unique([
+      ...tripDateValues(trip),
+      ...(trip.items || []).flatMap((item) => [item.date, item.endDate]).filter(Boolean),
+    ]).sort();
+    const groups = dates
+      .map((date) => [date, tripTimelineEntriesForDate(trip, date)])
+      .filter(([, entries]) => entries.length);
+    const unscheduled = (trip.items || [])
+      .filter((item) => !item.date)
+      .sort(sortTripItems)
+      .map((item) => ({ kind: "item", item }));
+    return unscheduled.length ? [["", unscheduled], ...groups] : groups;
+  }
+
+  function tripTimelineEntriesForDate(trip, date) {
+    const baseEntries = [
+      ...tripAccommodationsForStartDate(trip, date).map((item) => tripAccommodationTimelineEntry(item, date, "start")),
+      ...(trip.items || [])
+        .filter((item) => item.date === date && item.type !== "accommodation")
+        .map((item) => ({ kind: "item", item, sortMinutes: timeToMinutes(item.time) ?? 720 })),
+      ...tripAccommodationsForEndDate(trip, date).map((item) => tripAccommodationTimelineEntry(item, date, "end")),
+    ].sort(sortTripTimelineEntries);
+
+    decorateTripTimelineEntries(baseEntries);
+    const entries = [];
+    baseEntries.forEach((entry, index) => {
+      if (index > 0) {
+        const leg = tripTravelLeg(baseEntries[index - 1].item, entry.item);
+        if (leg) entries.push({ kind: "travel", leg });
+      }
+      entries.push(entry);
+    });
+    return entries;
+  }
+
+  function sortTripTimelineEntries(a, b) {
+    return (a.sortMinutes - b.sortMinutes)
+      || (a.item.title || "").localeCompare(b.item.title || "", "de");
+  }
+
+  function tripAccommodationTimelineEntry(item, date, position) {
+    const start = position === "start";
+    return {
+      kind: "item",
+      item,
+      accommodationPosition: position,
+      sortMinutes: start ? 0 : 1439,
+      timeLabel: start ? "Abfahrt" : "Ankunft",
+      detailText: start ? `von ${item.title || "Unterkunft"}` : `Übernachtung ${formatDate(date)}`,
+      hint: "",
+    };
+  }
+
+  function decorateTripTimelineEntries(entries) {
+    entries.forEach((entry, index) => {
+      if (!entry.accommodationPosition) return;
+      if (entry.accommodationPosition === "start") {
+        const next = entries.slice(index + 1).find((candidate) => candidate.item.type !== "accommodation" && candidate.item.time);
+        const leg = next ? tripTravelLeg(entry.item, next.item) : null;
+        entry.hint = latestDepartureText(next?.item, leg);
+      } else {
+        const previous = [...entries.slice(0, index)].reverse().find((candidate) => candidate.item.type !== "accommodation" && candidate.item.time);
+        const leg = previous ? tripTravelLeg(previous.item, entry.item) : null;
+        entry.hint = approximateArrivalText(previous?.item, leg);
+      }
+    });
+  }
+
+  function tripAccommodationsForStartDate(trip, date) {
+    return (trip.items || [])
+      .filter((item) => item.type === "accommodation" && item.date && item.date < date && (item.endDate || item.date) >= date)
+      .sort(sortTripItems);
+  }
+
+  function tripAccommodationsForEndDate(trip, date) {
+    return (trip.items || [])
+      .filter((item) => item.type === "accommodation" && item.date && (
+        item.endDate ? item.date <= date && date < item.endDate : item.date === date
+      ))
+      .sort(sortTripItems);
+  }
+
+  function tripAccommodationStartForDate(trip, date) {
+    return tripAccommodationsForStartDate(trip, date)[0] || null;
+  }
+
+  function tripAccommodationEndForDate(trip, date) {
+    return tripAccommodationsForEndDate(trip, date)[0] || null;
   }
 
   function tripStatus(trip) {
@@ -2385,7 +2666,10 @@
     const warningsById = new Map();
     const legsByTargetId = new Map();
     const routeLegs = [];
-    const datedItems = (trip.planItems || [])
+    const datedItems = [
+      ...(trip.planItems || []),
+      ...tripPlanAccommodationWaypoints(trip),
+    ]
       .filter((item) => item.date)
       .map((item) => ({ ...item, coords: tripPlanItemCoords(item) }))
       .sort(sortTripPlanItems);
@@ -2396,19 +2680,20 @@
         .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`, "de"));
 
       dayItems.forEach((item) => {
-        if (item.time && !item.duration) addTripPlanWarning(warningsById, item.id, "Dauer fehlt für die Zeitplanung.");
+        if (item.type !== "accommodation" && item.time && !item.duration) addTripPlanWarning(warningsById, item.id, "Dauer fehlt für die Zeitplanung.");
       });
 
       for (let index = 1; index < dayItems.length; index += 1) {
         const previous = dayItems[index - 1];
         const current = dayItems[index];
-        if (!previous.time || !current.time || !previous.duration) continue;
-
         const leg = tripPlanLeg(previous, current);
         if (leg) {
           routeLegs.push(leg);
           legsByTargetId.set(current.id, leg);
         }
+
+        if (previous.type === "accommodation" || current.type === "accommodation") continue;
+        if (!previous.time || !current.time || !previous.duration) continue;
 
         const previousEnd = timeToMinutes(previous.time) + Number(previous.duration);
         const currentStart = timeToMinutes(current.time);
@@ -2433,6 +2718,27 @@
     return { warningsById, legsByTargetId, routeLegs };
   }
 
+  function tripPlanAccommodationWaypoints(trip) {
+    return tripDateValues(trip).flatMap((date) => [
+      ...tripAccommodationsForStartDate(trip, date).map((item) => ({
+        ...item,
+        id: `${item.id}:start:${date}`,
+        date,
+        time: "00:00",
+        duration: 0,
+        title: item.title || "Unterkunft",
+      })),
+      ...tripAccommodationsForEndDate(trip, date).map((item) => ({
+        ...item,
+        id: `${item.id}:end:${date}`,
+        date,
+        time: "23:59",
+        duration: 0,
+        title: item.title || "Unterkunft",
+      })),
+    ]);
+  }
+
   function addTripPlanWarning(warningsById, itemId, message) {
     const warnings = warningsById.get(itemId) || [];
     if (!warnings.includes(message)) warnings.push(message);
@@ -2440,6 +2746,11 @@
   }
 
   function tripPlanLeg(previous, current) {
+    return tripTravelLeg(previous, current);
+  }
+
+  function tripTravelLeg(previous, current) {
+    if (previous?.id && current?.id && previous.id === current.id) return null;
     const from = tripPlanItemCoords(previous);
     const to = tripPlanItemCoords(current);
     if (!from || !to) return null;
@@ -2462,8 +2773,26 @@
   }
 
   function tripPlanLegText(leg) {
+    return `${tripTravelSummary(leg)} von ${leg.sourceTitle}`;
+  }
+
+  function tripTravelSummary(leg) {
     const prefix = leg.estimated ? "Fahrzeit ca." : "Fahrzeit";
-    return `${prefix} ${leg.durationMinutes} Min. von ${leg.sourceTitle}`;
+    return `${prefix} ${leg.durationMinutes} Min.`;
+  }
+
+  function latestDepartureText(item, leg) {
+    if (!item?.time || !leg?.durationMinutes) return "";
+    const start = timeToMinutes(item.time);
+    if (start === null) return "";
+    return `Späteste Abfahrt ${minutesToTime(start - leg.durationMinutes)}`;
+  }
+
+  function approximateArrivalText(item, leg) {
+    if (!item?.time || !item?.duration || !leg?.durationMinutes) return "";
+    const start = timeToMinutes(item.time);
+    if (start === null) return "";
+    return `Ankunft ca. ${minutesToTime(start + Number(item.duration) + leg.durationMinutes)}`;
   }
 
   function tripPlanItemCoords(item) {
@@ -2900,7 +3229,10 @@
   }
 
   function tripPlanMapItems(trip) {
-    return (trip.planItems || [])
+    return [
+      ...(trip.planItems || []),
+      ...(trip.items || []).filter((item) => item.type === "accommodation"),
+    ]
       .map((item) => ({ ...item, coords: tripPlanItemCoords(item) }))
       .filter((item) => item.coords);
   }
@@ -3293,6 +3625,7 @@
     if (ui.modal.type === "planningLink") return renderPlanningLinkModal(ui.modal.roomId);
     if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported, ui.modal.planItemId);
+    if (ui.modal.type === "tripExpense") return renderTripExpenseModal(ui.modal.tripId, ui.modal.expense);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
     if (ui.modal.type === "tripShare") return renderTripShareModal();
     return "";
@@ -3629,6 +3962,61 @@
             <div class="modal-actions">
               <button type="button" data-close-modal>Abbrechen</button>
               <button class="primary-action" type="submit">${imported ? "Übernehmen" : "Speichern"}</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderTripExpenseModal(tripId, expense = {}) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    if (!trip) return "";
+    const participants = Array.isArray(expense.participants) && expense.participants.length
+      ? expense.participants
+      : [...data.members];
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-expense-modal-title">
+          <form id="trip-expense-form">
+            <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
+            <input type="hidden" name="id" value="${escapeHtml(expense.id || "")}">
+            <div class="modal-head">
+              <div>
+                <h2 id="trip-expense-modal-title">${expense.id ? "Ausgabe bearbeiten" : "Ausgabe ergänzen"}</h2>
+                <p class="modal-subtitle">${escapeHtml(trip.name || "Trip")}</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <div class="form-grid">
+              ${field("title", "Wofür?", expense.title, "text", true)}
+              ${field("amount", "Betrag", expense.amount ?? "", "number", true, "0", "", "0.01")}
+              <label>
+                <span>Bezahlt von</span>
+                <select name="payer">
+                  ${data.members.map((member) => selectOption(member, member, expense.payer || data.members[0])).join("")}
+                </select>
+              </label>
+              ${field("date", "Datum", expense.date || trip.startDate || "", "date")}
+            </div>
+            <fieldset class="segmented-field expense-members">
+              <legend>Für wen?</legend>
+              <div class="expense-member-grid">
+                ${data.members.map((member) => `
+                  <label class="expense-member">
+                    <input type="checkbox" name="participants" value="${escapeHtml(member)}" ${participants.includes(member) ? "checked" : ""}>
+                    <span>${escapeHtml(member)}</span>
+                  </label>
+                `).join("")}
+              </div>
+            </fieldset>
+            <label class="full-field">
+              <span>Notizen</span>
+              <textarea name="notes" rows="3">${escapeHtml(expense.notes || "")}</textarea>
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Speichern</button>
             </div>
           </form>
         </section>
@@ -4030,6 +4418,13 @@
       });
     });
 
+    app.querySelectorAll("[data-open-trip-expense]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "tripExpense", tripId: button.dataset.openTripExpense, expense: {} };
+        render();
+      });
+    });
+
     app.querySelectorAll("[data-import-trip-item]").forEach((button) => {
       button.addEventListener("click", () => {
         ui.modal = { type: "tripImport", tripId: button.dataset.importTripItem };
@@ -4055,6 +4450,27 @@
         trip.items = trip.items.filter((entry) => entry.id !== item.id);
         saveData();
         setNotice("Termin entfernt.");
+      });
+    });
+
+    app.querySelectorAll("[data-edit-trip-expense]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.tripId);
+        const expense = trip?.expenses?.find((entry) => entry.id === button.dataset.editTripExpense);
+        if (!expense) return;
+        ui.modal = { type: "tripExpense", tripId: trip.id, expense: clone(expense) };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-delete-trip-expense]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const trip = data.trips.find((entry) => entry.id === button.dataset.tripId);
+        const expense = trip?.expenses?.find((entry) => entry.id === button.dataset.deleteTripExpense);
+        if (!trip || !expense || !confirm(`Ausgabe "${expense.title}" entfernen?`)) return;
+        trip.expenses = (trip.expenses || []).filter((entry) => entry.id !== expense.id);
+        saveData();
+        setNotice("Ausgabe entfernt.");
       });
     });
 
@@ -4304,6 +4720,9 @@
       tripItemForm.querySelector("#trip-item-type")?.addEventListener("change", () => updateTripItemFields(tripItemForm));
       tripItemForm.addEventListener("submit", saveTripItemFromForm);
     }
+
+    const tripExpenseForm = app.querySelector("#trip-expense-form");
+    if (tripExpenseForm) tripExpenseForm.addEventListener("submit", saveTripExpenseFromForm);
 
     const tripImportFile = app.querySelector("#trip-import-file");
     if (tripImportFile) tripImportFile.addEventListener("change", () => {
@@ -4848,8 +5267,10 @@
       endDate,
       notes: "",
       items: existing?.items || [],
+      planItems: existing?.planItems || [],
+      expenses: existing?.expenses || [],
       createdAt: existing?.createdAt || new Date().toISOString(),
-    });
+    }, data.members);
 
     data.trips = existing
       ? data.trips.map((entry) => (entry.id === id ? trip : entry))
@@ -4911,6 +5332,38 @@
     } else {
       setNotice("Termin gespeichert.");
     }
+  }
+
+  function saveTripExpenseFromForm(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    if (!trip) return;
+    const id = clean(form.get("id")) || makeId("trip-expense");
+    const existing = (trip.expenses || []).find((entry) => entry.id === id);
+    const participants = form.getAll("participants").map(clean).filter(Boolean);
+    if (!participants.length) {
+      event.currentTarget.querySelector(".expense-members")?.setCustomValidity?.("Bitte mindestens eine Person auswählen.");
+      alert("Bitte mindestens eine Person auswählen.");
+      return;
+    }
+    const expense = normalizeTripExpense({
+      ...(existing || {}),
+      id,
+      title: form.get("title"),
+      amount: form.get("amount"),
+      payer: form.get("payer"),
+      participants,
+      date: form.get("date"),
+      notes: form.get("notes"),
+    }, data.members);
+    trip.expenses = existing
+      ? (trip.expenses || []).map((entry) => (entry.id === id ? expense : entry))
+      : [...(trip.expenses || []), expense];
+    ui.activeTripId = trip.id;
+    ui.modal = null;
+    saveData();
+    setNotice("Ausgabe gespeichert.");
   }
 
   function expandTripDates(trip, item) {

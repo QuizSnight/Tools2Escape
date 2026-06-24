@@ -300,6 +300,23 @@ try {
 
   await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'unplayed'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-toggle-bulk-plan=\"planning\"]').click(); document.querySelector('.planning-room [data-bulk-plan-checkbox]').click(); document.querySelector('[data-bulk-plan-add]').click();");
   await assertEval(cdp, "document.querySelector('[data-view=\"planning\"]').classList.contains('is-active') && document.body.textContent.includes('Raum wurde zur Planung hinzugefügt')", Boolean, "bulk TERPECA planning stays on current view");
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('#planning-status').value = 'upnext';
+      document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaPlanningUpNextTitle = document.querySelector('.planning-room h2')?.textContent || '';
+      document.querySelector('#planning-status').value = 'unplayed';
+      document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaPlanningStatusOptions = Array.from(document.querySelectorAll('#planning-status option')).map((option) => option.textContent).join('|');
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "window.__qaPlanningStatusOptions.includes('Noch nicht gespielt') && (!window.__qaPlanningUpNextTitle || Array.from(document.querySelectorAll('.planning-room h2')).some((node) => node.textContent === window.__qaPlanningUpNextTitle))",
+    Boolean,
+    "unplayed planning status keeps up next rooms visible",
+  );
 
   await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click(); document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await assertEval(cdp, "Boolean(document.querySelector('.map-room [data-plan-wish]')) && Boolean(document.querySelector('.map-room [data-wish-trip]'))", Boolean, "map up next rooms expose planning actions");
@@ -486,7 +503,7 @@ try {
   );
   await screenshot(cdp, path.join(qaDir, "trip-item-form.png"));
   await evalPage(cdp, "document.querySelector('#trip-item-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
-  await assertEval(cdp, "document.querySelectorAll('.trip-item').length === 1 && Boolean(document.querySelector('.trip-item--accommodation .route-link'))", Boolean, "trip item and route link render");
+  await assertEval(cdp, "document.querySelectorAll('.trip-item--accommodation').length >= 2 && Boolean(document.querySelector('.trip-item--accommodation .route-link')) && Boolean(document.querySelector('.trip-plan-stay-marker'))", Boolean, "accommodation renders as day start and end waypoint");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-open-trip-item]').click();
@@ -519,7 +536,19 @@ try {
   `);
   await assertEval(cdp, "window.__qaEscapeLabels.provider === 'Anbieter' && window.__qaEscapeLabels.date === 'Datum' && window.__qaEscapeLabels.timeVisible && window.__qaEscapeLabels.endDateHidden", Boolean, "escape room fields adapt to type");
   await assertEval(cdp, "window.__qaAccommodationLabels.provider === 'Gastgeber' && window.__qaAccommodationLabels.date === 'Check-in' && window.__qaAccommodationLabels.timeHidden && window.__qaAccommodationLabels.endDate === 'Check-out' && window.__qaAccommodationLabels.durationHidden", Boolean, "accommodation fields adapt to type");
-  await assertEval(cdp, "document.querySelectorAll('.trip-item').length === 2 && Boolean(document.querySelector('.trip-item--escape .route-link'))", Boolean, "manual escape room trip item renders");
+  await assertEval(cdp, "Boolean(document.querySelector('.trip-item--escape .route-link')) && Boolean(document.querySelector('.trip-travel-row')) && document.body.textContent.includes('Späteste Abfahrt') && document.body.textContent.includes('Ankunft ca.')", Boolean, "manual escape room renders with accommodation travel timing");
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-open-trip-expense]').click();
+      const form = document.querySelector('#trip-expense-form');
+      form.querySelector('[name="title"]').value = 'Airbnb';
+      form.querySelector('[name="amount"]').value = '100';
+      form.querySelector('[name="payer"]').value = 'Sebi';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "document.querySelector('.trip-expense')?.textContent.includes('Airbnb') && document.querySelector('.trip-settlement')?.textContent.includes('zahlt') && document.querySelector('.trip-settlement')?.textContent.includes('Sebi') && document.querySelector('.trip-settlement')?.textContent.includes('20,00')", Boolean, "trip expenses calculate tricount settlement");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-complete-trip-item]').click();

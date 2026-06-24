@@ -866,6 +866,34 @@ h2 {
   font-weight: 800;
 }
 
+.trip-plan-stay-marker,
+.trip-travel-row {
+  border: 1px dashed #c9d4d1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f7faf9;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.trip-plan-stay-marker {
+  display: grid;
+  gap: 3px;
+  border-style: solid;
+  background: #edf4fb;
+}
+
+.trip-plan-stay-marker strong {
+  color: var(--blue);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.trip-plan-stay-marker span {
+  color: var(--text);
+}
+
 .trip-plan-fields {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.75fr) minmax(100px, 0.65fr);
@@ -955,6 +983,22 @@ h2 {
   gap: 10px;
 }
 
+.trip-travel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+}
+
+.trip-travel-row span {
+  color: var(--accent-strong);
+}
+
+.trip-travel-row small {
+  text-align: right;
+}
+
 .trip-item {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
@@ -1013,6 +1057,13 @@ h2 {
   margin-bottom: 0;
 }
 
+.trip-timing-hint {
+  margin: 0;
+  color: var(--blue);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
 .booking-reference {
   color: var(--muted);
   font-size: 0.88rem;
@@ -1049,6 +1100,136 @@ h2 {
   color: #ffffff;
   font-weight: 800;
   text-decoration: none;
+}
+
+.trip-expenses {
+  display: grid;
+  gap: 14px;
+  padding: 18px 0 24px;
+  border-top: 1px solid var(--line);
+}
+
+.trip-expenses .trip-section-head strong {
+  min-width: 96px;
+  padding: 0 10px;
+}
+
+.trip-expense-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.trip-expense-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.trip-expense-list {
+  display: grid;
+  gap: 10px;
+}
+
+.trip-expense {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.trip-expense h4,
+.trip-settlement h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.trip-expense p,
+.trip-expense small,
+.trip-settlement p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.trip-expense > strong {
+  color: var(--accent-strong);
+  font-size: 1rem;
+}
+
+.trip-expense__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trip-settlement {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.trip-balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trip-balances span {
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.trip-balances .is-positive {
+  background: #e3f4ee;
+  color: var(--accent-strong);
+}
+
+.trip-balances .is-negative {
+  background: #fbe9e4;
+  color: #8d2e18;
+}
+
+.expense-member-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.expense-member input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.expense-member span {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fa;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.expense-member input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .modal-subtitle {
@@ -1738,6 +1919,10 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .trip-expense-layout {
+    grid-template-columns: 1fr;
+  }
+
   .trip-plan-map-shell {
     position: static;
   }
@@ -1791,6 +1976,10 @@ h2 {
 
   .trip-plan-fields {
     grid-template-columns: 1fr;
+  }
+
+  .expense-member-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .trip-day__head {

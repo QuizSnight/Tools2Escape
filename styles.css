@@ -612,6 +612,122 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.trip-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.trip-section-head span {
+  color: var(--warm);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.trip-section-head h3 {
+  margin: 3px 0 0;
+  font-size: 1.2rem;
+}
+
+.trip-section-head strong {
+  min-width: 42px;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-size: 1.1rem;
+}
+
+.trip-planning {
+  display: grid;
+  gap: 14px;
+  padding: 18px 0 24px;
+  border-top: 1px solid var(--line);
+}
+
+.trip-plan-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.trip-plan-map-shell {
+  position: sticky;
+  top: 12px;
+}
+
+.trip-plan-map {
+  min-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.trip-plan-calendar {
+  display: grid;
+  gap: 12px;
+}
+
+.trip-plan-day {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.trip-plan-day > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.trip-plan-day > header span {
+  color: var(--warm);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.trip-plan-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.trip-plan-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.trip-plan-card h4 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+}
+
+.trip-plan-card p,
+.trip-plan-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.trip-plan-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.75fr) minmax(100px, 0.65fr);
+  gap: 8px;
+}
+
 .trip-timeline {
   display: grid;
   gap: 26px;
@@ -1412,6 +1528,14 @@ h2 {
     width: 100%;
   }
 
+  .trip-plan-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-plan-map-shell {
+    position: static;
+  }
+
   .map-shell,
   .map-canvas,
   .map-fallback {
@@ -1456,6 +1580,10 @@ h2 {
   }
 
   .trip-day {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-plan-fields {
     grid-template-columns: 1fr;
   }
 

@@ -496,6 +496,11 @@
     geocodeCache: loadGeocodeCache(),
     pendingGeocodes: new Set(),
   };
+  const tripPlanMapState = {
+    map: null,
+    layer: null,
+    container: null,
+  };
 
   const app = document.getElementById("app");
 
@@ -674,6 +679,7 @@
       destination: clean(trip.destination),
       notes: clean(trip.notes),
       items: Array.isArray(trip.items) ? trip.items.map(normalizeTripItem) : [],
+      planItems: Array.isArray(trip.planItems) ? trip.planItems.map(normalizeTripPlanItem) : [],
       createdAt: clean(trip.createdAt) || new Date().toISOString(),
     };
   }
@@ -700,6 +706,28 @@
       notes: clean(item.notes),
       sourceName: clean(item.sourceName),
       playedRoomId: clean(item.playedRoomId),
+    };
+  }
+
+  function normalizeTripPlanItem(item) {
+    const coords = Array.isArray(item.coords)
+      ? item.coords.map(Number).filter(Number.isFinite)
+      : null;
+    return {
+      id: item.id || makeId("trip-plan"),
+      sourceType: clean(item.sourceType),
+      sourceId: clean(item.sourceId),
+      title: clean(item.title),
+      provider: clean(item.provider),
+      country: clean(item.country),
+      city: clean(item.city),
+      address: clean(item.address),
+      date: clean(item.date),
+      time: clean(item.time),
+      duration: numberOrNull(item.duration),
+      link: clean(item.link),
+      notes: clean(item.notes),
+      coords: coords && coords.length === 2 ? coords : null,
     };
   }
 
@@ -1522,6 +1550,7 @@
     `;
     bindEvents();
     restoreActiveField(activeField);
+    renderTripPlanMap();
   }
 
   function renderHeader() {
@@ -1696,6 +1725,7 @@
         ${entry.link ? `<a class="external-link" href="${escapeHtml(entry.link)}" target="_blank" rel="noreferrer">Website öffnen</a>` : ""}
         <div class="card-actions">
           <button type="button" data-move-wish="${escapeHtml(entry.id)}">Als gespielt</button>
+          ${data.trips.length ? `<button type="button" data-plan-wish="${escapeHtml(entry.id)}">Planen</button>` : ""}
           ${data.trips.length ? `<button type="button" data-wish-trip="${escapeHtml(entry.id)}">Trip zuordnen</button>` : ""}
           <button type="button" data-edit-wish="${escapeHtml(entry.id)}">Bearbeiten</button>
           <button type="button" data-delete-wish="${escapeHtml(entry.id)}">Entfernen</button>
@@ -1896,6 +1926,7 @@
             ${room.detailUrl ? `<a href="${escapeHtml(room.detailUrl)}" target="_blank" rel="noreferrer">Quelle</a>` : ""}
             ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">Zu Up Next</button>` : ""}
             <button type="button" data-planning-link="${escapeHtml(room.id)}">${manualMatch ? "Zuordnung ändern" : "Gespielt zuordnen"}</button>
+            ${data.trips.length ? `<button type="button" data-plan-planning="${escapeHtml(room.id)}">Planen</button>` : ""}
             ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">Trip zuordnen</button>` : ""}
           </div>
         </div>
@@ -1920,7 +1951,7 @@
 
     const query = normalize(ui.tripSearch);
     const trips = [...data.trips]
-      .filter((trip) => !query || normalize(`${trip.name} ${trip.destination} ${trip.notes} ${trip.items.map((item) => `${item.title} ${item.city}`).join(" ")}`).includes(query))
+      .filter((trip) => !query || normalize(`${trip.name} ${trip.destination} ${trip.notes} ${trip.items.map((item) => `${item.title} ${item.city}`).join(" ")} ${(trip.planItems || []).map((item) => `${item.title} ${item.city}`).join(" ")}`).includes(query))
       .sort(sortTrips);
 
     return `
@@ -1941,6 +1972,7 @@
   function renderTripCard(trip) {
     const escapeCount = trip.items.filter((item) => item.type === "escape").length;
     const accommodationCount = trip.items.filter((item) => item.type === "accommodation").length;
+    const planCount = trip.planItems?.length || 0;
     return `
       <article class="trip-card">
         <div class="trip-card__head">
@@ -1954,6 +1986,7 @@
         <div class="trip-facts">
           <span>${escapeCount} Escape Rooms</span>
           <span>${accommodationCount} Unterkünfte</span>
+          ${planCount ? `<span>${planCount} Kandidaten</span>` : ""}
         </div>
         <div class="card-actions">
           <button class="primary-action" type="button" data-open-trip-detail="${escapeHtml(trip.id)}">Trip öffnen</button>
@@ -1994,9 +2027,92 @@
         ${kpi("Unterkünfte", accommodationCount)}
       </section>
 
+      ${renderTripPlanning(trip)}
+
       <section class="trip-timeline">
         ${dayGroups.length ? dayGroups.map(([date, dayItems]) => renderTripDay(date, dayItems, trip.id)).join("") : renderEmptyState("Für diesen Trip sind noch keine Termine eingetragen.")}
       </section>
+    `;
+  }
+
+  function renderTripPlanning(trip) {
+    const candidates = [...(trip.planItems || [])].sort(sortTripPlanItems);
+    const dates = tripDateValues(trip);
+    const unscheduled = candidates.filter((item) => !item.date);
+    return `
+      <section class="trip-planning">
+        <header class="trip-section-head">
+          <div>
+            <span>Tripplanung</span>
+            <h3>Kandidaten</h3>
+          </div>
+          <strong>${candidates.length}</strong>
+        </header>
+        <div class="trip-plan-layout">
+          <div class="trip-plan-map-shell">
+            <div id="trip-plan-map" class="trip-plan-map" data-trip-plan-map="${escapeHtml(trip.id)}"></div>
+          </div>
+          <div class="trip-plan-calendar">
+            ${renderTripPlanBucket(trip, "", "Noch nicht terminiert", unscheduled)}
+            ${dates.map((date) => renderTripPlanBucket(
+              trip,
+              date,
+              formatLongDate(date),
+              candidates.filter((item) => item.date === date),
+            )).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripPlanBucket(trip, date, title, candidates) {
+    return `
+      <section class="trip-plan-day">
+        <header>
+          <span>${date ? escapeHtml(formatWeekday(date)) : "OFFEN"}</span>
+          <strong>${escapeHtml(title)}</strong>
+        </header>
+        <div class="trip-plan-cards">
+          ${candidates.length
+            ? candidates.map((item) => renderTripPlanCard(trip, item)).join("")
+            : `<p class="trip-plan-empty">Keine Kandidaten</p>`}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripPlanCard(trip, item) {
+    const routeUrl = mapsRouteUrl(item);
+    return `
+      <article class="trip-plan-card">
+        <div>
+          <h4>${escapeHtml(item.title || "Ohne Titel")}</h4>
+          <p>${escapeHtml([item.provider, item.city || item.address, item.country].filter(Boolean).join(" · "))}</p>
+        </div>
+        <div class="trip-plan-fields">
+          <label>
+            <span>Tag</span>
+            <select data-trip-plan-field="date" data-trip-id="${escapeHtml(trip.id)}" data-plan-id="${escapeHtml(item.id)}">
+              ${tripDateOptions(trip, item.date)}
+            </select>
+          </label>
+          <label>
+            <span>Uhrzeit</span>
+            <input type="time" value="${escapeHtml(item.time)}" data-trip-plan-field="time" data-trip-id="${escapeHtml(trip.id)}" data-plan-id="${escapeHtml(item.id)}">
+          </label>
+          <label>
+            <span>Dauer</span>
+            <input type="number" min="15" step="5" inputmode="numeric" value="${escapeHtml(item.duration || "")}" data-trip-plan-field="duration" data-trip-id="${escapeHtml(trip.id)}" data-plan-id="${escapeHtml(item.id)}">
+          </label>
+        </div>
+        <div class="trip-item__actions">
+          ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
+          ${item.link ? `<a class="external-link" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">Website</a>` : ""}
+          <button class="primary-action" type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Termin erstellen</button>
+          <button type="button" data-delete-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Entfernen</button>
+        </div>
+      </article>
     `;
   }
 
@@ -2067,6 +2183,11 @@
       .localeCompare(`${b.date || "9999-12-31"} ${b.time || "99:99"} ${b.title}`, "de");
   }
 
+  function sortTripPlanItems(a, b) {
+    return `${a.date || "9999-12-31"} ${a.time || "99:99"} ${a.city || a.address} ${a.title}`
+      .localeCompare(`${b.date || "9999-12-31"} ${b.time || "99:99"} ${b.city || b.address} ${b.title}`, "de");
+  }
+
   function groupTripItems(items) {
     const groups = new Map();
     items.forEach((item) => {
@@ -2091,6 +2212,27 @@
     const end = new Date(`${trip.endDate}T00:00:00`);
     if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end < start) return 0;
     return Math.round((end - start) / 86400000) + 1;
+  }
+
+  function tripDateValues(trip) {
+    if (!trip.startDate) return [];
+    const start = new Date(`${trip.startDate}T00:00:00`);
+    const end = new Date(`${trip.endDate || trip.startDate}T00:00:00`);
+    if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end < start) return [trip.startDate];
+    const values = [];
+    for (let date = new Date(start); date <= end && values.length < 31; date.setDate(date.getDate() + 1)) {
+      values.push(date.toISOString().slice(0, 10));
+    }
+    return values;
+  }
+
+  function tripDateOptions(trip, current = "") {
+    const values = tripDateValues(trip);
+    if (current && !values.includes(current)) values.push(current);
+    return [
+      `<option value="" ${current ? "" : "selected"}>Offen</option>`,
+      ...values.map((date) => `<option value="${escapeHtml(date)}" ${current === date ? "selected" : ""}>${escapeHtml(formatDate(date))}</option>`),
+    ].join("");
   }
 
   function formatTripRange(trip) {
@@ -2264,6 +2406,7 @@
           ${room.website ? `<a href="${escapeHtml(room.website)}" target="_blank" rel="noreferrer" aria-label="Website öffnen">Link</a>` : `<a href="${escapeHtml(planningRoomSearchUrl(room))}" target="_blank" rel="noreferrer">Suche</a>`}
           ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">+ Up Next</button>` : ""}
           <button type="button" data-planning-link="${escapeHtml(room.id)}">Zuordnen</button>
+          ${data.trips.length ? `<button type="button" data-plan-planning="${escapeHtml(room.id)}">Planen</button>` : ""}
           ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
         </div>
       </div>
@@ -2352,6 +2495,80 @@
     bindPlanningActions(list);
   }
 
+  function renderTripPlanMap() {
+    const canvas = app.querySelector("#trip-plan-map");
+    if (!canvas) return;
+    const trip = data.trips.find((entry) => entry.id === canvas.dataset.tripPlanMap);
+    if (!trip) return;
+    const groups = tripPlanGroups(trip);
+    queueMissingGeocodes(groups.slice(0, 6));
+
+    if (!window.L) {
+      canvas.innerHTML = '<div class="map-fallback">Karte lädt...</div>';
+      return;
+    }
+
+    if (tripPlanMapState.map && tripPlanMapState.container !== canvas) {
+      tripPlanMapState.map.remove();
+      tripPlanMapState.map = null;
+      tripPlanMapState.layer = null;
+    }
+
+    if (!tripPlanMapState.map) {
+      tripPlanMapState.map = window.L.map(canvas, { scrollWheelZoom: false });
+      window.L.tileLayer(MAP_TILE_URL, {
+        attribution: "&copy; OpenStreetMap",
+        maxZoom: 19,
+      }).addTo(tripPlanMapState.map);
+      tripPlanMapState.container = canvas;
+    }
+
+    if (tripPlanMapState.layer) tripPlanMapState.layer.remove();
+    tripPlanMapState.layer = window.L.layerGroup().addTo(tripPlanMapState.map);
+
+    const mappedGroups = groups.filter((group) => group.coords);
+    mappedGroups.forEach((group) => {
+      const marker = window.L.marker(group.coords).addTo(tripPlanMapState.layer);
+      marker.bindPopup(`
+        <strong>${escapeHtml(group.city)}</strong><br>
+        ${group.items.length} ${group.items.length === 1 ? "Kandidat" : "Kandidaten"}
+        <br><small>${escapeHtml(group.items.map((item) => item.title).slice(0, 4).join(", "))}</small>
+      `);
+    });
+
+    window.setTimeout(() => {
+      tripPlanMapState.map.invalidateSize();
+      if (mappedGroups.length) {
+        const bounds = window.L.latLngBounds(mappedGroups.map((group) => group.coords));
+        tripPlanMapState.map.fitBounds(bounds, { padding: [22, 22], maxZoom: 10 });
+      } else {
+        tripPlanMapState.map.setView([50.85, 4.35], 6);
+      }
+    }, 60);
+  }
+
+  function tripPlanGroups(trip) {
+    const groups = new Map();
+    (trip.planItems || []).forEach((item) => {
+      const city = tripPlanPlace(item);
+      const key = normalizeCity(city);
+      if (!key) return;
+      const group = groups.get(key) || {
+        city,
+        coords: item.coords || coordsForCity(city),
+        items: [],
+      };
+      group.items.push(item);
+      if (!group.coords) group.coords = item.coords || coordsForCity(city);
+      groups.set(key, group);
+    });
+    return [...groups.values()].sort((a, b) => b.items.length - a.items.length || a.city.localeCompare(b.city, "de"));
+  }
+
+  function tripPlanPlace(item) {
+    return clean(item.city || extractCityFromAddress(item.address) || item.address || item.country);
+  }
+
   function queueMissingGeocodes(groups) {
     groups
       .filter((group) => !group.coords)
@@ -2383,6 +2600,7 @@
         saveGeocodeCache();
         updateRegionsForCity(key, regions);
         if (ui.view === "map") render();
+        if (ui.view === "trips") renderTripPlanMap();
       }
     } catch (error) {
       console.warn("Geocoding failed", city, error);
@@ -2668,10 +2886,11 @@
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "planCandidate") return renderPlanCandidateModal(ui.modal.sourceType, ui.modal.sourceId);
     if (ui.modal.type === "wishTrip") return renderWishTripModal(ui.modal.wishId);
     if (ui.modal.type === "planningLink") return renderPlanningLinkModal(ui.modal.roomId);
     if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
-    if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
+    if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported, ui.modal.planItemId);
     if (ui.modal.type === "tripImport") return renderTripImportModal(ui.modal.tripId);
     if (ui.modal.type === "tripShare") return renderTripShareModal();
     return "";
@@ -2880,6 +3099,42 @@
     `;
   }
 
+  function renderPlanCandidateModal(sourceType, sourceId) {
+    const candidate = tripPlanCandidateFromSource(sourceType, sourceId);
+    if (!candidate) return "";
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="plan-candidate-title">
+          <form id="plan-candidate-form">
+            <input type="hidden" name="sourceType" value="${escapeHtml(sourceType)}">
+            <input type="hidden" name="sourceId" value="${escapeHtml(sourceId)}">
+            <div class="modal-head">
+              <div>
+                <h2 id="plan-candidate-title">In Tripplanung legen</h2>
+                <p class="modal-subtitle">${escapeHtml(candidate.title)}</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <label class="full-field">
+              <span>Trip</span>
+              <select name="tripId" required>
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="full-field">
+              <span>Tag (optional)</span>
+              <input name="date" type="date">
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Planen</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
   function renderPlanningLinkModal(roomId) {
     const room = planningRoomById(roomId);
     if (!room) return "";
@@ -2925,7 +3180,7 @@
     `;
   }
 
-  function renderTripItemModal(tripId, item = {}, imported = false) {
+  function renderTripItemModal(tripId, item = {}, imported = false, planItemId = "") {
     const trip = data.trips.find((entry) => entry.id === tripId);
     const defaultDate = item.date || trip?.startDate || "";
     const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
@@ -2937,6 +3192,7 @@
           <form id="trip-item-form">
             <input type="hidden" name="tripId" value="${escapeHtml(tripId)}">
             <input type="hidden" name="id" value="${escapeHtml(item.id || "")}">
+            <input type="hidden" name="planItemId" value="${escapeHtml(planItemId)}">
             <input type="hidden" name="sourceName" value="${escapeHtml(item.sourceName || "")}">
             <div class="modal-head">
               <div>
@@ -3493,6 +3749,31 @@
       });
     });
 
+    app.querySelectorAll("[data-plan-wish]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "planCandidate", sourceType: "upnext", sourceId: button.dataset.planWish };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-trip-plan-field]").forEach((field) => {
+      field.addEventListener("change", () => {
+        updateTripPlanField(field.dataset.tripId, field.dataset.planId, field.dataset.tripPlanField, field.value);
+      });
+    });
+
+    app.querySelectorAll("[data-plan-to-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        openTripPlanItemForScheduling(button.dataset.tripId, button.dataset.planToTrip);
+      });
+    });
+
+    app.querySelectorAll("[data-delete-plan-item]").forEach((button) => {
+      button.addEventListener("click", () => {
+        deleteTripPlanItem(button.dataset.tripId, button.dataset.deletePlanItem);
+      });
+    });
+
     app.querySelectorAll("[data-close-modal]").forEach((element) => {
       element.addEventListener("click", (event) => {
         if (event.target !== element && !element.matches("button")) return;
@@ -3577,6 +3858,9 @@
 
     const wishTripForm = app.querySelector("#wish-trip-form");
     if (wishTripForm) wishTripForm.addEventListener("submit", openWishRoomForTrip);
+
+    const planCandidateForm = app.querySelector("#plan-candidate-form");
+    if (planCandidateForm) planCandidateForm.addEventListener("submit", savePlanCandidateFromForm);
 
     const tripForm = app.querySelector("#trip-form");
     if (tripForm) {
@@ -3772,6 +4056,12 @@
         render();
       });
     });
+    root.querySelectorAll("[data-plan-planning]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "planCandidate", sourceType: "planning", sourceId: button.dataset.planPlanning };
+        render();
+      });
+    });
   }
 
   function addPlanningRoomToWish(roomId) {
@@ -3813,6 +4103,115 @@
     ui.modal = null;
     saveData();
     setNotice("Zuordnung gelöst.");
+  }
+
+  function tripPlanCandidateFromSource(sourceType, sourceId) {
+    if (sourceType === "upnext") {
+      const wish = data.wishList.find((entry) => entry.id === sourceId);
+      if (!wish) return null;
+      return normalizeTripPlanItem({
+        sourceType: "upnext",
+        sourceId: wish.id,
+        title: wish.title,
+        provider: wish.provider,
+        country: wish.country,
+        city: wish.city,
+        address: [wish.city, wish.country].filter(Boolean).join(", "),
+        link: wish.link,
+        notes: wish.notes,
+      });
+    }
+
+    if (sourceType === "planning") {
+      const room = planningRoomById(sourceId);
+      if (!room) return null;
+      const sourceLabel = planningRoomSourceLabel(room);
+      return normalizeTripPlanItem({
+        sourceType: room.source || "planning",
+        sourceId: room.id,
+        title: room.title,
+        provider: room.provider,
+        country: germanCountry(room.country),
+        city: room.city || room.region,
+        address: [room.city || room.region, germanCountry(room.country)].filter(Boolean).join(", "),
+        duration: room.duration,
+        link: room.website || room.detailUrl || planningRoomSearchUrl(room),
+        notes: `${sourceLabel} · Platz ${room.rank}${typeof room.scare === "number" ? ` · Horror ${formatScore(room.scare)}/${room.scareScale || 5}` : ""}`,
+        coords: room.coords,
+      });
+    }
+
+    return null;
+  }
+
+  function savePlanCandidateFromForm(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    const candidate = tripPlanCandidateFromSource(clean(form.get("sourceType")), clean(form.get("sourceId")));
+    if (!trip || !candidate) return;
+    const existing = findTripPlanDuplicate(trip, candidate);
+    const planItem = normalizeTripPlanItem({
+      ...(existing || candidate),
+      date: clean(form.get("date")) || existing?.date || candidate.date,
+    });
+    trip.planItems = existing
+      ? trip.planItems.map((entry) => (entry.id === existing.id ? planItem : entry))
+      : [planItem, ...(trip.planItems || [])];
+    ui.view = "trips";
+    ui.activeTripId = trip.id;
+    ui.modal = null;
+    saveData();
+    setNotice(existing ? "Kandidat aktualisiert." : "Kandidat zur Tripplanung hinzugefügt.");
+  }
+
+  function findTripPlanDuplicate(trip, candidate) {
+    return (trip.planItems || []).find((item) =>
+      (candidate.sourceId && item.sourceId === candidate.sourceId)
+      || (normalize(item.title) === normalize(candidate.title) && normalize(item.provider) === normalize(candidate.provider)));
+  }
+
+  function updateTripPlanField(tripId, planItemId, field, value) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    const item = trip?.planItems.find((entry) => entry.id === planItemId);
+    if (!trip || !item) return;
+    if (field === "duration") item.duration = numberOrNull(value);
+    else item[field] = clean(value);
+    saveData();
+    if (field === "date") render();
+  }
+
+  function openTripPlanItemForScheduling(tripId, planItemId) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    const item = trip?.planItems.find((entry) => entry.id === planItemId);
+    if (!trip || !item) return;
+    ui.modal = {
+      type: "tripItem",
+      tripId: trip.id,
+      planItemId: item.id,
+      item: {
+        type: "escape",
+        title: item.title,
+        provider: item.provider,
+        date: item.date,
+        time: item.time,
+        duration: item.duration,
+        address: item.address || [item.city, item.country].filter(Boolean).join(", "),
+        link: item.link,
+        notes: item.notes,
+        sourceName: "Tripplanung",
+      },
+    };
+    render();
+  }
+
+  function deleteTripPlanItem(tripId, planItemId) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    if (!trip || !trip.planItems?.some((item) => item.id === planItemId)) return;
+    if (!confirm("Kandidat aus der Tripplanung entfernen?")) return;
+    trip.planItems = trip.planItems.filter((item) => item.id !== planItemId);
+    saveData();
+    setNotice("Kandidat entfernt.");
   }
 
   function openPlanningRoomForTrip(event) {
@@ -3913,6 +4312,7 @@
     if (!trip) return;
 
     const id = clean(form.get("id")) || makeId("trip-item");
+    const planItemId = clean(form.get("planItemId"));
     const existing = trip.items.find((item) => item.id === id);
     const type = clean(form.get("type")) || "escape";
     const date = clean(form.get("date"));
@@ -3944,6 +4344,7 @@
     trip.items = existing
       ? trip.items.map((entry) => (entry.id === id ? item : entry))
       : [...trip.items, item];
+    if (planItemId) trip.planItems = (trip.planItems || []).filter((entry) => entry.id !== planItemId);
     expandTripDates(trip, item);
     ui.activeTripId = trip.id;
     ui.modal = null;

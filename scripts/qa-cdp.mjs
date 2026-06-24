@@ -238,6 +238,37 @@ try {
   await assertEval(cdp, "document.querySelectorAll('.trip-kpis .kpi').length === 3", Boolean, "trip overview omits appointment count");
   await assertEval(cdp, "window.__qaTripFormSimple && window.__qaTripRangePicker", Boolean, "trip form only uses name and one range picker");
 
+  await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click(); Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Trip Room').querySelector('[data-plan-wish]').click();");
+  await assertEval(cdp, "Boolean(document.querySelector('#plan-candidate-form'))", Boolean, "up next room can be planned as trip candidate");
+  await evalPage(cdp, "document.querySelector('#plan-candidate-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
+  await assertEval(
+    cdp,
+    "document.querySelector('.trip-plan-card h4')?.textContent === 'QA Trip Room' && Boolean(document.querySelector('#trip-plan-map'))",
+    Boolean,
+    "trip planning candidate renders with map",
+  );
+  await evalPage(cdp, `
+    (() => {
+      const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
+      card.querySelector('[data-trip-plan-field="date"]').value = '2026-10-13';
+      card.querySelector('[data-trip-plan-field="date"]').dispatchEvent(new Event('change', { bubbles: true }));
+      const moved = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
+      moved.querySelector('[data-trip-plan-field="time"]').value = '16:30';
+      moved.querySelector('[data-trip-plan-field="time"]').dispatchEvent(new Event('change', { bubbles: true }));
+      moved.querySelector('[data-trip-plan-field="duration"]').value = '75';
+      moved.querySelector('[data-trip-plan-field="duration"]').dispatchEvent(new Event('change', { bubbles: true }));
+      moved.querySelector('[data-plan-to-trip]').click();
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75'",
+    Boolean,
+    "trip planning candidate opens scheduled item form",
+  );
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+
   await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click(); Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Trip Room').querySelector('[data-wish-trip]').click();");
   await assertEval(cdp, "Boolean(document.querySelector('#wish-trip-form'))", Boolean, "up next room can be assigned to trip");
   await evalPage(cdp, "document.querySelector('#wish-trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");

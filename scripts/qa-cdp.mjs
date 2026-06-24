@@ -476,7 +476,7 @@ try {
   await evalPage(cdp, `
     (() => {
       const region = document.querySelector('#map-region');
-      const option = Array.from(region.options).find((entry) => entry.textContent.startsWith('Deutschland'))
+      const option = Array.from(region.options).find((entry) => entry.textContent.startsWith('Belgien'))
         || Array.from(region.options).find((entry) => entry.value !== 'all');
       region.value = option.value;
       region.dispatchEvent(new Event('change', { bubbles: true }));
@@ -488,9 +488,17 @@ try {
   await assertEval(
     cdp,
     "(() => { const text = document.querySelector('[data-map-list]')?.textContent || ''; const renderedRooms = document.querySelectorAll('.map-room').length; return { stillWaiting: text.includes('Wähle zuerst ein EscapeRoomers-Gebiet'), region: document.querySelector('#map-region')?.value, renderedRooms }; })()",
-    (value) => !value.stillWaiting && value.region !== "all" && value.renderedRooms <= 20,
+    (value) => !value.stillWaiting && value.region !== "all" && value.renderedRooms > 0 && value.renderedRooms <= 20,
     "EscapeRoomers map region limits visible workload",
   );
+  await evalPage(cdp, "document.querySelector('[data-map-list] [data-planning-link]').click()");
+  await assertEval(
+    cdp,
+    "(() => { const backdrop = document.querySelector('.modal-backdrop'); const leafletControl = document.querySelector('.leaflet-control-container'); return { modal: backdrop ? Number(getComputedStyle(backdrop).zIndex) : 0, leaflet: leafletControl ? Number(getComputedStyle(leafletControl).zIndex || 0) : 0, hasForm: Boolean(document.querySelector('#planning-link-form')) }; })()",
+    (value) => value.hasForm && value.modal > value.leaflet,
+    "map planning link modal stays above leaflet",
+  );
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 
   await evalPage(cdp, "document.querySelector('[data-view=\"stats\"]').click()");
   await assertEval(cdp, "document.querySelectorAll('.panel').length", (value) => value >= 4, "stats panels");

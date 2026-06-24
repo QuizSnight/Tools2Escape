@@ -1187,7 +1187,7 @@ h2 {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 3000;
   display: grid;
   place-items: center;
   padding: 18px;

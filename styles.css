@@ -752,9 +752,14 @@ h2 {
 
 .trip-plan-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.25fr);
   gap: 14px;
   align-items: start;
+}
+
+.trip-plan-left {
+  display: grid;
+  gap: 12px;
 }
 
 .trip-plan-map-shell {
@@ -831,8 +836,8 @@ h2 {
 
 .trip-plan-card {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfc;
@@ -848,19 +853,27 @@ h2 {
   background: #fffaf0;
 }
 
-.trip-plan-card h4 {
-  margin: 0 0 3px;
+.trip-plan-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.trip-plan-card__head h4 {
+  margin: 0;
   font-size: 1rem;
 }
 
-.trip-plan-card p,
+.trip-plan-card__head p,
 .trip-plan-empty {
   margin: 0;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
-.trip-plan-card small {
+.trip-plan-card__head small {
+  grid-column: 1 / -1;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -898,6 +911,47 @@ h2 {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.75fr) minmax(100px, 0.65fr);
   gap: 8px;
+}
+
+.trip-plan-fields > select,
+.duration-inline {
+  min-height: 42px;
+}
+
+.duration-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding-right: 10px;
+  background: #ffffff;
+}
+
+.duration-inline input {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+}
+
+.duration-inline span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.trip-slot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trip-slot-list button {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 0.78rem;
 }
 
 .trip-plan-meta {
@@ -1102,6 +1156,13 @@ h2 {
   text-decoration: none;
 }
 
+.route-link--small {
+  min-height: 32px;
+  width: max-content;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
 .trip-expenses {
   display: grid;
   gap: 14px;
@@ -1154,6 +1215,19 @@ h2 {
   margin: 0;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.settlement-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settlement-line button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 0.76rem;
 }
 
 .trip-expense > strong {

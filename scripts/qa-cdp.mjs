@@ -1,15 +1,32 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
+import net from "node:net";
 
 const workspace = process.cwd();
 const edgePath = process.env.EDGE_PATH || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const port = Number(process.env.CDP_PORT || 9300 + Math.floor(Math.random() * 500));
 const qaDir = path.join(workspace, "qa");
-const fileUrl = `file:///${path.join(workspace, "index.html").replace(/\\/g, "/")}?qa`;
+const workspaceUrl = `file:///${workspace.replace(/\\/g, "/")}/`;
+const qaIndexPath = path.join(qaDir, "index.html");
+const fileUrl = `file:///${qaIndexPath.replace(/\\/g, "/")}?qa`;
 const ocrFixture = process.env.T2E_OCR_FIXTURE || "";
+let browserLog = "";
+
+process.on("uncaughtException", (error) => {
+  console.error(error);
+  if (browserLog) console.error(browserLog);
+  process.exit(1);
+});
+process.on("unhandledRejection", (error) => {
+  console.error(error);
+  if (browserLog) console.error(browserLog);
+  process.exit(1);
+});
 
 await fs.mkdir(qaDir, { recursive: true });
+await fs.writeFile(qaIndexPath, await createQaIndexHtml());
 const pdfFixture = process.env.T2E_PDF_FIXTURE || path.join(qaDir, "booking-test.pdf");
 if (!process.env.T2E_PDF_FIXTURE) {
   await fs.writeFile(pdfFixture, createSimplePdf([
@@ -27,13 +44,28 @@ const profileDir = await fs.mkdtemp(path.join(qaDir, "edge-profile-"));
 const edge = spawn(edgePath, [
   "--headless=new",
   "--disable-gpu",
+  "--disable-gpu-compositing",
+  "--disable-gpu-rasterization",
+  "--disable-features=Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,DawnGraphite,UseSkiaRenderer",
+  "--use-angle=swiftshader",
+  "--use-gl=swiftshader",
+  "--disable-dev-shm-usage",
+  "--no-sandbox",
   "--no-first-run",
   "--no-default-browser-check",
+  "--remote-allow-origins=*",
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${profileDir}`,
   "--window-size=1440,1000",
   fileUrl,
-], { stdio: "ignore" });
+], { stdio: ["ignore", "pipe", "pipe"] });
+
+edge.stdout.on("data", (chunk) => {
+  browserLog += chunk.toString();
+});
+edge.stderr.on("data", (chunk) => {
+  browserLog += chunk.toString();
+});
 
 const failures = [];
 const screenshots = [];
@@ -273,6 +305,12 @@ try {
     Boolean,
     "trip planning candidates render with map and automatic duration",
   );
+  await assertEval(
+    cdp,
+    "getComputedStyle(document.querySelector('.trip-plan-layout')).gridTemplateColumns.split(' ').length >= 2 && document.querySelector('.trip-plan-left')?.contains(document.querySelector('#trip-plan-map')) && Boolean(document.querySelector('.trip-plan-calendar'))",
+    Boolean,
+    "desktop trip planning uses map/open rooms left and calendar right",
+  );
   await evalPage(cdp, `
     (() => {
       const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
@@ -295,6 +333,28 @@ try {
     "window.__qaTripPlanDragged && document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75' && !Array.from(document.querySelectorAll('#trip-item-form [name=\"time\"] option')).some((option) => option.value.endsWith(':07'))",
     Boolean,
     "trip planning candidate can be dragged into day and opens scheduled item form",
+  );
+  await evalPage(cdp, `
+    (() => {
+      const form = document.querySelector('#trip-item-form');
+      form.querySelector('[name="address"]').value = 'Rue Persist 44, 1000 Bruxelles';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); return card?.textContent.includes('Termin bearbeiten') && card?.textContent.includes('Rue Persist 44'); })()",
+    Boolean,
+    "scheduled trip plan card keeps edited address and edit label",
+  );
+  await assertEval(cdp, "Boolean(Array.from(document.querySelectorAll('.trip-plan-stay-marker')).find((node) => node.textContent.includes('Zur Unterkunft'))?.querySelector('.route-link--small')) || !document.querySelector('.trip-plan-stay-marker')", Boolean, "accommodation calendar marker can expose route button");
+  await evalPage(cdp, "Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-plan-to-trip]').click()");
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-item-form [name=\"address\"]')?.value === 'Rue Persist 44, 1000 Bruxelles'",
+    Boolean,
+    "reopened trip plan appointment keeps edited address",
   );
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
 
@@ -402,6 +462,41 @@ try {
   await cdp.send("Page.navigate", { url: fileUrl });
   await waitForApp(cdp);
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click(); document.querySelector('[data-open-trip-detail]').click()");
+
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-import-room-url]').click();
+      const form = document.querySelector('#trip-url-import-form');
+      form.querySelector('[name="url"]').value = 'https://example.com/tokyo-lab';
+      form.querySelector('[name="sourceText"]').value = [
+        'Provider: Escape Rush',
+        'Room: Tokyo Lab',
+        'Duration: 70 minutes',
+        'Price for 5 players: 175 EUR',
+        'Available times: 10:00 12:15 19:45',
+        'Address: 30 rue de l automne, Ixelles, Bruxelles 1050'
+      ].join('\\n');
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => setTimeout(resolve, 150));
+    })()
+  `);
+  await evalPage(cdp, `
+    (() => {
+      const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'Tokyo Lab');
+      const date = card?.querySelector('[data-trip-plan-field="date"]');
+      if (date) {
+        date.value = '2026-10-13';
+        date.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const cards = Array.from(document.querySelectorAll('.trip-plan-card')); const card = cards.find((entry) => entry.querySelector('h4')?.textContent === 'Tokyo Lab'); return { found: Boolean(card), titles: cards.map((entry) => entry.querySelector('h4')?.textContent), text: card?.textContent || '', slots: Array.from(card?.querySelectorAll('[data-trip-slot]') || []).map((button) => button.textContent), date: card?.querySelector('[data-trip-plan-field=\"date\"]')?.value || '' }; })()",
+    (value) => value.found && value.text.includes('Escape Rush') && value.text.includes('70 Min.') && value.text.includes('35,00') && value.slots.includes('19:45'),
+    "room website import extracts title, price, duration, address and slots into trip planning",
+  );
 
   if (ocrFixture) {
     await evalPage(cdp, "document.querySelector('[data-import-trip-item]').click()");
@@ -551,6 +646,17 @@ try {
   await assertEval(cdp, "document.querySelector('.trip-expense')?.textContent.includes('Airbnb') && document.querySelector('.trip-settlement')?.textContent.includes('zahlt') && document.querySelector('.trip-settlement')?.textContent.includes('Sebi') && document.querySelector('.trip-settlement')?.textContent.includes('20,00')", Boolean, "trip expenses calculate tricount settlement");
   await evalPage(cdp, `
     (() => {
+      window.__qaSettlementConfirm = '';
+      window.confirm = (message) => { window.__qaSettlementConfirm = message; return true; };
+      for (let index = 0; index < 8 && document.querySelector('[data-settlement-paid]'); index += 1) {
+        document.querySelector('[data-settlement-paid]').click();
+      }
+      return true;
+    })()
+  `);
+  await assertEval(cdp, "window.__qaSettlementConfirm.includes('gezahlt?') && document.querySelector('.trip-settlement')?.textContent.includes('Alles ausgeglichen')", Boolean, "settlement paid button records balancing payment");
+  await evalPage(cdp, `
+    (() => {
       document.querySelector('[data-complete-trip-item]').click();
       const form = document.querySelector('#room-form');
       form.querySelector('[name="difficulty"][value="2"]').checked = true;
@@ -578,6 +684,8 @@ try {
   await evalPage(cdp, "window.__qaMapViewport = `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}`; document.querySelector('[data-toggle-bulk-plan=\"map\"]')?.click();");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}` === window.__qaMapViewport : true", Boolean, "map list actions keep current viewport");
+  await evalPage(cdp, "const list = document.querySelector('[data-map-list]'); if (list) { list.scrollTop = 180; window.__qaMapListScrollBefore = list.scrollTop; document.querySelector('[data-toggle-bulk-plan=\"map\"]')?.click(); }");
+  await assertEval(cdp, "document.querySelector('[data-map-list]')?.scrollTop === window.__qaMapListScrollBefore", Boolean, "map list actions keep list scroll position");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? document.querySelectorAll('.leaflet-marker-icon').length > 0 : true", Boolean, "map markers render when leaflet is available");
@@ -789,11 +897,17 @@ console.log(JSON.stringify({ ok: true, screenshots }, null, 2));
 
 async function waitForTarget(debugPort) {
   const deadline = Date.now() + 15000;
+  let attemptedCreate = false;
   while (Date.now() < deadline) {
     try {
       const targets = await fetchJson(`http://127.0.0.1:${debugPort}/json/list`);
       const target = targets.find((entry) => entry.type === "page" && entry.webSocketDebuggerUrl);
       if (target) return target;
+      if (!attemptedCreate) {
+        attemptedCreate = true;
+        const created = await fetchJson(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(fileUrl)}`, { method: "PUT" });
+        if (created?.webSocketDebuggerUrl) return created;
+      }
     } catch {
       await sleep(250);
     }
@@ -801,41 +915,160 @@ async function waitForTarget(debugPort) {
   throw new Error("CDP target did not become available");
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json();
 }
 
 async function connectCdp(url) {
-  const socket = new WebSocket(url);
+  const endpoint = new URL(url);
+  const socket = net.createConnection({
+    host: endpoint.hostname,
+    port: Number(endpoint.port),
+  });
   const pending = new Map();
   let id = 0;
+  let incoming = Buffer.alloc(0);
+  let ready = false;
 
   await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
+    const key = crypto.randomBytes(16).toString("base64");
+    const requestPath = `${endpoint.pathname}${endpoint.search}`;
+    const fail = (error) => {
+      socket.destroy();
+      reject(error);
+    };
+
+    socket.once("error", fail);
+    socket.once("connect", () => {
+      socket.write([
+        `GET ${requestPath} HTTP/1.1`,
+        `Host: ${endpoint.host}`,
+        "Upgrade: websocket",
+        "Connection: Upgrade",
+        `Sec-WebSocket-Key: ${key}`,
+        "Sec-WebSocket-Version: 13",
+        "Origin: devtools://devtools",
+        "",
+        "",
+      ].join("\r\n"));
+    });
+
+    socket.on("data", (chunk) => {
+      incoming = Buffer.concat([incoming, chunk]);
+      if (!ready) {
+        const headerEnd = incoming.indexOf("\r\n\r\n");
+        if (headerEnd < 0) return;
+        const header = incoming.slice(0, headerEnd).toString("latin1");
+        incoming = incoming.slice(headerEnd + 4);
+        if (!/^HTTP\/1\.1 101\b/.test(header)) {
+          fail(new Error(`CDP websocket handshake failed: ${header.split("\r\n")[0] || "no response"}`));
+          return;
+        }
+        ready = true;
+        socket.off("error", fail);
+        socket.on("error", (error) => rejectPending(error));
+        socket.on("close", () => rejectPending(new Error("CDP socket closed")));
+        resolve();
+      }
+      readFrames();
+    });
   });
 
-  socket.addEventListener("message", (event) => {
-    const message = JSON.parse(event.data);
+  function rejectPending(error) {
+    pending.forEach(({ reject }) => reject(error));
+    pending.clear();
+  }
+
+  function readFrames() {
+    while (incoming.length >= 2) {
+      const firstByte = incoming[0];
+      const secondByte = incoming[1];
+      const opcode = firstByte & 0x0f;
+      const masked = Boolean(secondByte & 0x80);
+      let length = secondByte & 0x7f;
+      let offset = 2;
+
+      if (length === 126) {
+        if (incoming.length < 4) return;
+        length = incoming.readUInt16BE(2);
+        offset = 4;
+      } else if (length === 127) {
+        if (incoming.length < 10) return;
+        const bigLength = incoming.readBigUInt64BE(2);
+        if (bigLength > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("CDP frame too large");
+        length = Number(bigLength);
+        offset = 10;
+      }
+
+      const maskOffset = masked ? 4 : 0;
+      const totalLength = offset + maskOffset + length;
+      if (incoming.length < totalLength) return;
+
+      let payload = incoming.slice(offset + maskOffset, totalLength);
+      if (masked) {
+        const mask = incoming.slice(offset, offset + 4);
+        payload = Buffer.from(payload.map((byte, index) => byte ^ mask[index % 4]));
+      }
+      incoming = incoming.slice(totalLength);
+
+      if (opcode === 0x8) {
+        socket.end();
+        rejectPending(new Error("CDP socket closed"));
+        return;
+      }
+      if (opcode === 0x9) {
+        writeFrame(payload, 0x0a);
+        continue;
+      }
+      if (opcode !== 0x1) continue;
+
+      const message = JSON.parse(payload.toString("utf8"));
+      handleMessage(message);
+    }
+  }
+
+  function handleMessage(message) {
     if (!message.id || !pending.has(message.id)) return;
     const { resolve, reject } = pending.get(message.id);
     pending.delete(message.id);
     if (message.error) reject(new Error(message.error.message));
     else resolve(message.result);
-  });
+  }
+
+  function writeFrame(payload, opcode = 0x1) {
+    const data = Buffer.isBuffer(payload) ? payload : Buffer.from(String(payload), "utf8");
+    const mask = crypto.randomBytes(4);
+    let header;
+    if (data.length < 126) {
+      header = Buffer.alloc(2);
+      header[1] = 0x80 | data.length;
+    } else if (data.length < 65536) {
+      header = Buffer.alloc(4);
+      header[1] = 0x80 | 126;
+      header.writeUInt16BE(data.length, 2);
+    } else {
+      header = Buffer.alloc(10);
+      header[1] = 0x80 | 127;
+      header.writeBigUInt64BE(BigInt(data.length), 2);
+    }
+    header[0] = 0x80 | opcode;
+    const masked = Buffer.from(data.map((byte, index) => byte ^ mask[index % 4]));
+    socket.write(Buffer.concat([header, mask, masked]));
+  }
 
   return {
     send(method, params = {}) {
       const messageId = ++id;
-      socket.send(JSON.stringify({ id: messageId, method, params }));
+      writeFrame(JSON.stringify({ id: messageId, method, params }));
       return new Promise((resolve, reject) => {
         pending.set(messageId, { resolve, reject });
       });
     },
     close() {
-      socket.close();
+      writeFrame(Buffer.alloc(0), 0x8);
+      socket.end();
     },
   };
 }
@@ -847,7 +1080,8 @@ async function waitForApp(cdp) {
     if (ready) return;
     await sleep(100);
   }
-  throw new Error("App did not render");
+  const debug = await evalPage(cdp, "({ title: document.title, body: document.body.innerText.slice(0, 800), html: document.documentElement.innerHTML.slice(0, 800) })").catch((error) => ({ error: error.message }));
+  throw new Error(`App did not render: ${JSON.stringify(debug)}`);
 }
 
 async function evalPage(cdp, expression) {
@@ -879,6 +1113,34 @@ async function screenshot(cdp, outputPath) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function createQaIndexHtml() {
+  const source = await fs.readFile(path.join(workspace, "index.html"), "utf8");
+  const flatpickrStub = `
+    <script>
+      window.flatpickr = function(input, options) {
+        const api = {
+          setDate(values, triggerChange) {
+            const list = (Array.isArray(values) ? values : [values]).filter(Boolean).map((value) => value instanceof Date ? value : new Date(String(value).slice(0, 10) + "T00:00:00"));
+            input.value = list.map((date) => date.toISOString().slice(0, 10)).join(" bis ");
+            if (triggerChange && options && typeof options.onChange === "function") options.onChange(list);
+          },
+          open() {},
+          destroy() {},
+        };
+        input._flatpickr = api;
+        if (options && Array.isArray(options.defaultDate) && options.defaultDate.length) api.setDate(options.defaultDate, false);
+        return api;
+      };
+      window.flatpickr.l10ns = { de: {} };
+    </script>
+  `;
+  return source
+    .replace(/<link[^>]+https:\/\/cdn\.jsdelivr\.net[^>]+>\s*/g, "")
+    .replace(/<script[^>]+https:\/\/cdn\.jsdelivr\.net[^>]+><\/script>\s*/g, "")
+    .replace("<head>", `<head>\n    <base href="${workspaceUrl}">`)
+    .replace('<script src="src/config.js"></script>', `${flatpickrStub}\n    <script src="src/config.js"></script>`);
 }
 
 function createSimplePdf(lines) {

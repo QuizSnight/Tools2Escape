@@ -238,6 +238,17 @@ try {
   await assertEval(cdp, "document.querySelectorAll('.trip-kpis .kpi').length === 3", Boolean, "trip overview omits appointment count");
   await assertEval(cdp, "window.__qaTripFormSimple && window.__qaTripRangePicker", Boolean, "trip form only uses name and one range picker");
 
+  await evalPage(cdp, "document.querySelector('[data-view=\"upnext\"]').click(); Array.from(document.querySelectorAll('.wish-card')).find((card) => card.querySelector('h2')?.textContent === 'QA Trip Room').querySelector('[data-wish-trip]').click();");
+  await assertEval(cdp, "Boolean(document.querySelector('#wish-trip-form'))", Boolean, "up next room can be assigned to trip");
+  await evalPage(cdp, "document.querySelector('#wish-trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");
+  await assertEval(
+    cdp,
+    "document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"provider\"]')?.value === 'QA Escape' && document.querySelector('#trip-item-form [name=\"address\"]')?.value.includes('Lille')",
+    Boolean,
+    "up next trip action prefills room details",
+  );
+  await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
+
   await evalPage(cdp, "document.querySelector('[data-view=\"planning\"]').click(); document.querySelector('#planning-status').value = 'all'; document.querySelector('#planning-status').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-planning-trip]').click();");
   await assertEval(cdp, "Boolean(document.querySelector('#planning-trip-form'))", Boolean, "planning room can be assigned to trip");
   await evalPage(cdp, "document.querySelector('#planning-trip-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))");

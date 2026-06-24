@@ -1696,6 +1696,7 @@
         ${entry.link ? `<a class="external-link" href="${escapeHtml(entry.link)}" target="_blank" rel="noreferrer">Website öffnen</a>` : ""}
         <div class="card-actions">
           <button type="button" data-move-wish="${escapeHtml(entry.id)}">Als gespielt</button>
+          ${data.trips.length ? `<button type="button" data-wish-trip="${escapeHtml(entry.id)}">Trip zuordnen</button>` : ""}
           <button type="button" data-edit-wish="${escapeHtml(entry.id)}">Bearbeiten</button>
           <button type="button" data-delete-wish="${escapeHtml(entry.id)}">Entfernen</button>
         </div>
@@ -2667,6 +2668,7 @@
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
     if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "wishTrip") return renderWishTripModal(ui.modal.wishId);
     if (ui.modal.type === "planningLink") return renderPlanningLinkModal(ui.modal.roomId);
     if (ui.modal.type === "planningTrip") return renderPlanningTripModal(ui.modal.roomId);
     if (ui.modal.type === "tripItem") return renderTripItemModal(ui.modal.tripId, ui.modal.item, ui.modal.imported);
@@ -2820,6 +2822,41 @@
               <div>
                 <h2 id="planning-trip-title">Zum Trip hinzufügen</h2>
                 <p class="modal-subtitle">${escapeHtml(room.title)}</p>
+              </div>
+              <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
+            </div>
+            <label class="full-field">
+              <span>Trip</span>
+              <select name="tripId" required>
+                ${[...data.trips].sort(sortTrips).map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(`${trip.name} · ${formatTripRange(trip)}`)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="full-field">
+              <span>Datum (optional)</span>
+              <input name="date" type="date">
+            </label>
+            <div class="modal-actions">
+              <button type="button" data-close-modal>Abbrechen</button>
+              <button class="primary-action" type="submit">Details prüfen</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderWishTripModal(wishId) {
+    const entry = data.wishList.find((item) => item.id === wishId);
+    if (!entry) return "";
+    return `
+      <div class="modal-backdrop" data-close-modal>
+        <section class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="wish-trip-title">
+          <form id="wish-trip-form">
+            <input type="hidden" name="wishId" value="${escapeHtml(entry.id)}">
+            <div class="modal-head">
+              <div>
+                <h2 id="wish-trip-title">Zum Trip hinzufügen</h2>
+                <p class="modal-subtitle">${escapeHtml(entry.title)}</p>
               </div>
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
             </div>
@@ -3449,6 +3486,13 @@
       });
     });
 
+    app.querySelectorAll("[data-wish-trip]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.modal = { type: "wishTrip", wishId: button.dataset.wishTrip };
+        render();
+      });
+    });
+
     app.querySelectorAll("[data-close-modal]").forEach((element) => {
       element.addEventListener("click", (event) => {
         if (event.target !== element && !element.matches("button")) return;
@@ -3530,6 +3574,9 @@
 
     const planningTripForm = app.querySelector("#planning-trip-form");
     if (planningTripForm) planningTripForm.addEventListener("submit", openPlanningRoomForTrip);
+
+    const wishTripForm = app.querySelector("#wish-trip-form");
+    if (wishTripForm) wishTripForm.addEventListener("submit", openWishRoomForTrip);
 
     const tripForm = app.querySelector("#trip-form");
     if (tripForm) {
@@ -3787,6 +3834,29 @@
         address: room.city || room.region,
         link: room.website || room.detailUrl || planningRoomSearchUrl(room),
         notes: `${sourceLabel} · Platz ${room.rank}${typeof room.scare === "number" ? ` · Horror ${formatScore(room.scare)}/${room.scareScale || 5}` : ""}`,
+      },
+    };
+    render();
+  }
+
+  function openWishRoomForTrip(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const wish = data.wishList.find((entry) => entry.id === clean(form.get("wishId")));
+    const trip = data.trips.find((entry) => entry.id === clean(form.get("tripId")));
+    if (!wish || !trip) return;
+    ui.modal = {
+      type: "tripItem",
+      tripId: trip.id,
+      item: {
+        type: "escape",
+        title: wish.title,
+        provider: wish.provider,
+        date: clean(form.get("date")),
+        duration: null,
+        address: [wish.city, wish.country].filter(Boolean).join(", "),
+        link: wish.link,
+        notes: wish.notes,
       },
     };
     render();

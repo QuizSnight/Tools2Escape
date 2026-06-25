@@ -322,10 +322,12 @@
   const GEOCODE_CACHE_KEY = "tools2escape:geocode-cache:v1";
   const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const ROUTE_API_URL = "https://router.project-osrm.org/route/v1/driving/";
+  const ROOM_IMPORT_API_PATH = "/api/import-room";
   const TESSERACT_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
   const PDFJS_MODULE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs";
   const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs";
   const MAX_PDF_PAGES = 12;
+  const MAX_WEBSITE_IMPORT_CHARS = 250000;
   const TRIP_ITEM_LABELS = {
     escape: "Escape Room",
     accommodation: "Unterkunft",
@@ -1062,8 +1064,9 @@
     if (!text) return null;
     const perPerson = text.match(/(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person)/i);
     if (perPerson) return numberOrNull(perPerson[1]);
-    const fivePeopleTotal = text.match(/(?:5\s*(?:personen|players|spieler)[^\d€]{0,30})(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i)
-      || text.match(/(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)[^\d]{0,30}5\s*(?:personen|players|spieler)/i);
+    const fivePeopleTotal = text.match(/(?:5\s*(?:personen|players|spieler|adults|erwachsene)[^\d€]{0,80})(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i)
+      || text.match(/(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)[^\d]{0,80}5\s*(?:personen|players|spieler|adults|erwachsene)/i)
+      || text.match(/(?:preis|price|total|gesamtpreis)[^\n€]{0,60}5[^\n€]{0,40}(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i);
     if (fivePeopleTotal) {
       const total = numberOrNull(fivePeopleTotal[1]);
       return total ? Math.round((total / 5) * 100) / 100 : null;
@@ -4338,7 +4341,7 @@
             </label>
             <label class="full-field">
               <span>Seitentext optional</span>
-              <textarea name="sourceText" rows="8" placeholder="Falls die Website den direkten Import blockiert: Text der Raumseite hier einfügen."></textarea>
+              <textarea name="sourceText" rows="8" placeholder="Nur falls der automatische Import scheitert: Text der Raumseite hier einfügen."></textarea>
             </label>
             <div class="import-status" data-url-import-status hidden></div>
             <div class="modal-actions">
@@ -5353,14 +5356,21 @@
 
   function durationFromText(value) {
     const text = clean(value);
-    const rangeMatch = text.match(/Dauer\s+(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*Min/i);
+    const rangeMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/i)
+      || text.match(/\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\s*(?:escape|room|game|spiel|experience|adventure)\b/i)
+      || text.match(/\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*[- ]?minute\s+(?:escape|room|game|spiel|experience|adventure)\b/i);
     if (rangeMatch) {
       const first = Number(rangeMatch[1]);
       const second = Number(rangeMatch[2] || 0);
       const duration = second || first;
       if (duration >= 15 && duration <= 360) return duration;
     }
-    const hourMatch = text.match(/Dauer\s+(?:ca\.\s*)?(\d+(?:[,.]\d+)?)\s*(?:Std\.?|Stunden|hour|hours)/i);
+    const hourMinuteMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)?\s*[:#-]?\s*(\d+)\s*(?:h|std\.?|stunden|hour|hours|heure|heures)\s*(\d{1,2})?\s*(?:min|mins?|minutes?|minuten)?/i);
+    if (hourMinuteMatch) {
+      const duration = Number(hourMinuteMatch[1]) * 60 + Number(hourMinuteMatch[2] || 0);
+      if (duration >= 15 && duration <= 360) return duration;
+    }
+    const hourMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(?:ca\.\s*)?(\d+(?:[,.]\d+)?)\s*(?:Std\.?|Stunden|hour|hours|heure|heures)/i);
     if (hourMatch) {
       const duration = Math.round(Number(hourMatch[1].replace(",", ".")) * 60);
       if (duration >= 15 && duration <= 360) return duration;
@@ -5835,18 +5845,8 @@
     setImportStatus(status, "Website wird gelesen ...");
 
     try {
-      let source = pastedText;
-      if (!source) {
-        try {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(response.statusText);
-          source = await response.text();
-        } catch {
-          throw new Error("Diese Website blockiert den Direktimport. Bitte kopiere den sichtbaren Seitentext in das Textfeld und starte den Import erneut.");
-        }
-      }
-
-      const candidate = parseRoomWebsiteText(source, url);
+      const imported = await fetchRoomWebsiteSource(url, pastedText, status);
+      const candidate = parseRoomWebsiteText(imported.source, imported.finalUrl || url);
       if (!candidate.title) throw new Error("Ich konnte keinen Raumtitel erkennen. Bitte importiere eine konkrete Raumseite oder ergänze den Seitentext.");
       const result = addTripPlanCandidate(trip, candidate);
       if (result === "duplicate") throw new Error("Raum bereits in der Planung enthalten.");
@@ -5860,29 +5860,150 @@
     }
   }
 
+  async function fetchRoomWebsiteSource(url, pastedText, status) {
+    const normalizedUrl = normalizeImportUrl(url);
+    if (!normalizedUrl) throw new Error("Bitte eine gültige Website-URL eintragen.");
+    if (pastedText) {
+      return { source: pastedText, finalUrl: normalizedUrl, method: "pasted" };
+    }
+
+    const errors = [];
+
+    if (canUseRoomImportApi()) {
+      try {
+        setImportStatus(status, "Website wird serverseitig gelesen ...");
+        const response = await fetch(ROOM_IMPORT_API_PATH, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: normalizedUrl }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok || !payload.html) {
+          throw new Error(payload.error || response.statusText || "Serverimport fehlgeschlagen.");
+        }
+        return {
+          source: limitWebsiteImportText(payload.html),
+          finalUrl: payload.finalUrl || normalizedUrl,
+          method: payload.source || "server",
+        };
+      } catch (error) {
+        errors.push(error.message || "Serverimport fehlgeschlagen.");
+      }
+    }
+
+    const attempts = [
+      {
+        label: "Direktimport",
+        url: normalizedUrl,
+        options: {},
+      },
+      {
+        label: "Reader-Import",
+        url: roomReaderUrl(normalizedUrl),
+        options: {},
+      },
+      {
+        label: "Proxy-Import",
+        url: `https://api.allorigins.win/raw?url=${encodeURIComponent(normalizedUrl)}`,
+        options: {},
+      },
+    ].filter((attempt) => attempt.url);
+
+    for (const attempt of attempts) {
+      try {
+        setImportStatus(status, `${attempt.label} wird versucht ...`);
+        const response = await fetch(attempt.url, attempt.options);
+        if (!response.ok) throw new Error(response.statusText || `${response.status}`);
+        const source = await response.text();
+        if (source && source.trim().length > 80) {
+          return {
+            source: limitWebsiteImportText(source),
+            finalUrl: normalizedUrl,
+            method: attempt.label,
+          };
+        }
+        throw new Error("Keine lesbaren Inhalte gefunden.");
+      } catch (error) {
+        errors.push(`${attempt.label}: ${error.message || "fehlgeschlagen"}`);
+      }
+    }
+
+    throw new Error(`Der automatische Import konnte diese Website nicht lesen. Details: ${errors.slice(0, 2).join(" · ")}. Als Notlösung bitte Text der konkreten Raumseite einfügen.`);
+  }
+
+  function canUseRoomImportApi() {
+    return /^https?:$/i.test(window.location.protocol);
+  }
+
+  function normalizeImportUrl(value) {
+    const text = clean(value);
+    if (!text) return "";
+    try {
+      const url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+      return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function roomReaderUrl(url) {
+    try {
+      const target = new URL(url);
+      const protocol = target.protocol === "http:" ? "http" : "https";
+      return `https://r.jina.ai/${protocol}://${target.host}${target.pathname}${target.search}`;
+    } catch {
+      return "";
+    }
+  }
+
+  function limitWebsiteImportText(value) {
+    const text = String(value || "");
+    return text.length > MAX_WEBSITE_IMPORT_CHARS ? text.slice(0, MAX_WEBSITE_IMPORT_CHARS) : text;
+  }
+
   function parseRoomWebsiteText(source, url) {
     const html = String(source || "");
     const page = parseWebsiteDocument(html);
     const hasHtmlTags = /<\/?[a-z][\s\S]*>/i.test(html);
-    const text = cleanOcrText(hasHtmlTags ? page.text || htmlToText(html) : html);
+    const text = cleanOcrText([
+      hasHtmlTags ? page.text || htmlToText(html) : html,
+      page.structuredText,
+      page.metaDescription,
+    ].filter(Boolean).join("\n"));
     const lines = text.split("\n").map(clean).filter(Boolean);
     const addressDetails = extractAddressDetails(lines);
-    const title = cleanBookingTitle(
-      page.jsonLd?.name
-      || page.h1
-      || extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"])
-      || page.title.replace(/\s*[|-]\s*.*$/, "")
-      || extractBookingTitle(lines, "escape", text),
-    );
-    const provider = page.siteName
+    const provider = cleanWebsiteTitle(
+      page.siteName
       || page.jsonLd?.provider
       || page.jsonLd?.brand
       || extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser"])
       || extractRepeatedBrand(lines)
-      || hostNameFromUrl(url);
-    const address = clean(page.jsonLd?.address || addressDetails.address || extractLabeledValue(lines, ["adresse", "address", "location", "venue", "veranstaltungsort"]));
-    const city = extractCityFromAddress(address) || extractLabeledValue(lines, ["ort", "stadt", "city"]);
-    const duration = durationFromText(text) || extractBookingDuration(lines);
+      || hostNameFromUrl(url),
+      "",
+    );
+    const title = cleanWebsiteTitle(
+      firstWebsiteTitle([
+        page.jsonLd?.name,
+        page.ogTitle,
+        page.twitterTitle,
+        page.h1,
+        ...(page.headings || []).slice(1),
+        extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"]),
+        page.title,
+        titleFromUrl(url),
+        extractBookingTitle(lines, "escape", text),
+      ], provider),
+      provider,
+    );
+    const rawAddress = page.jsonLd?.address
+      || addressDetails.address
+      || extractLabeledValue(lines, ["adresse", "address", "location", "venue", "veranstaltungsort", "lieu", "adres"]);
+    const address = clean(rawAddress);
+    const city = page.jsonLd?.city
+      || extractCityFromAddress(address)
+      || extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]);
+    const country = germanCountry(page.jsonLd?.country || countryFromAddress(address) || countryFromText(text));
+    const duration = page.jsonLd?.duration || durationFromText(text) || extractBookingDuration(lines);
     const pricePerPerson = priceFromText(text);
     const availableSlots = extractVisibleSlots(text);
     const notes = [
@@ -5895,7 +6016,7 @@
       sourceId: url,
       title,
       provider,
-      country: "",
+      country,
       city,
       address: address || city,
       duration,
@@ -5908,7 +6029,7 @@
 
   function parseWebsiteDocument(source) {
     const documentNode = new DOMParser().parseFromString(String(source || ""), "text/html");
-    const jsonLd = [...documentNode.querySelectorAll('script[type="application/ld+json"]')]
+    const jsonLdEntries = [...documentNode.querySelectorAll('script[type="application/ld+json"]')]
       .flatMap((script) => {
         try {
           const parsed = JSON.parse(script.textContent || "{}");
@@ -5917,29 +6038,215 @@
           return [];
         }
       })
-      .map(flattenJsonLd)
-      .find((entry) => entry.name || entry.address) || {};
+      .flatMap(flattenJsonLd);
+    const jsonLd = jsonLdEntries
+      .sort((a, b) => websiteStructuredScore(b) - websiteStructuredScore(a))[0] || {};
+    const headings = [...documentNode.querySelectorAll("h1, h2")]
+      .map((entry) => clean(entry.textContent))
+      .filter(Boolean)
+      .slice(0, 8);
+    const metaDescription = metaContent(documentNode, [
+      'meta[property="og:description"]',
+      'meta[name="description"]',
+      'meta[name="twitter:description"]',
+    ]);
+    const appJsonText = [...documentNode.querySelectorAll('script[type="application/json"], script#__NEXT_DATA__')]
+      .flatMap((script) => {
+        try {
+          return extractJsonText(JSON.parse(script.textContent || "{}"));
+        } catch {
+          return [];
+        }
+      })
+      .join("\n");
+    const structuredText = [
+      ...jsonLdEntries.flatMap((entry) => [
+        entry.name,
+        entry.provider,
+        entry.brand,
+        entry.address,
+        entry.city,
+        entry.country,
+        entry.duration ? `${entry.duration} minutes` : "",
+        entry.description,
+      ]),
+      appJsonText,
+    ].filter(Boolean).join("\n");
     return {
       title: clean(documentNode.querySelector("title")?.textContent),
-      h1: clean(documentNode.querySelector("h1")?.textContent),
-      siteName: clean(documentNode.querySelector('meta[property="og:site_name"]')?.content),
+      h1: headings[0] || "",
+      headings,
+      ogTitle: metaContent(documentNode, ['meta[property="og:title"]']),
+      twitterTitle: metaContent(documentNode, ['meta[name="twitter:title"]']),
+      siteName: metaContent(documentNode, ['meta[property="og:site_name"]', 'meta[name="application-name"]']),
+      metaDescription,
       text: documentNode.body?.textContent || "",
+      structuredText,
       jsonLd,
     };
   }
 
   function flattenJsonLd(entry) {
-    const graph = Array.isArray(entry?.["@graph"]) ? entry["@graph"] : [];
-    const source = [entry, ...graph].find((item) => item?.name || item?.address) || entry || {};
-    const address = source.address && typeof source.address === "object"
-      ? [source.address.streetAddress, source.address.postalCode, source.address.addressLocality, source.address.addressCountry].filter(Boolean).join(", ")
-      : source.address;
-    return {
-      name: clean(source.name),
-      address: clean(address),
-      provider: clean(source.provider?.name || source.organizer?.name || source.seller?.name),
-      brand: clean(source.brand?.name),
-    };
+    return collectJsonLdNodes(entry)
+      .map((source) => {
+        const addressSource = source.address || source.location?.address || source.place?.address;
+        const address = jsonLdAddress(addressSource);
+        return {
+          name: clean(jsonLdName(source.name || source.headline)),
+          address,
+          city: clean(jsonLdName(addressSource?.addressLocality || source.location?.name)),
+          country: clean(jsonLdName(addressSource?.addressCountry)),
+          provider: clean(jsonLdName(source.provider || source.organizer || source.seller || source.publisher)),
+          brand: clean(jsonLdName(source.brand)),
+          duration: jsonLdDuration(source.duration || source.timeRequired || source.estimatedDuration),
+          description: clean(source.description),
+        };
+      })
+      .filter((source) => source.name || source.address || source.provider || source.duration);
+  }
+
+  function firstWebsiteTitle(candidates, provider = "") {
+    const cleaned = candidates.map(clean).filter(Boolean);
+    const providerKey = normalize(provider);
+    return cleaned.find((candidate) => {
+      const key = normalize(candidate);
+      if (!key || /^(home|startseite|booking|book now|reserve|reservieren|escape room)$/i.test(candidate)) return false;
+      if (providerKey && (key === providerKey || providerKey.includes(key) || key.includes(providerKey))) return false;
+      return true;
+    }) || cleaned[0] || "";
+  }
+
+  function cleanWebsiteTitle(value, provider = "") {
+    let title = cleanBookingTitle(value)
+      .replace(/\s*\|\s*book\s+now.*$/i, "")
+      .replace(/\s*[-–|]\s*(escape room|booking|book now|reserve|reservieren)\s*$/i, "");
+    const providerName = clean(provider);
+    if (providerName && normalize(title).includes(normalize(providerName))) {
+      title = title
+        .split(/\s[-–|]\s/)
+        .map(clean)
+        .find((part) => normalize(part) !== normalize(providerName))
+        || title;
+    }
+    return clean(title.replace(/\s*[-–|]\s*$/, ""));
+  }
+
+  function metaContent(documentNode, selectors) {
+    for (const selector of selectors) {
+      const value = clean(documentNode.querySelector(selector)?.content);
+      if (value) return value;
+    }
+    return "";
+  }
+
+  function websiteStructuredScore(entry) {
+    let score = 0;
+    if (entry.name) score += 20;
+    if (entry.address) score += 18;
+    if (entry.city) score += 8;
+    if (entry.country) score += 4;
+    if (entry.duration) score += 10;
+    if (entry.provider || entry.brand) score += 6;
+    if (/(escape|room|game|spiel|adventure|mission)/i.test(`${entry.name} ${entry.description}`)) score += 10;
+    return score;
+  }
+
+  function collectJsonLdNodes(entry) {
+    if (!entry || typeof entry !== "object") return [];
+    const nodes = [];
+    const queue = [entry, ...(Array.isArray(entry["@graph"]) ? entry["@graph"] : [])];
+    const seen = new Set();
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || typeof current !== "object" || seen.has(current)) continue;
+      seen.add(current);
+      nodes.push(current);
+      ["mainEntity", "about", "itemListElement", "offers", "provider", "organizer", "seller", "brand", "location", "place"].forEach((key) => {
+        const value = current[key];
+        if (Array.isArray(value)) queue.push(...value);
+        else if (value && typeof value === "object") queue.push(value);
+      });
+    }
+
+    return nodes;
+  }
+
+  function jsonLdName(value) {
+    if (!value) return "";
+    if (typeof value === "string" || typeof value === "number") return clean(value);
+    if (Array.isArray(value)) return value.map(jsonLdName).find(Boolean) || "";
+    return clean(value.name || value.label || value["@id"] || "");
+  }
+
+  function jsonLdAddress(value) {
+    if (!value) return "";
+    if (typeof value === "string") return clean(value);
+    if (Array.isArray(value)) return value.map(jsonLdAddress).find(Boolean) || "";
+    return [
+      value.streetAddress,
+      value.postalCode,
+      value.addressLocality,
+      value.addressRegion,
+      jsonLdName(value.addressCountry),
+    ].filter(Boolean).join(", ");
+  }
+
+  function jsonLdDuration(value) {
+    const text = clean(jsonLdName(value) || value);
+    if (!text) return null;
+    const isoDuration = isoDurationMinutes(text);
+    return isoDuration || durationFromText(text);
+  }
+
+  function isoDurationMinutes(value) {
+    const match = clean(value).match(/^P(?:T)?(?:(\d+)H)?(?:(\d+)M)?$/i);
+    if (!match) return null;
+    const duration = Number(match[1] || 0) * 60 + Number(match[2] || 0);
+    return duration >= 5 && duration <= 360 ? duration : null;
+  }
+
+  function extractJsonText(value, depth = 0) {
+    if (depth > 5 || value === null || value === undefined) return [];
+    if (typeof value === "string") {
+      const text = clean(value);
+      return text.length >= 3 && text.length <= 400 ? [text] : [];
+    }
+    if (typeof value === "number") return [String(value)];
+    if (Array.isArray(value)) return value.flatMap((entry) => extractJsonText(entry, depth + 1)).slice(0, 250);
+    if (typeof value !== "object") return [];
+
+    const usefulKeys = /^(title|name|headline|description|address|streetAddress|addressLocality|addressCountry|city|country|duration|timeRequired|price|offers|provider|brand|organizer|location|room|game|experience)$/i;
+    return Object.entries(value)
+      .filter(([key]) => usefulKeys.test(key))
+      .flatMap(([, entry]) => extractJsonText(entry, depth + 1))
+      .slice(0, 250);
+  }
+
+  function countryFromAddress(address) {
+    const parts = clean(address).split(",").map(clean).filter(Boolean).reverse();
+    return parts.map(countryFromText).find(Boolean) || "";
+  }
+
+  function countryFromText(value) {
+    const normalized = normalize(value);
+    if (!normalized) return "";
+    return Object.entries(COUNTRY_LABELS_DE)
+      .find(([english, german]) => normalized.includes(normalize(english)) || normalized.includes(normalize(german)))?.[1] || "";
+  }
+
+  function titleFromUrl(url) {
+    try {
+      const segments = new URL(url).pathname
+        .split("/")
+        .map((segment) => decodeURIComponent(segment))
+        .map((segment) => segment.replace(/[-_]+/g, " "))
+        .map(clean)
+        .filter((segment) => segment && !/^(en|de|fr|nl|booking|book|rooms?|games?|escape-?rooms?)$/i.test(segment));
+      return segments.pop() || "";
+    } catch {
+      return "";
+    }
   }
 
   function hostNameFromUrl(url) {

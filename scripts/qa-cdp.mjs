@@ -470,12 +470,33 @@ try {
       const form = document.querySelector('#trip-url-import-form');
       form.querySelector('[name="url"]').value = 'https://example.com/tokyo-lab';
       form.querySelector('[name="sourceText"]').value = [
-        'Provider: Escape Rush',
-        'Room: Tokyo Lab',
-        'Duration: 70 minutes',
-        'Price for 5 players: 175 EUR',
-        'Available times: 10:00 12:15 19:45',
-        'Address: 30 rue de l automne, Ixelles, Bruxelles 1050'
+        '<!doctype html><html><head>',
+        '<title>Tokyo Lab - Escape Rush</title>',
+        '<meta property="og:site_name" content="Escape Rush">',
+        '<meta property="og:title" content="Tokyo Lab">',
+        '<script type="application/ld+json">',
+        JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Event',
+          name: 'Tokyo Lab',
+          provider: { name: 'Escape Rush' },
+          duration: 'PT70M',
+          location: {
+            '@type': 'Place',
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: '30 rue de l automne',
+              postalCode: '1050',
+              addressLocality: 'Ixelles',
+              addressCountry: 'Belgium',
+            },
+          },
+        }),
+        '</script></head><body>',
+        '<h1>Tokyo Lab</h1>',
+        '<p>Price for 5 players: 175 EUR</p>',
+        '<p>Available times: 10:00 12:15 19:45</p>',
+        '</body></html>'
       ].join('\\n');
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       return new Promise((resolve) => setTimeout(resolve, 150));

@@ -226,7 +226,7 @@
   ]);
   const HUNGARY_CITIES = new Set(["budapest"]);
   const CZECHIA_CITIES = new Set(["prag", "prague", "praha"]);
-  const FRANCE_CITIES = new Set(["paris", "strasbourg", "strassbourg"]);
+  const FRANCE_CITIES = new Set(["lille", "paris", "strasbourg", "strassbourg"]);
   const IRELAND_CITIES = new Set(["dublin"]);
   const UK_CITIES = new Set(["london"]);
   const PORTUGAL_CITIES = new Set(["lisbon", "lisboa", "lissabon"]);
@@ -328,7 +328,9 @@
   const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs";
   const MAX_PDF_PAGES = 12;
   const MAX_WEBSITE_IMPORT_CHARS = 900000;
+  const DEFAULT_TRIP_START_ADDRESS = "Montanusstr. 6, 51065 Köln";
   const TRIP_ITEM_LABELS = {
+    start: "Startadresse",
     escape: "Escape Room",
     accommodation: "Unterkunft",
     other: "Sonstiges",
@@ -386,6 +388,7 @@
     helsinki: [60.1699, 24.9384],
     herne: [51.5369, 7.2009],
     hilversum: [52.2292, 5.1669],
+    ixelles: [50.8333, 4.3667],
     lille: [50.6292, 3.0573],
     katwijk: [52.1942, 4.4222],
     koblenz: [50.3569, 7.5890],
@@ -513,6 +516,7 @@
     container: null,
     groups: [],
     viewportKey: "",
+    lastView: null,
     listListenerAttached: false,
     geocodeCache: loadGeocodeCache(),
     pendingGeocodes: new Set(),
@@ -717,21 +721,24 @@
 
   function normalizeTripItem(item) {
     const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
-    const duration = type === "accommodation"
+    const isUntimed = type === "accommodation" || type === "start";
+    const address = clean(item.address) || (type === "start" ? DEFAULT_TRIP_START_ADDRESS : "");
+    const city = clean(item.city) || extractCityFromAddress(address);
+    const duration = isUntimed
       ? null
       : numberOrNull(item.duration) ?? durationBetweenTimes(item.time, item.endTime);
     return {
       id: item.id || makeId("trip-item"),
       type,
-      title: clean(item.title),
+      title: clean(item.title) || (type === "start" ? "Startadresse" : ""),
       provider: clean(item.provider),
       date: clean(item.date),
-      time: type === "accommodation" ? "" : roundToQuarterHour(item.time),
-      endDate: clean(item.endDate),
+      time: isUntimed ? "" : roundToQuarterHour(item.time),
+      endDate: type === "accommodation" ? clean(item.endDate) : "",
       duration,
-      endTime: type === "accommodation" ? "" : addMinutesToTime(roundToQuarterHour(item.time), duration),
-      address: clean(item.address),
-      city: clean(item.city),
+      endTime: isUntimed ? "" : addMinutesToTime(roundToQuarterHour(item.time), duration),
+      address,
+      city,
       bookingReference: clean(item.bookingReference),
       link: clean(item.link),
       notes: clean(item.notes),
@@ -746,6 +753,9 @@
     const coords = Array.isArray(item.coords)
       ? item.coords.map(Number).filter(Number.isFinite)
       : null;
+    const address = clean(item.address);
+    const city = clean(item.city) || extractCityFromAddress(address);
+    const inferredCountry = countryFromCity(city) || countryFromAddress(address);
     return {
       id: item.id || makeId("trip-plan"),
       sourceType: clean(item.sourceType),
@@ -753,9 +763,9 @@
       tripItemId: clean(item.tripItemId),
       title: clean(item.title),
       provider: clean(item.provider),
-      country: clean(item.country),
-      city: clean(item.city),
-      address: clean(item.address),
+      country: germanCountry(inferredCountry || item.country),
+      city,
+      address,
       date: clean(item.date),
       time: roundToQuarterHour(item.time),
       duration: numberOrNull(item.duration),
@@ -1061,11 +1071,12 @@
   }
 
   function priceFromText(value) {
-    const text = clean(value);
+    const source = String(value || "");
+    const text = clean(source);
     if (!text) return null;
-    const fivePlayerPrice = priceForPlayerCount(text, 5);
+    const fivePlayerPrice = priceForPlayerCount(source, 5);
     if (fivePlayerPrice) return fivePlayerPrice;
-    const perPerson = text.match(/(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i);
+    const perPerson = text.match(/(?:ab\s*)?(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler|\/\s*(?:spieler|player|person))/i);
     if (perPerson) return numberOrNull(perPerson[1]);
     const fivePeopleTotal = text.match(/(?:5\s*(?:personen|players|spieler|adults|erwachsene)[^\d€]{0,80})(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i)
       || text.match(/(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)[^\d]{0,80}5\s*(?:personen|players|spieler|adults|erwachsene)/i)
@@ -1078,26 +1089,34 @@
   }
 
   function priceForPlayerCount(value, count) {
-    const playerLabel = "(?:personen|players|spieler|adults|erwachsene)";
+    const source = String(value || "").replace(/\u00a0/g, " ");
+    const text = clean(source);
+    const playerLabel = "(?:personen|persons|players|spieler|adults|erwachsene)";
     const price = "(\\d{1,4}(?:[,.]\\d{1,2})?)\\s*(?:€|eur)";
     const patterns = [
-      new RegExp(`\\b${count}\\s*${playerLabel}\\b[^\\n€]{0,140}?${price}(?:[^\\n]{0,60})`, "i"),
-      new RegExp(`${price}(?:[^\\n]{0,140})\\b${count}\\s*${playerLabel}\\b`, "i"),
+      new RegExp(`\\b${count}\\s*${playerLabel}\\b[^\\d€]{0,50}${price}(?:\\s*(?:p\\.?\\s*p\\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler))?`, "gi"),
+      new RegExp(`(?:mission|price|preis|standard modus|booking|buchung)[^\\n€]{0,80}\\b${count}\\s*${playerLabel}\\b[^\\d€]{0,50}${price}`, "gi"),
     ];
+    const candidates = [];
 
-    for (const pattern of patterns) {
-      const match = value.match(pattern);
-      if (!match) continue;
-      const amount = numberOrNull(match[1]);
-      if (!amount) continue;
-      const context = match[0];
-      if (/(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i.test(context)) {
-        return amount;
+    patterns.forEach((pattern) => {
+      for (const match of text.matchAll(pattern)) {
+        const amount = numberOrNull(match[1]);
+        if (!amount) continue;
+        const context = match[0];
+        const perPerson = /(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i.test(context);
+        const total = perPerson || amount < 80 ? amount : Math.round((amount / count) * 100) / 100;
+        let score = perPerson ? 35 : 25;
+        if (new RegExp(`\\b${count}\\s*${playerLabel}\\b`, "i").test(context)) score += 8;
+        if (/(?:standard modus|preise|prices|price|preis|mission for|booking|buchung)/i.test(context)) score += 12;
+        if (/(?:voucher|gift|gutschein|other amount)/i.test(context)) score -= 3;
+        candidates.push({ value: total, score, context });
       }
-      return amount >= 80 ? Math.round((amount / count) * 100) / 100 : amount;
-    }
+    });
 
-    return null;
+    return candidates
+      .filter((candidate) => candidate.value >= 5 && candidate.value <= 120)
+      .sort((a, b) => b.score - a.score || a.value - b.value)[0]?.value || null;
   }
 
   function splitTags(value) {
@@ -1218,8 +1237,9 @@
   }
 
   function tripPlanSubtitle(item) {
-    const country = germanCountry(item.country);
-    const location = clean(item.address || item.city);
+    const city = clean(item.city) || extractCityFromAddress(item.address);
+    const country = germanCountry(countryFromCity(city) || countryFromAddress(item.address) || item.country);
+    const location = city || clean(item.address);
     const locationWithCountry = country && !locationIncludesCountry(location, country || item.country)
       ? [location, country].filter(Boolean).join(", ")
       : location;
@@ -1240,6 +1260,27 @@
       }
     });
     return unique(aliases.map(normalize).filter(Boolean));
+  }
+
+  function countryFromCity(city) {
+    const key = normalizeCity(city);
+    if (!key) return "";
+    if (GERMANY_CITIES.has(key)) return "Deutschland";
+    if (["brussel", "brussels", "bruxelles", "brugge", "ixelles", "lier", "maaseik", "mechelen", "retie", "zoersel", "as"].includes(key)) return "Belgien";
+    if (["amersfoort", "amsterdam", "baarn", "bemmel", "burgum", "den haag", "hilversum", "katwijk", "leiden", "moordrecht", "naarden", "rijswijk", "schijndel", "utrecht", "volkel", "voorburg", "waalwijk"].includes(key)) return "Niederlande";
+    if (["luxembourg", "luxemburg"].includes(key)) return "Luxemburg";
+    if (SPAIN_CITIES.has(key)) return "Spanien";
+    if (POLAND_CITIES.has(key)) return "Polen";
+    if (HUNGARY_CITIES.has(key)) return "Ungarn";
+    if (CZECHIA_CITIES.has(key)) return "Tschechien";
+    if (FRANCE_CITIES.has(key)) return "Frankreich";
+    if (IRELAND_CITIES.has(key)) return "Irland";
+    if (UK_CITIES.has(key)) return "UK";
+    if (PORTUGAL_CITIES.has(key)) return "Portugal";
+    if (ITALY_CITIES.has(key)) return "Italien";
+    if (FINLAND_CITIES.has(key)) return "Finnland";
+    if (CROATIA_CITIES.has(key)) return "Kroatien";
+    return "";
   }
 
   function getPlayedRooms() {
@@ -1769,6 +1810,8 @@
   }
 
   function renderPreservingScroll() {
+    rememberTripPlanMapView();
+    currentMapView(mapViewportKey());
     ui.restoreScrollY = window.scrollY;
     ui.restoreElementScroll = {
       "[data-map-list]": app.querySelector("[data-map-list]")?.scrollTop || 0,
@@ -2283,7 +2326,7 @@
   }
 
   function renderTripCard(trip) {
-    const escapeCount = trip.items.filter((item) => item.type === "escape").length;
+    const escapeCount = tripEscapeCount(trip);
     const accommodationCount = trip.items.filter((item) => item.type === "accommodation").length;
     const planCount = trip.planItems?.length || 0;
     return `
@@ -2312,7 +2355,7 @@
 
   function renderTripDetail(trip) {
     const items = [...trip.items].sort(sortTripItems);
-    const escapeCount = items.filter((item) => item.type === "escape").length;
+    const escapeCount = tripEscapeCount(trip);
     const accommodationCount = items.filter((item) => item.type === "accommodation").length;
 
     return `
@@ -2351,6 +2394,13 @@
     `;
   }
 
+  function tripEscapeCount(trip) {
+    const scheduledTripItems = new Set((trip.planItems || []).map((item) => item.tripItemId).filter(Boolean));
+    const tripEscapes = (trip.items || []).filter((item) => item.type === "escape").length;
+    const standalonePlanEscapes = (trip.planItems || []).filter((item) => !item.tripItemId || !scheduledTripItems.has(item.tripItemId)).length;
+    return tripEscapes + standalonePlanEscapes;
+  }
+
   function renderTripPlanning(trip) {
     const candidates = [...(trip.planItems || [])].sort(sortTripPlanItems);
     const dates = tripDateValues(trip);
@@ -2370,27 +2420,23 @@
             <strong>${candidates.length}</strong>
           </div>
         </header>
-        <div class="trip-plan-help">
-          <span>${escapeHtml(`${unscheduled.length} offen`)}</span>
-          <span>${escapeHtml(`${candidates.length - unscheduled.length} im Kalender`)}</span>
-          ${warningCount ? `<span class="is-warning">${escapeHtml(`${warningCount} Hinweis${warningCount === 1 ? "" : "e"}`)}</span>` : `<span>Keine Zeitkonflikte</span>`}
-        </div>
+        ${finalized ? "" : `
+          <div class="trip-plan-help">
+            <span>${escapeHtml(`${unscheduled.length} offen`)}</span>
+            <span>${escapeHtml(`${candidates.length - unscheduled.length} im Kalender`)}</span>
+            ${warningCount ? `<span class="is-warning">${escapeHtml(`${warningCount} Hinweis${warningCount === 1 ? "" : "e"}`)}</span>` : `<span>Keine Zeitkonflikte</span>`}
+          </div>
+        `}
         ${finalized
           ? `
-            <div class="trip-plan-final-layout">
-              <div class="trip-plan-map-shell">
-                <div id="trip-plan-map" class="trip-plan-map" data-trip-plan-map="${escapeHtml(trip.id)}"></div>
-                ${unscheduled.length ? renderTripFinalOpenList(trip, unscheduled, analysis) : ""}
-              </div>
-              <div class="trip-plan-calendar trip-plan-calendar--final">
-                ${dates.map((date) => renderTripFinalBucket(
-                  trip,
-                  date,
-                  formatLongDate(date),
-                  candidates.filter((item) => item.date === date),
-                  analysis,
-                )).join("")}
-              </div>
+            <div class="trip-plan-calendar trip-plan-calendar--final">
+              ${dates.map((date) => renderTripFinalBucket(
+                trip,
+                date,
+                formatLongDate(date),
+                candidates.filter((item) => item.date === date),
+                analysis,
+              )).join("")}
             </div>
           `
           : `
@@ -2427,6 +2473,7 @@
           </div>
         </header>
         <div class="trip-plan-cards" data-plan-drop-date="${escapeHtml(date)}" data-trip-id="${escapeHtml(trip.id)}">
+          ${date ? renderTripPlanStartMarker(trip, date, candidates) : ""}
           ${date ? renderTripPlanAccommodationMarker(trip, date, "start", candidates) : ""}
           ${candidates.length
             ? renderTripPlanCards(trip, candidates, analysis)
@@ -2462,6 +2509,7 @@
           </div>
         </header>
         <div class="trip-plan-cards">
+          ${renderTripPlanStartMarker(trip, date, candidates)}
           ${renderTripPlanAccommodationMarker(trip, date, "start", candidates)}
           ${candidates.length
             ? renderTripFinalCards(trip, candidates, analysis)
@@ -2484,6 +2532,31 @@
       const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
       return `${leg ? renderTripTravelRow(leg) : ""}${renderTripFinalCard(trip, item, analysis)}`;
     }).join("");
+  }
+
+  function renderTripPlanStartMarker(trip, date, candidates) {
+    const start = tripStartForDate(trip, date);
+    if (!start) return "";
+    const timedCandidates = [...candidates]
+      .filter((item) => item.time)
+      .sort(sortTripPlanItems);
+    const accommodation = tripAccommodationStartForDate(trip, date);
+    const reference = accommodation || timedCandidates[0];
+    const leg = reference ? tripTravelLeg(start, reference) : null;
+    const timing = latestDepartureText(reference, leg);
+    const details = [leg ? tripTravelSummary(leg) : "", timing].filter(Boolean).join(" - ");
+    const routeUrl = mapsRouteUrl(start);
+    return `
+      <div class="trip-plan-stay-marker trip-plan-start-marker">
+        <div>
+          <strong>Startadresse</strong>
+          <span>${escapeHtml(start.title || "Startadresse")}</span>
+          ${start.address ? `<small>${escapeHtml(start.address)}</small>` : ""}
+          ${details ? `<small>${escapeHtml(details)}</small>` : ""}
+        </div>
+        ${routeUrl ? `<a class="route-link route-link--small" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
+      </div>
+    `;
   }
 
   function renderTripPlanAccommodationMarker(trip, date, position, candidates) {
@@ -3015,6 +3088,7 @@
     const legsByTargetId = new Map();
     const routeLegs = [];
     const datedItems = [
+      ...tripPlanStartWaypoints(trip),
       ...(trip.planItems || []),
       ...tripPlanAccommodationWaypoints(trip),
     ]
@@ -3025,7 +3099,7 @@
     tripDateValues(trip).forEach((date) => {
       const dayItems = datedItems
         .filter((item) => item.date === date)
-        .sort((a, b) => `${a.time || "99:99"} ${a.title}`.localeCompare(`${b.time || "99:99"} ${b.title}`, "de"));
+        .sort((a, b) => `${a.time || "99:99"} ${tripPlanTimelineOrder(a)} ${a.title}`.localeCompare(`${b.time || "99:99"} ${tripPlanTimelineOrder(b)} ${b.title}`, "de"));
 
       dayItems.forEach((item) => {
         if (item.type !== "accommodation" && item.time && !item.duration) addTripPlanWarning(warningsById, item.id, "Dauer fehlt für die Zeitplanung.");
@@ -3064,6 +3138,24 @@
     });
 
     return { warningsById, legsByTargetId, routeLegs };
+  }
+
+  function tripPlanStartWaypoints(trip) {
+    return tripStartItems(trip).map((item) => ({
+      ...item,
+      id: `${item.id}:start:${item.date || trip.startDate || ""}`,
+      date: item.date || trip.startDate,
+      time: "00:00",
+      duration: 0,
+      title: item.title || "Startadresse",
+    })).filter((item) => item.date);
+  }
+
+  function tripPlanTimelineOrder(item) {
+    if (item.type === "start") return 0;
+    if (item.type === "accommodation" && String(item.id || "").includes(":start:")) return 1;
+    if (item.type === "accommodation" && String(item.id || "").includes(":end:")) return 9;
+    return 5;
   }
 
   function tripPlanAccommodationWaypoints(trip) {
@@ -3217,6 +3309,17 @@
     return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : "";
   }
 
+  function tripStartItems(trip) {
+    return (trip.items || [])
+      .filter((item) => item.type === "start")
+      .sort(sortTripItems);
+  }
+
+  function tripStartForDate(trip, date) {
+    const starts = tripStartItems(trip);
+    return starts.find((item) => (item.date || trip.startDate) === date) || null;
+  }
+
   function findMatchingWish(item) {
     return findRoomByTitle(item, data.wishList);
   }
@@ -3237,9 +3340,15 @@
   }
 
   function extractCityFromAddress(address) {
-    const parts = clean(address).split(",").map(clean).filter(Boolean);
+    const text = clean(address);
+    const postalCity = text.match(/\b\d{4,6}\s+([A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})\b/);
+    if (postalCity) {
+      const city = clean(postalCity[1].replace(/\b(?:Belgium|Belgien|Deutschland|Germany|France|Frankreich|Netherlands|Niederlande|Luxembourg|Luxemburg|Schweiz|Switzerland|USA|UK)\b.*$/i, ""));
+      if (city) return city;
+    }
+    const parts = text.split(",").map(clean).filter(Boolean);
     if (!parts.length) return "";
-    const countries = new Set(["belgium", "belgique", "belgie", "france", "germany", "deutschland", "netherlands", "nederland", "luxembourg"]);
+    const countries = new Set(["belgium", "belgique", "belgie", "belgien", "france", "frankreich", "germany", "deutschland", "netherlands", "nederland", "niederlande", "luxembourg", "luxemburg", "switzerland", "schweiz", "usa", "uk"]);
     let candidate = parts[parts.length - 1];
     if (countries.has(normalize(candidate)) && parts.length > 1) candidate = parts[parts.length - 2];
     return clean(candidate.replace(/\b\d{4,6}\b/g, ""));
@@ -3374,14 +3483,16 @@
   }
 
   function currentMapView(viewportKey) {
-    if (!mapState.map || mapState.viewportKey !== viewportKey) return null;
+    if (!mapState.map) return mapState.lastView;
     try {
       const center = mapState.map.getCenter();
       const zoom = mapState.map.getZoom();
       if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng) || !Number.isFinite(zoom)) return null;
-      return { center: [center.lat, center.lng], zoom };
+      const view = { center: [center.lat, center.lng], zoom };
+      mapState.lastView = view;
+      return mapState.viewportKey === viewportKey ? view : mapState.lastView;
     } catch {
-      return null;
+      return mapState.lastView;
     }
   }
 
@@ -3473,6 +3584,7 @@
       const center = mapState.map.getCenter();
       canvas.dataset.mapZoom = String(mapState.map.getZoom());
       canvas.dataset.mapCenter = `${center.lat.toFixed(5)},${center.lng.toFixed(5)}`;
+      mapState.lastView = { center: [center.lat, center.lng], zoom: mapState.map.getZoom() };
     } catch {
       canvas.dataset.mapZoom = "";
       canvas.dataset.mapCenter = "";
@@ -3611,7 +3723,7 @@
   function tripPlanMapItems(trip) {
     return [
       ...(trip.planItems || []),
-      ...(trip.items || []).filter((item) => item.type === "accommodation"),
+      ...(trip.items || []).filter((item) => item.type === "accommodation" || item.type === "start"),
     ]
       .map((item) => ({ ...item, coords: tripPlanItemCoords(item) }))
       .filter((item) => item.coords);
@@ -4307,10 +4419,11 @@
 
   function renderTripItemModal(tripId, item = {}, imported = false, planItemId = "") {
     const trip = data.trips.find((entry) => entry.id === tripId);
-    const defaultDate = item.date || trip?.startDate || "";
     const type = Object.prototype.hasOwnProperty.call(TRIP_ITEM_LABELS, item.type) ? item.type : "escape";
+    const defaultDate = item.date || trip?.startDate || "";
     const labels = tripItemLabels(type);
-    const address = [item.address, item.city].filter(Boolean).join(", ");
+    const address = item.address || item.city || (type === "start" ? DEFAULT_TRIP_START_ADDRESS : "");
+    const title = item.title || (type === "start" ? "Startadresse" : "");
     return `
       <div class="modal-backdrop" data-close-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-item-modal-title">
@@ -4335,7 +4448,7 @@
                   ${Object.entries(TRIP_ITEM_LABELS).map(([value, label]) => selectOption(value, label, type)).join("")}
                 </select>
               </label>
-              ${tripItemField("title", labels.title, item.title, "text", "title", true)}
+              ${tripItemField("title", labels.title, title, "text", "title", true)}
               ${tripItemField("provider", labels.provider, item.provider, "text", "provider")}
               ${tripItemField("date", labels.date, defaultDate, "date", "date")}
               ${tripTimeField(labels.time, item.time, type === "accommodation")}
@@ -4448,6 +4561,16 @@
   }
 
   function tripItemLabels(type) {
+    if (type === "start") {
+      return {
+        title: "Name",
+        provider: "Anbieter",
+        date: "Startdatum",
+        time: "Uhrzeit",
+        endDate: "Enddatum",
+        duration: "Dauer (Minuten)",
+      };
+    }
     if (type === "accommodation") {
       return {
         title: "Unterkunft",
@@ -5328,13 +5451,23 @@
     const labels = tripItemLabels(type);
     const visibility = {
       title: true,
-      provider: true,
+      provider: type !== "start",
       date: true,
-      time: type !== "accommodation",
-      endDate: type !== "escape",
-      duration: type !== "accommodation",
+      time: type !== "accommodation" && type !== "start",
+      endDate: type === "accommodation" || type === "other",
+      duration: type !== "accommodation" && type !== "start",
       address: true,
     };
+
+    if (type === "start") {
+      const titleInput = form.elements.title;
+      const addressInput = form.elements.address;
+      const dateInput = form.elements.date;
+      const trip = data.trips.find((entry) => entry.id === clean(form.elements.tripId?.value));
+      if (titleInput && !clean(titleInput.value)) titleInput.value = "Startadresse";
+      if (addressInput && !clean(addressInput.value)) addressInput.value = DEFAULT_TRIP_START_ADDRESS;
+      if (dateInput && !clean(dateInput.value) && trip?.startDate) dateInput.value = trip.startDate;
+    }
 
     Object.entries(visibility).forEach(([role, visible]) => {
       const fieldElement = form.querySelector(`[data-trip-item-field="${role}"]`);
@@ -5566,11 +5699,13 @@
     const text = clean(value);
     const candidates = [];
     const addCandidate = (duration, score) => {
-      if (duration >= 15 && duration <= 240) candidates.push({ duration, score });
+      if (duration >= 15 && duration <= 180) candidates.push({ duration, score });
     };
 
     const minutePatterns = [
       { pattern: /(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required|wie lange dauert es)\s*[:#-]?\s*(?:maximal\s*)?(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 130 },
+      { pattern: /\b(?:\d+\s*(?:bis|to|-)\s*\d+\s*(?:spieler|players|personen|persons)|details)\b[^\n.]{0,80}\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 128 },
+      { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:difficulty|schwierigkeit|players|spieler|personen|details|mission)\b/gi, score: 124 },
       { pattern: /\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)/gi, score: 110 },
       { pattern: /(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)[^\n.]{0,80}\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 105 },
       { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*[- ]?minute\s+(?:escape|room|game|spiel|experience|adventure)\b/gi, score: 95 },
@@ -5905,27 +6040,30 @@
     const id = clean(form.get("id")) || planItem?.tripItemId || makeId("trip-item");
     const existing = trip.items.find((item) => item.id === id);
     const type = clean(form.get("type")) || "escape";
-    const date = clean(form.get("date"));
-    const endDate = type === "escape" ? "" : clean(form.get("endDate"));
+    const date = clean(form.get("date")) || (type === "start" ? trip.startDate : "");
+    const endDate = type === "accommodation" || type === "other" ? clean(form.get("endDate")) : "";
     if (date && endDate && endDate < date) {
       event.currentTarget.elements.endDate.setCustomValidity("Das Enddatum muss nach dem Startdatum liegen.");
       event.currentTarget.reportValidity();
       return;
     }
+    const address = clean(form.get("address")) || (type === "start" ? DEFAULT_TRIP_START_ADDRESS : "");
+    const planCity = extractCityFromAddress(address);
+    const planCountry = countryFromCity(planCity) || countryFromAddress(address);
 
     const item = normalizeTripItem({
       ...(existing || {}),
       id,
       type,
-      title: form.get("title"),
+      title: clean(form.get("title")) || (type === "start" ? "Startadresse" : ""),
       provider: form.get("provider"),
       bookingReference: "",
       date,
-      time: type === "accommodation" ? "" : roundToQuarterHour(form.get("time")),
+      time: type === "accommodation" || type === "start" ? "" : roundToQuarterHour(form.get("time")),
       endDate,
-      duration: type === "accommodation" ? null : numberOrNull(form.get("duration")),
-      address: form.get("address"),
-      city: "",
+      duration: type === "accommodation" || type === "start" ? null : numberOrNull(form.get("duration")),
+      address,
+      city: planCity,
       link: form.get("link"),
       notes: form.get("notes"),
       sourceName: form.get("sourceName"),
@@ -5937,7 +6075,7 @@
       ? trip.items.map((entry) => (entry.id === id ? item : entry))
       : [...trip.items, item];
     const linkedPlanItem = planItem || trip.planItems?.find((entry) => entry.tripItemId === item.id);
-    if (item.type !== "accommodation") {
+    if (item.type !== "accommodation" && item.type !== "start") {
       const syncedPlanItem = normalizeTripPlanItem({
         ...(linkedPlanItem || {}),
         id: linkedPlanItem?.id || makeId("trip-plan"),
@@ -5949,6 +6087,8 @@
         date: item.date,
         time: item.time,
         duration: item.duration,
+        city: planCity || linkedPlanItem?.city,
+        country: planCountry || linkedPlanItem?.country,
         address: item.address,
         link: item.link,
         notes: item.notes,
@@ -6234,40 +6374,40 @@
     ].filter(Boolean).join("\n"));
     const lines = text.split("\n").map(clean).filter(Boolean);
     const addressDetails = extractAddressDetails(lines);
-    const provider = cleanProviderName(
-      page.siteName
-      || page.jsonLd?.provider
-      || page.jsonLd?.brand
-      || extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser"])
-      || extractRepeatedBrand(lines)
-      || hostNameFromUrl(url),
-      "",
-    );
+    const provider = firstProviderName([
+      knownProviderFromUrl(url),
+      page.jsonLd?.provider,
+      page.jsonLd?.brand,
+      page.siteName,
+      extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser"]),
+      extractRepeatedBrand(lines),
+      hostNameFromUrl(url),
+    ]);
     const rawTitle = cleanWebsiteTitle(
       firstWebsiteTitle([
         ...page.jsonLdBreadcrumbTitles,
-        page.jsonLd?.name,
+        page.h1,
         page.ogTitle,
         page.twitterTitle,
-        page.h1,
         ...(page.headings || []).slice(1),
-        extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"]),
         page.title,
+        page.jsonLd?.name,
+        extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"]),
         titleFromUrl(url),
         extractBookingTitle(lines, "escape", text),
       ], provider),
       provider,
     );
     const title = polishWebsiteTitle(rawTitle);
-    const rawAddress = page.jsonLd?.address
-      || addressDetails.address
+    const rawAddress = addressDetails.address
+      || page.jsonLd?.address
       || extractLabeledValue(lines, ["adresse", "address", "location", "venue", "veranstaltungsort", "lieu", "adres"]);
     const address = clean(rawAddress);
-    const city = page.jsonLd?.city
-      || extractCityFromAddress(address)
+    const city = extractCityFromAddress(address)
+      || page.jsonLd?.city
       || extractLabeledValue(lines, ["ort", "stadt", "city", "ville", "plaats"]);
-    const country = germanCountry(page.jsonLd?.country || countryFromAddress(address) || countryFromText(text));
-    const duration = page.jsonLd?.duration || durationFromText(text) || extractBookingDuration(lines);
+    const country = germanCountry(countryFromCity(city) || countryFromAddress(address) || countryFromUrl(url) || page.jsonLd?.country);
+    const duration = durationFromText(text) || page.jsonLd?.duration || extractBookingDuration(lines);
     const pricePerPerson = priceFromText(text);
     const availableSlots = extractVisibleSlots(text);
     const notes = [
@@ -6384,10 +6524,15 @@
     const providerKey = normalize(provider);
     return cleaned.find((candidate) => {
       const key = normalize(candidate);
-      if (!key || candidate.length > 110 || /^(home|startseite|booking|book now|reserve|reservieren|escape room|escape room beschreibung)$/i.test(candidate)) return false;
+      if (!key || candidate.length > 110 || isBadWebsiteTitle(candidate)) return false;
       if (providerKey && (key === providerKey || providerKey.includes(key) || key.includes(providerKey))) return false;
       return true;
     }) || cleaned[0] || "";
+  }
+
+  function isBadWebsiteTitle(value) {
+    const key = normalize(value);
+    return /^(home|startseite|booking|book now|reserve|reservieren|escape room|escape rooms|escape games|escape room beschreibung|haufige fragen|faq|fragen und antworten|kontakt|contact|preise|preise gutschein|preise gutscheine|gift voucher|gutschein|impressum|datenschutz|terms|legal notice|jobs?)$/.test(key);
   }
 
   function cleanWebsiteTitle(value, provider = "") {
@@ -6403,6 +6548,10 @@
         .find((part) => normalize(part) !== normalize(providerName))
         || title;
     }
+    title = title
+      .replace(/^mission\s+(?:the\s+)?/i, "")
+      .replace(/,\s*(?:secrets?|the story|video|photos?).*$/i, "");
+    if (normalize(title) === "the white house") title = "White House";
     return clean(title.replace(/\s*[-–|]\s*$/, ""));
   }
 
@@ -6415,6 +6564,38 @@
       .split(/\s[|–-]\s/)[0]
       .replace(/\s+(?:escape rooms?|escaperooms?)\s*$/i, " EscapeRooms")
       .trim();
+  }
+
+  function firstProviderName(candidates) {
+    const cleaned = candidates
+      .map(cleanProviderName)
+      .filter(Boolean);
+    return cleaned.find((candidate) => !isGenericProviderName(candidate)) || cleaned[0] || "";
+  }
+
+  function isGenericProviderName(value) {
+    return /^(escape rooms?|escaperooms?|escape games?|room escape|book now|booking|kontakt|contact|haufige fragen|faq)$/i.test(normalize(value));
+  }
+
+  function providerFromUrl(url) {
+    const host = hostNameFromUrl(url).toLowerCase();
+    if (!host) return "";
+    const known = knownProviderFromUrl(url);
+    if (known) return known;
+    return host
+      .split(".")
+      .filter((part) => !["com", "de", "fr", "be", "nl", "co", "uk"].includes(part))
+      .map((part) => part.replace(/[-_]+/g, " "))
+      .map(polishWebsiteTitle)
+      .join(" ");
+  }
+
+  function knownProviderFromUrl(url) {
+    const host = hostNameFromUrl(url).toLowerCase();
+    if (host.includes("adventurerooms-hamburg")) return "AdventureRooms Hamburg";
+    if (host.includes("nexus-exit")) return "Nexus Exit";
+    if (host.includes("escaperush")) return "Escape Rush";
+    return "";
   }
 
   function metaContent(documentNode, selectors) {
@@ -6512,6 +6693,22 @@
   function countryFromAddress(address) {
     const parts = clean(address).split(",").map(clean).filter(Boolean).reverse();
     return parts.map(countryFromText).find(Boolean) || "";
+  }
+
+  function countryFromUrl(url) {
+    const host = hostNameFromUrl(url).toLowerCase();
+    if (!host) return "";
+    if (host.includes("escaperush")) return "Belgien";
+    if (host.endsWith(".de") || host.includes("adventurerooms-hamburg") || host.includes("nexus-exit")) return "Deutschland";
+    if (host.endsWith(".be")) return "Belgien";
+    if (host.endsWith(".fr")) return "Frankreich";
+    if (host.endsWith(".nl")) return "Niederlande";
+    if (host.endsWith(".lu")) return "Luxemburg";
+    if (host.endsWith(".es")) return "Spanien";
+    if (host.endsWith(".pl")) return "Polen";
+    if (host.endsWith(".pt")) return "Portugal";
+    if (host.endsWith(".it")) return "Italien";
+    return "";
   }
 
   function countryFromText(value) {
@@ -7203,17 +7400,28 @@
 
   function extractStreetAddressCandidate(value) {
     const text = clean(value).replace(/\s*\(?view map\)?\s*/i, " ");
-    const germanStreet = text.match(/\b(?:[A-Za-zÀ-ÿ.'-]+-?)*(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?(?:\s*,?\s*\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})?/i);
-    if (germanStreet) return germanStreet[0];
+    const germanStreet = text.match(/\b[A-Za-zÀ-ÿ0-9 .'/-]{0,60}?(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?(?:\s*,?\s*\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})?/i);
+    if (germanStreet) return trimStreetCandidatePrefix(germanStreet[0]);
 
-    const latinStreet = text.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]+(?:\s*,\s*(?:\d{4,6}\s+)?[A-Za-zÀ-ÿ0-9 .'/-]+){0,3}(?:\s+\d{4,6})?/i);
-    return latinStreet?.[0] || "";
+    const latinStreet = text.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,80}?\s+\d+[A-Za-z]?(?:\s*[-,]\s*\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})?/i)
+      || text.match(/\b\d+\s+(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,90}(?:,\s*[A-Za-zÀ-ÿ.'-]+){0,2}\s+\d{4,6}/i);
+    return latinStreet ? trimStreetCandidatePrefix(latinStreet[0]) : "";
+  }
+
+  function trimStreetCandidatePrefix(value) {
+    const text = clean(value);
+    const match = text.match(/[A-Za-zÀ-ÿ.'-]+(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d/i)
+      || text.match(/(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+/i);
+    return match && match.index > 0 ? clean(text.slice(match.index)) : text;
   }
 
   function cleanStreetAddress(value) {
     return clean(value)
       .replace(/^([A-ZÄÖÜ][a-zäöüß]+)(?=[A-ZÄÖÜ][A-Za-zÀ-ÿ.'-]*(?:straße|strasse|street|road|weg|gasse|platz)\b)/, "")
-      .replace(/\s+(?:du hast|you can|anfahrt|parking|parken|kontakt|fragen|preise)\b.*$/i, "")
+      .replace(/^(?:.*?\b(?:adresse|address|veranstaltungsort|venue|location|lieu|adres|kontakt|contact)\s*)\b(?=[A-Za-zÀ-ÿ.'-]+(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d)/i, "")
+      .replace(/\s+-\s+(\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+)/, ", $1")
+      .replace(/(\d+[A-Za-z]?)\s+(\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})/, "$1, $2")
+      .replace(/\s+(?:du hast|you can|anfahrt|parking|parken|kontakt|contact|fragen|preise|opening|offnungszeiten|öffnungszeiten|legal|terms|made with|follow us|phone|telefon|©)\b.*$/i, "")
       .replace(/\s*,?\s*$/, "");
   }
 

@@ -306,6 +306,28 @@ try {
     Boolean,
     "trip planning candidates render with map and automatic duration",
   );
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-open-trip-item]').click();
+      const form = document.querySelector('#trip-item-form');
+      form.querySelector('[name="type"]').value = 'start';
+      form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaStartAddressForm = {
+        label: form.querySelector('[name="type"] option:checked')?.textContent,
+        address: form.querySelector('[name="address"]')?.value,
+        timeHidden: form.querySelector('[data-trip-item-field="time"]').hidden,
+        durationHidden: form.querySelector('[data-trip-item-field="duration"]').hidden,
+      };
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "window.__qaStartAddressForm.label === 'Startadresse' && window.__qaStartAddressForm.address === 'Montanusstr. 6, 51065 Köln' && window.__qaStartAddressForm.timeHidden && window.__qaStartAddressForm.durationHidden && document.querySelector('.trip-plan-start-marker')?.textContent.includes('Montanusstr. 6')",
+    Boolean,
+    "trip planning supports a default editable start address",
+  );
   await assertEval(
     cdp,
     "getComputedStyle(document.querySelector('.trip-plan-layout')).gridTemplateColumns.split(' ').length >= 2 && document.querySelector('.trip-plan-left')?.contains(document.querySelector('#trip-plan-map')) && Boolean(document.querySelector('.trip-plan-calendar'))",
@@ -347,11 +369,11 @@ try {
   `);
   await assertEval(
     cdp,
-    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); const text = card?.textContent || ''; return card?.textContent.includes('Termin bearbeiten') && card?.textContent.includes('Rue Persist 44') && !/Belgien\\s*·\\s*Belgien/.test(text) && !card.querySelector('.trip-plan-card__head small'); })()",
+    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); const text = card?.textContent || ''; const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.title === 'QA Trip Room'); return card?.textContent.includes('Termin bearbeiten') && !card?.textContent.includes('Rue Persist 44') && card?.textContent.includes('Bruxelles, Belgien') && item?.address === 'Rue Persist 44, 1000 Bruxelles' && !/Belgien\\s*·\\s*Belgien/.test(text) && !card.querySelector('.trip-plan-card__head small'); })()",
     Boolean,
-    "scheduled trip plan card keeps edited address, edit label and compact location",
+    "scheduled trip plan card stores full address while showing compact location",
   );
-  await assertEval(cdp, "(() => { const marker = Array.from(document.querySelectorAll('.trip-plan-stay-marker')).find((node) => node.textContent.includes('Zur Unterkunft')); return Boolean(marker?.querySelector('.route-link--small')) && marker.textContent.includes(' - Ankunft'); })() || !document.querySelector('.trip-plan-stay-marker')", Boolean, "accommodation calendar marker combines route and arrival details");
+  await assertEval(cdp, "(() => { const markers = Array.from(document.querySelectorAll('.trip-plan-stay-marker')); const marker = markers.find((node) => node.textContent.includes('Zur Unterkunft')); return marker ? Boolean(marker.querySelector('.route-link--small')) && marker.textContent.includes(' - Ankunft') : true; })()", Boolean, "accommodation calendar marker combines route and arrival details");
   await evalPage(cdp, "Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-plan-to-trip]').click()");
   await assertEval(
     cdp,
@@ -363,9 +385,9 @@ try {
   await evalPage(cdp, "document.querySelector('[data-toggle-trip-planning]').click()");
   await assertEval(
     cdp,
-    "document.querySelector('.trip-planning')?.classList.contains('is-finalized') && document.querySelector('[data-toggle-trip-planning]')?.textContent === 'Trip bearbeiten' && !document.querySelector('.trip-final-day [data-trip-plan-field]') && (() => { const card = Array.from(document.querySelectorAll('.trip-final-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); return Boolean(card) && card.textContent.includes('16:30 bis 17:45') && card.textContent.includes('75 Min.') && !card.querySelector('[data-plan-to-trip]')?.classList.contains('primary-action') && Boolean(card.querySelector('.route-link')); })()",
+    "document.querySelector('.trip-planning')?.classList.contains('is-finalized') && document.querySelector('[data-toggle-trip-planning]')?.textContent === 'Trip bearbeiten' && !document.querySelector('#trip-plan-map') && !document.querySelector('.trip-final-open') && !document.querySelector('.trip-plan-help') && !document.querySelector('.trip-final-day [data-trip-plan-field]') && (() => { const card = Array.from(document.querySelectorAll('.trip-final-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); return Boolean(card) && card.textContent.includes('16:30 bis 17:45') && card.textContent.includes('75 Min.') && !card.querySelector('[data-plan-to-trip]')?.classList.contains('primary-action') && Boolean(card.querySelector('.route-link')); })()",
     Boolean,
-    "finalized trip planning hides edit fields and keeps compact station actions",
+    "finalized trip planning renders only compact calendar station actions",
   );
   await assertEval(cdp, "document.querySelector('.notice')?.textContent.includes('Hinweis')", Boolean, "finalizing with open items shows hint");
   await evalPage(cdp, "document.querySelector('[data-toggle-trip-planning]').click()");
@@ -594,6 +616,83 @@ try {
       && item.notes.includes('bei 5 Spielern'),
     "AdventureRooms website import extracts clean room title, provider, duration, address and 5-player price",
   );
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-import-room-url]').click();
+      const form = document.querySelector('#trip-url-import-form');
+      form.querySelector('[name="url"]').value = 'https://www.nexus-exit.de/erlebnisse/hokus-pokus';
+      form.querySelector('[name="sourceText"]').value = [
+        '<!doctype html><html><head>',
+        '<title>Nexus Exit - Hokus Pokus und die Meister der Magie</title>',
+        '<meta property="og:site_name" content="Escape Rooms">',
+        '<meta property="og:title" content="Nexus Exit - Hokus Pokus und die Meister der Magie">',
+        '<script type="application/ld+json">',
+        JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            { '@type': 'ListItem', position: 2, name: 'Häufige Fragen' },
+            { '@type': 'ListItem', position: 3, name: 'Hokus Pokus und die Meister der Magie' },
+            { '@type': 'Organization', name: 'Nexus Exit' },
+          ],
+        }),
+        '</script></head><body>',
+        '<h1>Hokus Pokus und die Meister der Magie</h1>',
+        '<p>60 Minuten</p><p>3-8 Spieler</p><p>ab 30 € / Spieler</p>',
+        '<h2>Anfahrt</h2><p>02 Adresse Bahnhofstraße 12 63571 Gelnhausen 03 Kontakt</p>',
+        '</body></html>'
+      ].join('\\n');
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => setTimeout(resolve, 150));
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.link === 'https://www.nexus-exit.de/erlebnisse/hokus-pokus'); return item && { title: item.title, provider: item.provider, duration: item.duration, address: item.address, city: item.city, country: item.country, pricePerPerson: item.pricePerPerson }; })()",
+    (item) => item
+      && item.title === 'Hokus Pokus Und Die Meister Der Magie'
+      && item.provider === 'Nexus Exit'
+      && item.duration === 60
+      && item.address === 'Bahnhofstraße 12, 63571 Gelnhausen'
+      && item.city === 'Gelnhausen'
+      && item.country === 'Deutschland'
+      && item.pricePerPerson === 30,
+    "Nexus website import rejects FAQ title and extracts Germany address",
+  );
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-import-room-url]').click();
+      const form = document.querySelector('#trip-url-import-form');
+      form.querySelector('[name="url"]').value = 'https://escaperush.com/white-house?lang=en';
+      form.querySelector('[name="sourceText"]').value = [
+        '<!doctype html><html><head>',
+        '<title>Mission The White House, Secrets of the Culper Ring</title>',
+        '<meta property="og:site_name" content="Escape Rush">',
+        '<meta property="og:title" content="Mission The White House, Secrets of the Culper Ring">',
+        '</head><body>',
+        '<h1>THE White House</h1>',
+        '<p>DETAILS 100 square metre 3 to 7 PLAYERS 60 MINUTES 4/5 DIFFICULTY</p>',
+        '<p>United States War of Independence and the White House story text should not change the country.</p>',
+        '<p>Mission for 3 persons 135€ Mission for 4 persons 160€ Mission for 5 persons 175€ Mission for 6 persons 180€</p>',
+        '<p>address Rue de l\\'automne 30 - 1050 Ixelles</p>',
+        '</body></html>'
+      ].join('\\n');
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => setTimeout(resolve, 150));
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.link === 'https://escaperush.com/white-house?lang=en'); return item && { title: item.title, provider: item.provider, duration: item.duration, address: item.address, city: item.city, country: item.country, pricePerPerson: item.pricePerPerson }; })()",
+    (item) => item
+      && item.title === 'White House'
+      && item.provider === 'Escape Rush'
+      && item.duration === 60
+      && item.address === "Rue de l'automne 30, 1050 Ixelles"
+      && item.city === 'Ixelles'
+      && item.country === 'Belgien'
+      && item.pricePerPerson === 35,
+    "Escape Rush website import keeps Belgium, 60 minutes and 5-player price",
+  );
 
   if (ocrFixture) {
     await evalPage(cdp, "document.querySelector('[data-import-trip-item]').click()");
@@ -715,9 +814,19 @@ try {
         endDate: form.querySelector('[data-trip-item-field="endDate"] span').textContent,
         durationHidden: form.querySelector('[data-trip-item-field="duration"]').hidden,
       };
+      form.querySelector('[name="type"]').value = 'start';
+      form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
+      window.__qaStartLabels = {
+        date: form.querySelector('[data-trip-item-field="date"] span').textContent,
+        providerHidden: form.querySelector('[data-trip-item-field="provider"]').hidden,
+        timeHidden: form.querySelector('[data-trip-item-field="time"]').hidden,
+        endDateHidden: form.querySelector('[data-trip-item-field="endDate"]').hidden,
+        durationHidden: form.querySelector('[data-trip-item-field="duration"]').hidden,
+        address: form.querySelector('[name="address"]').value,
+      };
       form.querySelector('[name="type"]').value = 'escape';
       form.querySelector('[name="type"]').dispatchEvent(new Event('change', { bubbles: true }));
-      form.querySelector('[name="title"]').value = 'QA Trip Room';
+      form.querySelector('[name="title"]').value = 'QA Manual Room';
       form.querySelector('[name="provider"]').value = 'QA Escape';
       form.querySelector('[name="date"]').value = '2026-10-13';
       form.querySelector('[name="time"]').value = '14:30';
@@ -728,7 +837,8 @@ try {
   `);
   await assertEval(cdp, "window.__qaEscapeLabels.provider === 'Anbieter' && window.__qaEscapeLabels.date === 'Datum' && window.__qaEscapeLabels.timeVisible && window.__qaEscapeLabels.endDateHidden", Boolean, "escape room fields adapt to type");
   await assertEval(cdp, "window.__qaAccommodationLabels.provider === 'Gastgeber' && window.__qaAccommodationLabels.date === 'Check-in' && window.__qaAccommodationLabels.timeHidden && window.__qaAccommodationLabels.endDate === 'Check-out' && window.__qaAccommodationLabels.durationHidden", Boolean, "accommodation fields adapt to type");
-  await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.textContent.includes('Rue Beispiel 4') || entry.textContent.includes('Rue Exemple 4')); return Boolean(card?.querySelector('.route-link')) && Boolean(document.querySelector('.trip-travel-row')) && document.body.textContent.includes('Späteste Abfahrt') && document.body.textContent.includes('Ankunft ca.'); })()", Boolean, "manual escape room renders in planning with accommodation travel timing");
+  await assertEval(cdp, "window.__qaStartLabels.date === 'Startdatum' && window.__qaStartLabels.providerHidden && window.__qaStartLabels.timeHidden && window.__qaStartLabels.endDateHidden && window.__qaStartLabels.durationHidden && window.__qaStartLabels.address === 'Montanusstr. 6, 51065 Köln'", Boolean, "start address fields adapt to type");
+  await assertEval(cdp, "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Manual Room' && entry.textContent.includes('Lille, Frankreich')); return Boolean(card?.querySelector('.route-link')) && Boolean(document.querySelector('.trip-travel-row')) && document.body.textContent.includes('Späteste Abfahrt') && document.body.textContent.includes('Ankunft ca.'); })()", Boolean, "manual escape room renders in planning with accommodation travel timing");
   await evalPage(cdp, `
     (() => {
       document.querySelector('[data-open-trip-expense]').click();
@@ -769,7 +879,10 @@ try {
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click()");
   await evalPage(cdp, `
     (() => {
-      document.querySelector('.trip-plan-card [data-complete-trip-item]').click();
+      Array.from(document.querySelectorAll('.trip-plan-card'))
+        .find((card) => card.querySelector('h4')?.textContent === 'QA Trip Room')
+        .querySelector('[data-complete-trip-item]')
+        .click();
       const form = document.querySelector('#room-form');
       form.querySelector('[name="difficulty"][value="2"]').checked = true;
       form.querySelector('[name="scare"][value="1"]').checked = true;
@@ -796,6 +909,9 @@ try {
   await evalPage(cdp, "window.__qaMapViewport = `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}`; document.querySelector('[data-toggle-bulk-plan=\"map\"]')?.click();");
   await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
   await assertEval(cdp, "window.L ? `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}` === window.__qaMapViewport : true", Boolean, "map list actions keep current viewport");
+  await evalPage(cdp, "window.__qaMapViewportBeforeSource = `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}`; document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
+  await evalPage(cdp, "new Promise((resolve) => setTimeout(resolve, 900))");
+  await assertEval(cdp, "window.L ? `${document.querySelector('#map-canvas')?.dataset.mapZoom}|${document.querySelector('#map-canvas')?.dataset.mapCenter}` === window.__qaMapViewportBeforeSource : true", Boolean, "map source changes keep current viewport");
   await evalPage(cdp, "const list = document.querySelector('[data-map-list]'); if (list) { list.scrollTop = 180; window.__qaMapListScrollBefore = list.scrollTop; document.querySelector('[data-toggle-bulk-plan=\"map\"]')?.click(); }");
   await assertEval(cdp, "document.querySelector('[data-map-list]')?.scrollTop === window.__qaMapListScrollBefore", Boolean, "map list actions keep list scroll position");
   await evalPage(cdp, "document.querySelector('#map-source').value = 'played'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");

@@ -1063,6 +1063,8 @@
   function priceFromText(value) {
     const text = clean(value);
     if (!text) return null;
+    const fivePlayerPrice = priceForPlayerCount(text, 5);
+    if (fivePlayerPrice) return fivePlayerPrice;
     const perPerson = text.match(/(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i);
     if (perPerson) return numberOrNull(perPerson[1]);
     const fivePeopleTotal = text.match(/(?:5\s*(?:personen|players|spieler|adults|erwachsene)[^\d€]{0,80})(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i)
@@ -1072,6 +1074,29 @@
       const total = numberOrNull(fivePeopleTotal[1]);
       return total ? Math.round((total / 5) * 100) / 100 : null;
     }
+    return null;
+  }
+
+  function priceForPlayerCount(value, count) {
+    const playerLabel = "(?:personen|players|spieler|adults|erwachsene)";
+    const price = "(\\d{1,4}(?:[,.]\\d{1,2})?)\\s*(?:€|eur)";
+    const patterns = [
+      new RegExp(`\\b${count}\\s*${playerLabel}\\b[^\\n€]{0,140}?${price}(?:[^\\n]{0,60})`, "i"),
+      new RegExp(`${price}(?:[^\\n]{0,140})\\b${count}\\s*${playerLabel}\\b`, "i"),
+    ];
+
+    for (const pattern of patterns) {
+      const match = value.match(pattern);
+      if (!match) continue;
+      const amount = numberOrNull(match[1]);
+      if (!amount) continue;
+      const context = match[0];
+      if (/(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i.test(context)) {
+        return amount;
+      }
+      return amount >= 80 ? Math.round((amount / count) * 100) / 100 : amount;
+    }
+
     return null;
   }
 
@@ -3319,7 +3344,6 @@
           <div>
             ${room.link ? `<a href="${escapeHtml(room.link)}" target="_blank" rel="noreferrer">Link</a>` : ""}
             ${data.trips.length ? `<button type="button" data-plan-wish="${escapeHtml(room.id)}">Planen</button>` : ""}
-            ${data.trips.length ? `<button type="button" data-wish-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
           </div>
         </div>
       `;
@@ -3335,7 +3359,6 @@
           ${state === "unplayed" ? `<button type="button" data-planning-upnext="${escapeHtml(room.id)}">+ Up Next</button>` : ""}
           <button type="button" data-planning-link="${escapeHtml(room.id)}">Zuordnen</button>
           ${data.trips.length ? `<button type="button" data-plan-planning="${escapeHtml(room.id)}">Planen</button>` : ""}
-          ${data.trips.length ? `<button type="button" data-planning-trip="${escapeHtml(room.id)}">+ Trip</button>` : ""}
         </div>
       </div>
     `;
@@ -3387,7 +3410,7 @@
     }
 
     if (!mapState.map) {
-      mapState.map = window.L.map(canvas, { scrollWheelZoom: false });
+      mapState.map = window.L.map(canvas, { scrollWheelZoom: true });
       window.L.tileLayer(MAP_TILE_URL, {
         attribution: "&copy; OpenStreetMap",
         maxZoom: 19,
@@ -3516,7 +3539,7 @@
     }
 
     if (!tripPlanMapState.map) {
-      tripPlanMapState.map = window.L.map(canvas, { scrollWheelZoom: false });
+      tripPlanMapState.map = window.L.map(canvas, { scrollWheelZoom: true });
       window.L.tileLayer(MAP_TILE_URL, {
         attribution: "&copy; OpenStreetMap",
         maxZoom: 19,
@@ -6270,6 +6293,8 @@
 
   function parseWebsiteDocument(source) {
     const documentNode = new DOMParser().parseFromString(String(source || ""), "text/html");
+    const readableDocument = documentNode.cloneNode(true);
+    readableDocument.querySelectorAll("script, style, noscript, template, svg").forEach((node) => node.remove());
     const jsonLdEntries = [...documentNode.querySelectorAll('script[type="application/ld+json"]')]
       .flatMap((script) => {
         try {
@@ -6326,7 +6351,7 @@
       twitterTitle: metaContent(documentNode, ['meta[name="twitter:title"]']),
       siteName: metaContent(documentNode, ['meta[property="og:site_name"]', 'meta[name="application-name"]']),
       metaDescription,
-      text: documentNode.body?.textContent || "",
+      text: readableDocument.body ? htmlToText(readableDocument.body.innerHTML) : "",
       structuredText,
       jsonLd,
       jsonLdBreadcrumbTitles,
@@ -6795,7 +6820,10 @@
   }
 
   function htmlToText(source) {
-    const prepared = source
+    const stripped = String(source || "")
+      .replace(/<\s*(script|style|noscript|template|svg)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+      .replace(/<\s*(script|style|noscript|template|svg)\b[^>]*\/\s*>/gi, "");
+    const prepared = stripped
       .replace(/<\s*br\s*\/?\s*>/gi, "\n")
       .replace(/<(p|div|tr|li|h[1-6]|table|tbody|thead|section|article)[^>]*>/gi, "\n")
       .replace(/<\/(p|div|tr|li|h[1-6]|table|tbody|thead|section|article)>/gi, "\n")
@@ -7117,10 +7145,7 @@
     });
     let value = labeledIndex >= 0
       ? lines[labeledIndex]
-      : lines.find((line) => (
-        /\d/.test(line)
-        && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
-      )) || "";
+      : lines.find(looksLikeStreetAddressLine) || "";
     const valueIndex = value ? lines.findIndex((line) => line === value) : -1;
 
     if (value.includes("(") && !value.includes(")") && labeledIndex >= 0) {
@@ -7138,15 +7163,36 @@
     return splitAddressExtra(value);
   }
 
+  function looksLikeStreetAddressLine(line) {
+    const value = clean(line);
+    return Boolean(
+      value
+      && /\d/.test(value)
+      && !isAddressNoiseLine(value)
+      && extractStreetAddressCandidate(value)
+    );
+  }
+
+  function isAddressNoiseLine(line) {
+    const normalizedLine = normalize(line);
+    if (/(contact form|contact-form|translation revision|revision date|glotpress|plural forms|locale data|wp json|wp-|stylesheet|script|function|generator|namespace|domain messages)/i.test(normalizedLine)) return true;
+    if (/[{}[\]";]/.test(line) && !/\b(?:straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz|allee|ring|damm|ufer)\b/i.test(line)) return true;
+    return false;
+  }
+
   function splitAddressExtra(value) {
     const withoutLabel = clean(value)
       .replace(/^(?:veranstaltungsort|adresse|address|venue|location|lieu|adres)\s*[:#-]?\s*/i, "")
       .replace(/^[^0-9A-Za-zÀ-ÿ]+/, "")
       .replace(/\s*\(?view map\)?\s*$/i, "")
       .replace(/(\d{1,3})([1-9]\d{4}\s+[A-Za-zÀ-ÿ])/g, "$1, $2");
-    const streetMatch = withoutLabel.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'()/,-]+/i)
-      || withoutLabel.match(/\b(?:[A-Za-zÀ-ÿ.'-]+-?)*(?:straße|strasse|street|road|weg|gasse|platz)\s+\d[A-Za-zÀ-ÿ0-9 .'()/,-]*/i);
-    const cleanedAddress = streetMatch ? cleanStreetAddress(streetMatch[0]) : withoutLabel;
+    const streetMatch = extractStreetAddressCandidate(withoutLabel);
+    const cleanedAddress = streetMatch ? cleanStreetAddress(streetMatch) : (isAddressNoiseLine(withoutLabel) ? "" : withoutLabel);
+    const trailingText = streetMatch ? clean(withoutLabel.slice(withoutLabel.indexOf(streetMatch) + streetMatch.length)) : "";
+    const trailingNote = trailingText.match(/\(([^)]{2,160})\)/)?.[1] || "";
+    if (trailingNote) {
+      return { address: cleanedAddress, note: clean(trailingNote) };
+    }
     const noteStart = cleanedAddress.indexOf("(");
     if (noteStart < 0) return { address: cleanedAddress, note: "" };
     return {
@@ -7155,9 +7201,19 @@
     };
   }
 
+  function extractStreetAddressCandidate(value) {
+    const text = clean(value).replace(/\s*\(?view map\)?\s*/i, " ");
+    const germanStreet = text.match(/\b(?:[A-Za-zÀ-ÿ.'-]+-?)*(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?(?:\s*,?\s*\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})?/i);
+    if (germanStreet) return germanStreet[0];
+
+    const latinStreet = text.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]+(?:\s*,\s*(?:\d{4,6}\s+)?[A-Za-zÀ-ÿ0-9 .'/-]+){0,3}(?:\s+\d{4,6})?/i);
+    return latinStreet?.[0] || "";
+  }
+
   function cleanStreetAddress(value) {
     return clean(value)
       .replace(/^([A-ZÄÖÜ][a-zäöüß]+)(?=[A-ZÄÖÜ][A-Za-zÀ-ÿ.'-]*(?:straße|strasse|street|road|weg|gasse|platz)\b)/, "")
+      .replace(/\s+(?:du hast|you can|anfahrt|parking|parken|kontakt|fragen|preise)\b.*$/i, "")
       .replace(/\s*,?\s*$/, "");
   }
 

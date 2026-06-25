@@ -392,7 +392,7 @@ try {
   );
 
   await evalPage(cdp, "document.querySelector('[data-view=\"map\"]').click(); document.querySelector('#map-source').value = 'wish'; document.querySelector('#map-source').dispatchEvent(new Event('change', { bubbles: true }));");
-  await assertEval(cdp, "Boolean(document.querySelector('.map-room [data-plan-wish]')) && Boolean(document.querySelector('.map-room [data-wish-trip]'))", Boolean, "map up next rooms expose planning actions");
+  await assertEval(cdp, "Boolean(document.querySelector('.map-room [data-plan-wish]')) && !document.querySelector('.map-room [data-wish-trip]')", Boolean, "map up next rooms expose only the planning action");
   await evalPage(cdp, "document.querySelector('.map-room [data-plan-wish]').click()");
   await assertEval(cdp, "Boolean(document.querySelector('#plan-candidate-form'))", Boolean, "map up next planning action opens plan modal");
   await evalPage(cdp, "document.querySelector('[data-close-modal]').click(); document.querySelector('[data-view=\"trips\"]').click();");
@@ -570,9 +570,10 @@ try {
         '</script></head><body>',
         '<h1>100% verrückter Professor</h1>',
         '<p>window._wpemojiSettings {"translation-revision-date":"2025-05-24"} wp-google-map-plugin contact form.</p>',
+        '<script id="contact-form-7-js-translations">(function(domain, translations){})( "contact-form-7", {"translation-revision-date":"2025-05-24 10:46:16+0000","messages":{"This contact form is placed in the wrong place.":["Fehler"]}} );</script>',
         '<h4>WIE LANGE DAUERT ES?</h4>',
         '<p>Die Standardvariante dauert maximal 60 Min, hinzu kommen je ca. 15 Min Einführung und Nachbesprechung. Spätestens 1h30 nach eurer gebuchten Zeit seid ihr wieder auf freiem Fuss.</p>',
-        '<table><tr><td>5 Spieler</td><td>27,50 € pro Spieler</td></tr></table>',
+        '<table><tr><td>2 Spieler</td><td>42,50 € pro Spieler</td></tr><tr><td>3 Spieler</td><td>35,00 € pro Spieler</td></tr><tr><td>4 Spieler</td><td>30,00 € pro Spieler</td></tr><tr><td>5 Spieler</td><td>27,50 € pro Spieler</td></tr></table>',
         '<p>AdventureRooms Hamburg<br>Heidenkampsweg 51</p><p>20097 Hamburg</p>',
         '</body></html>'
       ].join('\\n');

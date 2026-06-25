@@ -327,7 +327,7 @@
   const PDFJS_MODULE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs";
   const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs";
   const MAX_PDF_PAGES = 12;
-  const MAX_WEBSITE_IMPORT_CHARS = 250000;
+  const MAX_WEBSITE_IMPORT_CHARS = 900000;
   const TRIP_ITEM_LABELS = {
     escape: "Escape Room",
     accommodation: "Unterkunft",
@@ -1062,7 +1062,7 @@
   function priceFromText(value) {
     const text = clean(value);
     if (!text) return null;
-    const perPerson = text.match(/(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person)/i);
+    const perPerson = text.match(/(?:€|eur)?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(?:€|eur)?\s*(?:p\.?\s*p\.?|pro person|per person|je person|pro spieler|per player|pro player|je spieler)/i);
     if (perPerson) return numberOrNull(perPerson[1]);
     const fivePeopleTotal = text.match(/(?:5\s*(?:personen|players|spieler|adults|erwachsene)[^\d€]{0,80})(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)/i)
       || text.match(/(\d{2,4}(?:[,.]\d{1,2})?)\s*(?:€|eur)[^\d]{0,80}5\s*(?:personen|players|spieler|adults|erwachsene)/i)
@@ -3398,7 +3398,10 @@
     const mappedItems = tripPlanMapItems(trip);
     mappedItems.forEach((item) => {
       const marker = window.L.marker(item.coords).addTo(tripPlanMapState.layer);
-      const roomLabel = shortProviderLabel(item.title || item.provider);
+      const roomLabel = [
+        shortProviderLabel(item.title || item.provider),
+        tripPlanMapItemIsScheduled(item) ? "✓" : "",
+      ].filter(Boolean).join(" ");
       if (roomLabel) {
         marker.bindTooltip(escapeHtml(roomLabel), {
           permanent: true,
@@ -3434,6 +3437,10 @@
     ]
       .map((item) => ({ ...item, coords: tripPlanItemCoords(item) }))
       .filter((item) => item.coords);
+  }
+
+  function tripPlanMapItemIsScheduled(item) {
+    return Boolean(item.date || item.time || item.tripItemId);
   }
 
   function shortProviderLabel(value) {
@@ -5356,26 +5363,50 @@
 
   function durationFromText(value) {
     const text = clean(value);
-    const rangeMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/i)
-      || text.match(/\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\s*(?:escape|room|game|spiel|experience|adventure)\b/i)
-      || text.match(/\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*[- ]?minute\s+(?:escape|room|game|spiel|experience|adventure)\b/i);
-    if (rangeMatch) {
-      const first = Number(rangeMatch[1]);
-      const second = Number(rangeMatch[2] || 0);
-      const duration = second || first;
-      if (duration >= 15 && duration <= 360) return duration;
-    }
-    const hourMinuteMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)?\s*[:#-]?\s*(\d+)\s*(?:h|std\.?|stunden|hour|hours|heure|heures)\s*(\d{1,2})?\s*(?:min|mins?|minutes?|minuten)?/i);
-    if (hourMinuteMatch) {
-      const duration = Number(hourMinuteMatch[1]) * 60 + Number(hourMinuteMatch[2] || 0);
-      if (duration >= 15 && duration <= 360) return duration;
-    }
-    const hourMatch = text.match(/(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(?:ca\.\s*)?(\d+(?:[,.]\d+)?)\s*(?:Std\.?|Stunden|hour|hours|heure|heures)/i);
-    if (hourMatch) {
-      const duration = Math.round(Number(hourMatch[1].replace(",", ".")) * 60);
-      if (duration >= 15 && duration <= 360) return duration;
-    }
-    return null;
+    const candidates = [];
+    const addCandidate = (duration, score) => {
+      if (duration >= 15 && duration <= 240) candidates.push({ duration, score });
+    };
+
+    const minutePatterns = [
+      { pattern: /(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required|wie lange dauert es)\s*[:#-]?\s*(?:maximal\s*)?(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 130 },
+      { pattern: /\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)/gi, score: 110 },
+      { pattern: /(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)[^\n.]{0,80}\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 105 },
+      { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*[- ]?minute\s+(?:escape|room|game|spiel|experience|adventure)\b/gi, score: 95 },
+    ];
+
+    minutePatterns.forEach(({ pattern, score }) => {
+      for (const match of text.matchAll(pattern)) {
+        const first = Number(match[1]);
+        const second = Number(match[2] || 0);
+        addCandidate(second || first, score);
+      }
+    });
+
+    const hourPatterns = [
+      { pattern: /(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(?:ca\.\s*)?(\d+(?:[,.]\d+)?)\s*(?:Std\.?|Stunden|hour|hours|heure|heures)/gi, score: 95 },
+      { pattern: /(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required)\s*[:#-]?\s*(\d+)\s*(?:h|std\.?|stunden|hour|hours|heure|heures)\s*(\d{1,2})?\s*(?:min|mins?|minutes?|minuten)?/gi, score: 90 },
+    ];
+
+    hourPatterns.forEach(({ pattern, score }) => {
+      for (const match of text.matchAll(pattern)) {
+        const hours = Number(String(match[1]).replace(",", "."));
+        const minutes = Number(match[2] || 0);
+        addCandidate(Math.round(hours * 60 + minutes), score);
+      }
+    });
+
+    return candidates
+      .sort((a, b) => b.score - a.score || durationPreferenceScore(b.duration) - durationPreferenceScore(a.duration))[0]?.duration || null;
+  }
+
+  function durationPreferenceScore(duration) {
+    if (duration === 60) return 8;
+    if (duration === 90) return 7;
+    if (duration === 75) return 6;
+    if (duration === 80) return 5;
+    if (duration === 120) return 3;
+    return 0;
   }
 
   function savePlanCandidateFromForm(event) {
@@ -5972,7 +6003,7 @@
     ].filter(Boolean).join("\n"));
     const lines = text.split("\n").map(clean).filter(Boolean);
     const addressDetails = extractAddressDetails(lines);
-    const provider = cleanWebsiteTitle(
+    const provider = cleanProviderName(
       page.siteName
       || page.jsonLd?.provider
       || page.jsonLd?.brand
@@ -5981,8 +6012,9 @@
       || hostNameFromUrl(url),
       "",
     );
-    const title = cleanWebsiteTitle(
+    const rawTitle = cleanWebsiteTitle(
       firstWebsiteTitle([
+        ...page.jsonLdBreadcrumbTitles,
         page.jsonLd?.name,
         page.ogTitle,
         page.twitterTitle,
@@ -5995,6 +6027,7 @@
       ], provider),
       provider,
     );
+    const title = polishWebsiteTitle(rawTitle);
     const rawAddress = page.jsonLd?.address
       || addressDetails.address
       || extractLabeledValue(lines, ["adresse", "address", "location", "venue", "veranstaltungsort", "lieu", "adres"]);
@@ -6007,7 +6040,7 @@
     const pricePerPerson = priceFromText(text);
     const availableSlots = extractVisibleSlots(text);
     const notes = [
-      pricePerPerson ? `Preis 5 Personen: ${formatCurrency(pricePerPerson)} p.P.` : "",
+      pricePerPerson ? `${formatCurrency(pricePerPerson)} p. P. bei 5 Spielern` : "",
       addressDetails.note ? `Adresshinweis: ${addressDetails.note}` : "",
     ].filter(Boolean).join("\n");
 
@@ -6041,6 +6074,11 @@
       .flatMap(flattenJsonLd);
     const jsonLd = jsonLdEntries
       .sort((a, b) => websiteStructuredScore(b) - websiteStructuredScore(a))[0] || {};
+    const jsonLdBreadcrumbTitles = jsonLdEntries
+      .filter((entry) => entry.type === "ListItem")
+      .sort((a, b) => (b.position || 0) - (a.position || 0))
+      .map((entry) => entry.name)
+      .filter(Boolean);
     const headings = [...documentNode.querySelectorAll("h1, h2")]
       .map((entry) => clean(entry.textContent))
       .filter(Boolean)
@@ -6083,6 +6121,7 @@
       text: documentNode.body?.textContent || "",
       structuredText,
       jsonLd,
+      jsonLdBreadcrumbTitles,
     };
   }
 
@@ -6092,7 +6131,9 @@
         const addressSource = source.address || source.location?.address || source.place?.address;
         const address = jsonLdAddress(addressSource);
         return {
+          type: clean(Array.isArray(source["@type"]) ? source["@type"][0] : source["@type"]),
           name: clean(jsonLdName(source.name || source.headline)),
+          position: numberOrNull(source.position),
           address,
           city: clean(jsonLdName(addressSource?.addressLocality || source.location?.name)),
           country: clean(jsonLdName(addressSource?.addressCountry)),
@@ -6110,7 +6151,7 @@
     const providerKey = normalize(provider);
     return cleaned.find((candidate) => {
       const key = normalize(candidate);
-      if (!key || /^(home|startseite|booking|book now|reserve|reservieren|escape room)$/i.test(candidate)) return false;
+      if (!key || candidate.length > 110 || /^(home|startseite|booking|book now|reserve|reservieren|escape room|escape room beschreibung)$/i.test(candidate)) return false;
       if (providerKey && (key === providerKey || providerKey.includes(key) || key.includes(providerKey))) return false;
       return true;
     }) || cleaned[0] || "";
@@ -6118,6 +6159,7 @@
 
   function cleanWebsiteTitle(value, provider = "") {
     let title = cleanBookingTitle(value)
+      .replace(/^\d{1,3}%\s+/, "")
       .replace(/\s*\|\s*book\s+now.*$/i, "")
       .replace(/\s*[-–|]\s*(escape room|booking|book now|reserve|reservieren)\s*$/i, "");
     const providerName = clean(provider);
@@ -6129,6 +6171,17 @@
         || title;
     }
     return clean(title.replace(/\s*[-–|]\s*$/, ""));
+  }
+
+  function polishWebsiteTitle(value) {
+    return clean(value).replace(/(^|[\s([{])([a-zäöü])/g, (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase("de-DE")}`);
+  }
+
+  function cleanProviderName(value) {
+    return clean(value)
+      .split(/\s[|–-]\s/)[0]
+      .replace(/\s+(?:escape rooms?|escaperooms?)\s*$/i, " EscapeRooms")
+      .trim();
   }
 
   function metaContent(documentNode, selectors) {
@@ -6216,7 +6269,7 @@
     if (Array.isArray(value)) return value.flatMap((entry) => extractJsonText(entry, depth + 1)).slice(0, 250);
     if (typeof value !== "object") return [];
 
-    const usefulKeys = /^(title|name|headline|description|address|streetAddress|addressLocality|addressCountry|city|country|duration|timeRequired|price|offers|provider|brand|organizer|location|room|game|experience)$/i;
+    const usefulKeys = /^(title|name|headline|description|address|streetAddress|addressLocality|addressCountry|city|country|duration|timeRequired|price|offers|provider|brand|organizer|location|room|game|experience|question|answer|faq)$/i;
     return Object.entries(value)
       .filter(([key]) => usefulKeys.test(key))
       .flatMap(([, entry]) => extractJsonText(entry, depth + 1))
@@ -6536,7 +6589,10 @@
   function htmlToText(source) {
     const prepared = source
       .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-      .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
+      .replace(/<(p|div|tr|li|h[1-6]|table|tbody|thead|section|article)[^>]*>/gi, "\n")
+      .replace(/<\/(p|div|tr|li|h[1-6]|table|tbody|thead|section|article)>/gi, "\n")
+      .replace(/<t[dh][^>]*>/gi, "\n")
+      .replace(/<\/t[dh]>/gi, "\n");
     const documentNode = new DOMParser().parseFromString(prepared, "text/html");
     return (documentNode.body.textContent || prepared)
       .replace(/\r/g, "")
@@ -6857,12 +6913,18 @@
         /\d/.test(line)
         && /(straße|strasse|street|road|rue|avenue|laan|weg|boulevard|chaussée|chaussee|place|plein|square|quai|gasse|platz)/i.test(line)
       )) || "";
+    const valueIndex = value ? lines.findIndex((line) => line === value) : -1;
 
     if (value.includes("(") && !value.includes(")") && labeledIndex >= 0) {
       for (let index = labeledIndex + 1; index < Math.min(lines.length, labeledIndex + 4); index += 1) {
         value += ` ${lines[index]}`;
         if (lines[index].includes(")")) break;
       }
+    }
+
+    if (value && !/\b\d{4,6}\b/.test(value) && valueIndex >= 0) {
+      const nextPostalLine = lines.slice(valueIndex + 1, valueIndex + 4).find((line) => /^\d{4,6}\s+\S/.test(line));
+      if (nextPostalLine) value = `${value}, ${nextPostalLine}`;
     }
 
     return splitAddressExtra(value);
@@ -6872,13 +6934,23 @@
     const withoutLabel = clean(value)
       .replace(/^(?:veranstaltungsort|adresse|address|venue|location|lieu|adres)\s*[:#-]?\s*/i, "")
       .replace(/^[^0-9A-Za-zÀ-ÿ]+/, "")
-      .replace(/\s*\(?view map\)?\s*$/i, "");
-    const noteStart = withoutLabel.indexOf("(");
-    if (noteStart < 0) return { address: withoutLabel, note: "" };
+      .replace(/\s*\(?view map\)?\s*$/i, "")
+      .replace(/(\d{1,3})([1-9]\d{4}\s+[A-Za-zÀ-ÿ])/g, "$1, $2");
+    const streetMatch = withoutLabel.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'()/,-]+/i)
+      || withoutLabel.match(/\b(?:[A-Za-zÀ-ÿ.'-]+-?)*(?:straße|strasse|street|road|weg|gasse|platz)\s+\d[A-Za-zÀ-ÿ0-9 .'()/,-]*/i);
+    const cleanedAddress = streetMatch ? cleanStreetAddress(streetMatch[0]) : withoutLabel;
+    const noteStart = cleanedAddress.indexOf("(");
+    if (noteStart < 0) return { address: cleanedAddress, note: "" };
     return {
-      address: clean(withoutLabel.slice(0, noteStart)),
-      note: clean(withoutLabel.slice(noteStart + 1).replace(/\)+\s*$/, "")),
+      address: clean(cleanedAddress.slice(0, noteStart)),
+      note: clean(cleanedAddress.slice(noteStart + 1).replace(/\)+\s*$/, "")),
     };
+  }
+
+  function cleanStreetAddress(value) {
+    return clean(value)
+      .replace(/^([A-ZÄÖÜ][a-zäöüß]+)(?=[A-ZÄÖÜ][A-Za-zÀ-ÿ.'-]*(?:straße|strasse|street|road|weg|gasse|platz)\b)/, "")
+      .replace(/\s*,?\s*$/, "");
   }
 
   function extractImportantBookingNotes(lines, addressNote = "") {

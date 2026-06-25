@@ -312,6 +312,7 @@ try {
     "desktop trip planning uses map/open rooms left and calendar right",
   );
   await assertEval(cdp, "getComputedStyle(document.querySelector('.trip-plan-map-shell')).position === 'static'", Boolean, "trip planning map does not stick while scrolling");
+  await assertEval(cdp, "window.L ? Array.from(document.querySelectorAll('.leaflet-tooltip')).some((node) => node.textContent.includes('✓')) : true", Boolean, "scheduled trip planning map labels include checkmark");
   await evalPage(cdp, `
     (() => {
       const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room');
@@ -524,6 +525,62 @@ try {
     "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'Tokyo Lab'); return Boolean(card?.querySelector('h4 a.title-link')) && !Array.from(card?.querySelectorAll('.trip-item__actions a') || []).some((link) => /Website/i.test(link.textContent)); })()",
     Boolean,
     "trip planning links website through title only",
+  );
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-import-room-url]').click();
+      const form = document.querySelector('#trip-url-import-form');
+      form.querySelector('[name="url"]').value = 'https://www.adventurerooms-hamburg.de/escape-room/verrueckter-professor/';
+      form.querySelector('[name="sourceText"]').value = [
+        '<!doctype html><html><head>',
+        '<title>100% verrückter Professor | AdventureRooms Hamburg</title>',
+        '<meta property="og:site_name" content="AdventureRooms Hamburg | Drei spannende Escape Room Abenteuer mitten in Hamburg">',
+        '<meta property="og:title" content="100% verrückter Professor | AdventureRooms Hamburg">',
+        '<script type="application/ld+json">',
+        JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Home' },
+                { '@type': 'ListItem', position: 2, name: 'Escape Room Beschreibung' },
+                { '@type': 'ListItem', position: 3, name: 'Der verrückte Professor' },
+              ],
+            },
+            {
+              '@type': 'WebPage',
+              name: '100% verrückter Professor | AdventureRooms Hamburg',
+              description: 'Der wohl schwierigste Escape Room hier im Detail.',
+            },
+            { '@type': 'Organization', name: 'AdventureRooms Hamburg' },
+          ],
+        }),
+        '</script></head><body>',
+        '<h1>100% verrückter Professor</h1>',
+        '<p>window._wpemojiSettings {"translation-revision-date":"2025-05-24"} wp-google-map-plugin contact form.</p>',
+        '<h4>WIE LANGE DAUERT ES?</h4>',
+        '<p>Die Standardvariante dauert maximal 60 Min, hinzu kommen je ca. 15 Min Einführung und Nachbesprechung. Spätestens 1h30 nach eurer gebuchten Zeit seid ihr wieder auf freiem Fuss.</p>',
+        '<table><tr><td>5 Spieler</td><td>27,50 € pro Spieler</td></tr></table>',
+        '<p>AdventureRooms Hamburg<br>Heidenkampsweg 51</p><p>20097 Hamburg</p>',
+        '</body></html>'
+      ].join('\\n');
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => setTimeout(resolve, 150));
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.link === 'https://www.adventurerooms-hamburg.de/escape-room/verrueckter-professor/'); return item && { title: item.title, provider: item.provider, duration: item.duration, address: item.address, pricePerPerson: item.pricePerPerson, notes: item.notes }; })()",
+    (item) => item
+      && item.title === 'Der Verrückte Professor'
+      && item.provider === 'AdventureRooms Hamburg'
+      && item.duration === 60
+      && item.address === 'Heidenkampsweg 51, 20097 Hamburg'
+      && item.pricePerPerson === 27.5
+      && item.notes.includes('27,50')
+      && item.notes.includes('bei 5 Spielern'),
+    "AdventureRooms website import extracts clean room title, provider, duration, address and 5-player price",
   );
 
   if (ocrFixture) {

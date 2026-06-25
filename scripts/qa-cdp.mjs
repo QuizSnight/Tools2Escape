@@ -302,9 +302,9 @@ try {
   await evalPage(cdp, "document.querySelector('[data-view=\"trips\"]').click()");
   await assertEval(
     cdp,
-    "Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Trip Room') && Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Bulk Room') && Array.from(document.querySelectorAll('.trip-plan-card')).find((card) => card.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-trip-plan-field=\"duration\"]')?.value === '90' && Boolean(document.querySelector('#trip-plan-map'))",
+    "Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Trip Room') && Array.from(document.querySelectorAll('.trip-plan-card h4')).some((node) => node.textContent === 'QA Bulk Room') && Array.from(document.querySelectorAll('.trip-plan-card')).find((card) => card.querySelector('h4')?.textContent === 'QA Trip Room').querySelector('[data-trip-plan-field=\"duration\"]')?.value === '90' && Array.from(document.querySelectorAll('.trip-kpis .kpi')).find((kpi) => kpi.querySelector('span')?.textContent === 'Escape Rooms')?.querySelector('strong')?.textContent === '0' && document.querySelector('.trip-section-actions strong')?.textContent === '0' && Boolean(document.querySelector('#trip-plan-map'))",
     Boolean,
-    "trip planning candidates render with map and automatic duration",
+    "trip planning candidates render with map, automatic duration and scheduled-only counts",
   );
   await evalPage(cdp, `
     (() => {
@@ -355,9 +355,15 @@ try {
   `);
   await assertEval(
     cdp,
-    "window.__qaTripPlanDragged && document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75' && !Array.from(document.querySelectorAll('#trip-item-form [name=\"time\"] option')).some((option) => option.value.endsWith(':07'))",
+    "window.__qaTripPlanDragged && document.querySelector('#trip-item-modal-title')?.textContent === 'Details bearbeiten' && document.querySelector('#trip-item-form [name=\"title\"]')?.value === 'QA Trip Room' && document.querySelector('#trip-item-form [name=\"date\"]')?.value === '2026-10-13' && document.querySelector('#trip-item-form [name=\"time\"]')?.value === '16:30' && document.querySelector('#trip-item-form [name=\"duration\"]')?.value === '75' && !Array.from(document.querySelectorAll('#trip-item-form [name=\"time\"] option')).some((option) => option.value.endsWith(':07'))",
     Boolean,
     "trip planning candidate can be dragged into day and opens scheduled item form",
+  );
+  await assertEval(
+    cdp,
+    "Array.from(document.querySelectorAll('.trip-kpis .kpi')).find((kpi) => kpi.querySelector('span')?.textContent === 'Escape Rooms')?.querySelector('strong')?.textContent === '1' && document.querySelector('.trip-section-actions strong')?.textContent === '1'",
+    Boolean,
+    "scheduled trip escape counts update after calendar assignment",
   );
   await evalPage(cdp, `
     (() => {
@@ -369,7 +375,7 @@ try {
   `);
   await assertEval(
     cdp,
-    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); const text = card?.textContent || ''; const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.title === 'QA Trip Room'); return card?.textContent.includes('Termin bearbeiten') && !card?.textContent.includes('Rue Persist 44') && card?.textContent.includes('Bruxelles, Belgien') && item?.address === 'Rue Persist 44, 1000 Bruxelles' && !/Belgien\\s*·\\s*Belgien/.test(text) && !card.querySelector('.trip-plan-card__head small'); })()",
+    "(() => { const card = Array.from(document.querySelectorAll('.trip-plan-card')).find((entry) => entry.querySelector('h4')?.textContent === 'QA Trip Room'); const text = card?.textContent || ''; const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.title === 'QA Trip Room'); return card?.textContent.includes('Details bearbeiten') && !card?.textContent.includes('Termin bearbeiten') && !card?.textContent.includes('Rue Persist 44') && card?.textContent.includes('Bruxelles, Belgien') && item?.address === 'Rue Persist 44, 1000 Bruxelles' && !/Belgien\\s*·\\s*Belgien/.test(text) && !card.querySelector('.trip-plan-card__head small'); })()",
     Boolean,
     "scheduled trip plan card stores full address while showing compact location",
   );
@@ -669,8 +675,11 @@ try {
         '<meta property="og:site_name" content="Escape Rush">',
         '<meta property="og:title" content="Mission The White House, Secrets of the Culper Ring">',
         '</head><body>',
-        '<h1>THE White House</h1>',
-        '<p>DETAILS 100 square metre 3 to 7 PLAYERS 60 MINUTES 4/5 DIFFICULTY</p>',
+        '<h2>DETAILS</h2>',
+        '<h2>100</h2><p>square metre</p>',
+        '<h2>3 to 7</h2><p>PLAYERS</p>',
+        '<h2>60</h2><p>MINUTES</p>',
+        '<h2>4/5</h2><p>DIFFICULTY</p>',
         '<p>United States War of Independence and the White House story text should not change the country.</p>',
         '<p>Mission for 3 persons 135€ Mission for 4 persons 160€ Mission for 5 persons 175€ Mission for 6 persons 180€</p>',
         '<p>address Rue de l\\'automne 30 - 1050 Ixelles</p>',
@@ -684,14 +693,51 @@ try {
     cdp,
     "(() => { const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.link === 'https://escaperush.com/white-house?lang=en'); return item && { title: item.title, provider: item.provider, duration: item.duration, address: item.address, city: item.city, country: item.country, pricePerPerson: item.pricePerPerson }; })()",
     (item) => item
-      && item.title === 'White House'
+      && item.title === 'The White House'
       && item.provider === 'Escape Rush'
       && item.duration === 60
       && item.address === "Rue de l'automne 30, 1050 Ixelles"
       && item.city === 'Ixelles'
       && item.country === 'Belgien'
       && item.pricePerPerson === 35,
-    "Escape Rush website import keeps Belgium, 60 minutes and 5-player price",
+    "Escape Rush website import rejects DETAILS heading and keeps Belgium, 60 minutes and 5-player price",
+  );
+  await evalPage(cdp, `
+    (() => {
+      document.querySelector('[data-import-room-url]').click();
+      const form = document.querySelector('#trip-url-import-form');
+      form.querySelector('[name="url"]').value = 'https://www.escaparium.ca/laval/magnifico';
+      form.querySelector('[name="sourceText"]').value = [
+        '<!doctype html><html><head>',
+        '<title>Cirque Magnifico Escape Room | Escaparium</title>',
+        '<meta property="og:site_name" content="Escaparium">',
+        '<meta property="og:title" content="Cirque Magnifico Escape Room | Escaparium">',
+        '</head><body>',
+        '<h1>Magnifico</h1>',
+        '<p>Location:Laval</p>',
+        '<p>4-6 Players</p>',
+        '<p>3/4 Difficulty</p>',
+        '<p>150 minutes Duration</p>',
+        '<p>1/4 Scare Factor</p>',
+        '<p>$169.99 Per Person</p>',
+        '<p>5545 Bd des Rossignols, Laval, QC H7L 5Z1</p>',
+        '</body></html>'
+      ].join('\\n');
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      return new Promise((resolve) => setTimeout(resolve, 150));
+    })()
+  `);
+  await assertEval(
+    cdp,
+    "(() => { const state = JSON.parse(localStorage.getItem('tools2escape:v2')); const item = state.trips.flatMap((trip) => trip.planItems || []).find((entry) => entry.link === 'https://www.escaparium.ca/laval/magnifico'); return item && { title: item.title, provider: item.provider, duration: item.duration, address: item.address, city: item.city, country: item.country }; })()",
+    (item) => item
+      && item.title === 'Cirque Magnifico'
+      && item.provider === 'Escaparium'
+      && item.duration === 150
+      && item.address === '5545 Bd des Rossignols, Laval, QC H7L 5Z1'
+      && item.city === 'Laval'
+      && item.country === 'Kanada',
+    "Escaparium website import keeps full title, 150 minutes and Canada location",
   );
 
   if (ocrFixture) {

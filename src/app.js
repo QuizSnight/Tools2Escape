@@ -51,6 +51,7 @@
     ITALY: "Italien",
     FINLAND: "Finnland",
     CROATIA: "Kroatien",
+    CANADA: "Kanada",
   };
   const COUNTRY_LABELS_DE = {
     Austria: "Österreich",
@@ -233,6 +234,7 @@
   const ITALY_CITIES = new Set(["rom", "roma", "rome"]);
   const FINLAND_CITIES = new Set(["helsinki"]);
   const CROATIA_CITIES = new Set(["zagreb"]);
+  const CANADA_CITIES = new Set(["laval", "montreal", "montréal", "quebec", "quebec city", "québec", "québec city"]);
   const GERMANY_CITIES = new Set([
     ...NRW_CITIES,
     ...HAMBURG_CITIES,
@@ -317,8 +319,9 @@
     ITALY: ITALY_CITIES,
     FINLAND: FINLAND_CITIES,
     CROATIA: CROATIA_CITIES,
+    CANADA: CANADA_CITIES,
   };
-  const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA"];
+  const VIRTUAL_REGION_NAMES = ["SPAIN", "POLAND", "HUNGARY", "CZECHIA", "FRANCE", "IRELAND", "UK", "PORTUGAL", "ITALY", "FINLAND", "CROATIA", "CANADA"];
   const GEOCODE_CACHE_KEY = "tools2escape:geocode-cache:v1";
   const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const ROUTE_API_URL = "https://router.project-osrm.org/route/v1/driving/";
@@ -400,6 +403,7 @@
     lier: [51.1313, 4.5704],
     limburg: [50.3836, 8.0503],
     lippstadt: [51.6737, 8.3448],
+    laval: [45.6066, -73.7124],
     lissabon: [38.7223, -9.1393],
     lisboa: [38.7223, -9.1393],
     lisbon: [38.7223, -9.1393],
@@ -408,6 +412,8 @@
     luxemburg: [49.6116, 6.1319],
     maaseik: [51.0980, 5.7838],
     mechelen: [51.0259, 4.4775],
+    montreal: [45.5017, -73.5673],
+    montréal: [45.5017, -73.5673],
     moenchengladbach: [51.1805, 6.4428],
     monchengladbach: [51.1805, 6.4428],
     moordrecht: [51.9867, 4.6694],
@@ -425,6 +431,10 @@
     prag: [50.0755, 14.4378],
     prague: [50.0755, 14.4378],
     praha: [50.0755, 14.4378],
+    quebec: [46.8139, -71.2080],
+    "quebec city": [46.8139, -71.2080],
+    québec: [46.8139, -71.2080],
+    "québec city": [46.8139, -71.2080],
     remscheid: [51.1787, 7.1897],
     retie: [51.2670, 5.0824],
     reutlingen: [48.4914, 9.2043],
@@ -463,6 +473,7 @@
     ITALY: ["italien", "italy"],
     FINLAND: ["finnland", "finland"],
     CROATIA: ["kroatien", "croatia"],
+    CANADA: ["kanada", "canada", "quebec", "québec"],
   };
 
   const ui = {
@@ -1280,6 +1291,7 @@
     if (ITALY_CITIES.has(key)) return "Italien";
     if (FINLAND_CITIES.has(key)) return "Finnland";
     if (CROATIA_CITIES.has(key)) return "Kroatien";
+    if (CANADA_CITIES.has(key)) return "Kanada";
     return "";
   }
 
@@ -2326,8 +2338,8 @@
   }
 
   function renderTripCard(trip) {
-    const escapeCount = tripEscapeCount(trip);
-    const accommodationCount = trip.items.filter((item) => item.type === "accommodation").length;
+    const escapeCount = tripScheduledEscapeCount(trip);
+    const accommodationCount = tripAccommodationCount(trip);
     const planCount = trip.planItems?.length || 0;
     return `
       <article class="trip-card">
@@ -2355,8 +2367,8 @@
 
   function renderTripDetail(trip) {
     const items = [...trip.items].sort(sortTripItems);
-    const escapeCount = tripEscapeCount(trip);
-    const accommodationCount = items.filter((item) => item.type === "accommodation").length;
+    const escapeCount = tripScheduledEscapeCount(trip);
+    const accommodationCount = tripAccommodationCount({ ...trip, items });
 
     return `
       <section class="trip-detail-head">
@@ -2394,17 +2406,24 @@
     `;
   }
 
-  function tripEscapeCount(trip) {
-    const scheduledTripItems = new Set((trip.planItems || []).map((item) => item.tripItemId).filter(Boolean));
-    const tripEscapes = (trip.items || []).filter((item) => item.type === "escape").length;
-    const standalonePlanEscapes = (trip.planItems || []).filter((item) => !item.tripItemId || !scheduledTripItems.has(item.tripItemId)).length;
-    return tripEscapes + standalonePlanEscapes;
+  function tripScheduledEscapeCount(trip) {
+    const planItems = trip.planItems || [];
+    const linkedTripItemIds = new Set(planItems.map((item) => item.tripItemId).filter(Boolean));
+    const scheduledPlanEscapes = planItems.filter((item) => item.date).length;
+    const scheduledLooseTripEscapes = (trip.items || []).filter((item) =>
+      item.type === "escape" && item.date && !linkedTripItemIds.has(item.id)).length;
+    return scheduledPlanEscapes + scheduledLooseTripEscapes;
+  }
+
+  function tripAccommodationCount(trip) {
+    return (trip.items || []).filter((item) => item.type === "accommodation").length;
   }
 
   function renderTripPlanning(trip) {
     const candidates = [...(trip.planItems || [])].sort(sortTripPlanItems);
     const dates = tripDateValues(trip);
     const unscheduled = candidates.filter((item) => !item.date);
+    const scheduled = candidates.filter((item) => item.date);
     const analysis = tripPlanAnalysis(trip);
     const warningCount = [...analysis.warningsById.values()].reduce((sum, warnings) => sum + warnings.length, 0);
     const finalized = Boolean(trip.planningFinalized);
@@ -2417,7 +2436,7 @@
           </div>
           <div class="trip-section-actions">
             <button type="button" data-toggle-trip-planning="${escapeHtml(trip.id)}">${finalized ? "Trip bearbeiten" : "Planung abgeschlossen"}</button>
-            <strong>${candidates.length}</strong>
+            <strong>${scheduled.length}</strong>
           </div>
         </header>
         ${finalized ? "" : `
@@ -2618,7 +2637,6 @@
     const endTime = addMinutesToTime(item.time, item.duration);
     const warnings = analysis.warningsById.get(item.id) || [];
     const priceText = item.pricePerPerson ? `${formatCurrency(item.pricePerPerson)} p.P. bei 5` : "";
-    const actionLabel = item.tripItemId || item.date || item.time ? "Termin bearbeiten" : "Termin erstellen";
     const isPaid = tripPlanItemIsPaid(trip, item);
     return `
       <article class="trip-plan-card ${warnings.length ? "has-warning" : ""}" draggable="true" data-plan-drag="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">
@@ -2647,7 +2665,7 @@
         ${warnings.length ? `<div class="trip-plan-warnings">${warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
         <div class="trip-item__actions">
           ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
-          <button class="primary-action" type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">${escapeHtml(actionLabel)}</button>
+          <button class="primary-action" type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Details bearbeiten</button>
           ${renderPaidAction(isPaid, `data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}"`)}
           ${renderTripPlanPlayedActions(trip, item)}
           <button type="button" data-delete-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Entfernen</button>
@@ -2679,7 +2697,7 @@
         </div>
         ${warnings.length ? `<div class="trip-plan-warnings">${warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
         <div class="trip-item__actions trip-final-actions">
-          <button type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Termin bearbeiten</button>
+          <button type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Details bearbeiten</button>
           ${renderPaidAction(isPaid, `data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}"`)}
           ${renderTripPlanPlayedActions(trip, item)}
           ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
@@ -3341,17 +3359,24 @@
 
   function extractCityFromAddress(address) {
     const text = clean(address);
+    const canadianCity = text.match(/,\s*([A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2}),\s*(?:QC|Quebec|Québec|ON|Ontario|BC|AB)\s+[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/i);
+    if (canadianCity?.[1]) return clean(canadianCity[1]);
     const postalCity = text.match(/\b\d{4,6}\s+([A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})\b/);
     if (postalCity) {
-      const city = clean(postalCity[1].replace(/\b(?:Belgium|Belgien|Deutschland|Germany|France|Frankreich|Netherlands|Niederlande|Luxembourg|Luxemburg|Schweiz|Switzerland|USA|UK)\b.*$/i, ""));
-      if (city) return city;
+      const city = clean(postalCity[1].replace(/\b(?:Belgium|Belgien|Deutschland|Germany|France|Frankreich|Netherlands|Niederlande|Luxembourg|Luxemburg|Schweiz|Switzerland|Canada|Kanada|Quebec|Québec|USA|UK)\b.*$/i, ""));
+      if (city && !/^(?:bd|boul|blvd|boulevard|av|ave|avenue|street|st|road|rd|rue|laan|weg|strasse|straße)\b/i.test(city)) return city;
     }
     const parts = text.split(",").map(clean).filter(Boolean);
     if (!parts.length) return "";
-    const countries = new Set(["belgium", "belgique", "belgie", "belgien", "france", "frankreich", "germany", "deutschland", "netherlands", "nederland", "niederlande", "luxembourg", "luxemburg", "switzerland", "schweiz", "usa", "uk"]);
+    const countries = new Set(["belgium", "belgique", "belgie", "belgien", "france", "frankreich", "germany", "deutschland", "netherlands", "nederland", "niederlande", "luxembourg", "luxemburg", "switzerland", "schweiz", "canada", "kanada", "usa", "uk"]);
     let candidate = parts[parts.length - 1];
-    if (countries.has(normalize(candidate)) && parts.length > 1) candidate = parts[parts.length - 2];
-    return clean(candidate.replace(/\b\d{4,6}\b/g, ""));
+    if ((countries.has(normalize(candidate)) || isAddressRegionTail(candidate)) && parts.length > 1) candidate = parts[parts.length - 2];
+    return clean(candidate.replace(/\b\d{4,6}\b/g, "").replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/i, ""));
+  }
+
+  function isAddressRegionTail(value) {
+    return /^(?:qc|quebec|québec|on|ontario|bc|british columbia|ab|alberta)\b/i.test(clean(value))
+      || /\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/i.test(clean(value));
   }
 
   function renderMapView() {
@@ -3861,6 +3886,7 @@
     if (country === "it") regions.push("ITALY");
     if (country === "fi") regions.push("FINLAND");
     if (country === "hr") regions.push("CROATIA");
+    if (country === "ca") regions.push("CANADA");
     if (["athen", "athens"].includes(cityName)) regions.push("Athen");
 
     return unique(regions);
@@ -4424,6 +4450,7 @@
     const labels = tripItemLabels(type);
     const address = item.address || item.city || (type === "start" ? DEFAULT_TRIP_START_ADDRESS : "");
     const title = item.title || (type === "start" ? "Startadresse" : "");
+    const modalTitle = tripItemModalTitle(type, Boolean(item.id || planItemId), imported);
     return `
       <div class="modal-backdrop" data-close-modal>
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="trip-item-modal-title">
@@ -4436,7 +4463,7 @@
             <input type="hidden" name="availableSlots" value="${escapeHtml(normalizeTimeSlots(item.availableSlots).join(", "))}">
             <div class="modal-head">
               <div>
-                <h2 id="trip-item-modal-title">${imported ? "Buchungsdetails prüfen" : item.id ? "Termin bearbeiten" : "Termin ergänzen"}</h2>
+                <h2 id="trip-item-modal-title">${escapeHtml(modalTitle)}</h2>
                 ${imported ? `<p class="modal-subtitle">${escapeHtml(item.sourceName || "Import")}</p>` : ""}
               </div>
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
@@ -4558,6 +4585,15 @@
         <input name="duration" type="number" min="5" max="360" step="5" value="${escapeHtml(value || "")}" ${hidden ? "disabled" : ""}>
       </label>
     `;
+  }
+
+  function tripItemModalTitle(type, isExisting, imported) {
+    if (imported) return "Buchungsdetails prüfen";
+    if (!isExisting) return "Termin ergänzen";
+    if (type === "escape") return "Details bearbeiten";
+    if (type === "accommodation") return "Unterkunft bearbeiten";
+    if (type === "start") return "Startadresse bearbeiten";
+    return "Eintrag bearbeiten";
   }
 
   function tripItemLabels(type) {
@@ -5706,6 +5742,7 @@
       { pattern: /(?:dauer|duration|spieldauer|spielzeit|game length|running time|time required|wie lange dauert es)\s*[:#-]?\s*(?:maximal\s*)?(?:ca\.\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 130 },
       { pattern: /\b(?:\d+\s*(?:bis|to|-)\s*\d+\s*(?:spieler|players|personen|persons)|details)\b[^\n.]{0,80}\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 128 },
       { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:difficulty|schwierigkeit|players|spieler|personen|details|mission)\b/gi, score: 124 },
+      { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:duration|dauer|spieldauer|spielzeit|game length|running time)\b/gi, score: 126 },
       { pattern: /\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b[^\n.]{0,80}(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)/gi, score: 110 },
       { pattern: /(?:flucht|escape room|raum|spiel|standardvariante|team|gebucht)[^\n.]{0,80}\b(?:maximal\s*)?(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*(?:min|mins?|minutes?|minuten)\b/gi, score: 105 },
       { pattern: /\b(\d{2,3})(?:\s*[-–]\s*(\d{2,3}))?\s*[- ]?minute\s+(?:escape|room|game|spiel|experience|adventure)\b/gi, score: 95 },
@@ -6381,21 +6418,10 @@
       page.siteName,
       extractLabeledValue(lines, ["anbieter", "provider", "veranstalter", "operator", "organizer", "organiser"]),
       extractRepeatedBrand(lines),
-      hostNameFromUrl(url),
+      providerFromUrl(url),
     ]);
     const rawTitle = cleanWebsiteTitle(
-      firstWebsiteTitle([
-        ...page.jsonLdBreadcrumbTitles,
-        page.h1,
-        page.ogTitle,
-        page.twitterTitle,
-        ...(page.headings || []).slice(1),
-        page.title,
-        page.jsonLd?.name,
-        extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"]),
-        titleFromUrl(url),
-        extractBookingTitle(lines, "escape", text),
-      ], provider),
+      firstWebsiteTitle(websiteTitleCandidates(page, url, provider, lines, text), provider),
       provider,
     );
     const title = polishWebsiteTitle(rawTitle);
@@ -6530,16 +6556,48 @@
     }) || cleaned[0] || "";
   }
 
+  function websiteTitleCandidates(page, url, provider, lines, text) {
+    const title = clean(page.title);
+    const h1 = clean(page.h1);
+    const cleanedDocumentTitle = cleanWebsiteTitle(title, provider);
+    const preferDocumentTitle = shouldPreferDocumentTitle(title, h1, provider);
+    return [
+      ...page.jsonLdBreadcrumbTitles,
+      ...(preferDocumentTitle ? [cleanedDocumentTitle] : []),
+      h1,
+      page.ogTitle,
+      page.twitterTitle,
+      ...(!preferDocumentTitle ? [cleanedDocumentTitle || title] : []),
+      titleFromUrl(url),
+      ...(page.headings || []).slice(1),
+      page.jsonLd?.name,
+      extractLabeledValue(lines, ["raum", "room", "game", "spiel", "escape room"]),
+      extractBookingTitle(lines, "escape", text),
+    ];
+  }
+
+  function shouldPreferDocumentTitle(title, heading, provider = "") {
+    const cleanTitle = cleanWebsiteTitle(title, provider);
+    const cleanHeading = cleanWebsiteTitle(heading, provider);
+    if (!cleanTitle || !cleanHeading || isBadWebsiteTitle(cleanTitle)) return false;
+    if (normalize(cleanTitle) === normalize(cleanHeading)) return false;
+    const headingWords = normalize(cleanHeading).split(" ").filter(Boolean);
+    return headingWords.length <= 1
+      && normalize(cleanTitle).includes(normalize(cleanHeading))
+      && cleanTitle.length <= 80;
+  }
+
   function isBadWebsiteTitle(value) {
     const key = normalize(value);
-    return /^(home|startseite|booking|book now|reserve|reservieren|escape room|escape rooms|escape games|escape room beschreibung|haufige fragen|faq|fragen und antworten|kontakt|contact|preise|preise gutschein|preise gutscheine|gift voucher|gutschein|impressum|datenschutz|terms|legal notice|jobs?)$/.test(key);
+    return /^(home|startseite|booking|book now|reserve|reservieren|escape room|escape rooms|escape games|escape room beschreibung|details|your mission|mission|records|questions about this game|do you like this theme|interested in other rooms|haufige fragen|faq|fragen und antworten|kontakt|contact|preise|preise gutschein|preise gutscheine|gift voucher|gutschein|impressum|datenschutz|terms|legal notice|jobs?)$/.test(key);
   }
 
   function cleanWebsiteTitle(value, provider = "") {
     let title = cleanBookingTitle(value)
       .replace(/^\d{1,3}%\s+/, "")
       .replace(/\s*\|\s*book\s+now.*$/i, "")
-      .replace(/\s*[-–|]\s*(escape room|booking|book now|reserve|reservieren)\s*$/i, "");
+      .replace(/\s*[-–|]\s*(escape room|booking|book now|reserve|reservieren)\s*$/i, "")
+      .replace(/\s+(?:escape rooms?|escape games?|escape room game)\s*$/i, "");
     const providerName = clean(provider);
     if (providerName && normalize(title).includes(normalize(providerName))) {
       title = title
@@ -6549,9 +6607,8 @@
         || title;
     }
     title = title
-      .replace(/^mission\s+(?:the\s+)?/i, "")
+      .replace(/^mission\s+/i, "")
       .replace(/,\s*(?:secrets?|the story|video|photos?).*$/i, "");
-    if (normalize(title) === "the white house") title = "White House";
     return clean(title.replace(/\s*[-–|]\s*$/, ""));
   }
 
@@ -6595,6 +6652,7 @@
     if (host.includes("adventurerooms-hamburg")) return "AdventureRooms Hamburg";
     if (host.includes("nexus-exit")) return "Nexus Exit";
     if (host.includes("escaperush")) return "Escape Rush";
+    if (host.includes("escaparium")) return "Escaparium";
     return "";
   }
 
@@ -6692,6 +6750,7 @@
 
   function countryFromAddress(address) {
     const parts = clean(address).split(",").map(clean).filter(Boolean).reverse();
+    if (parts.some((part) => /\b(?:qc|quebec|québec)\b/i.test(part) || /\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/i.test(part))) return "Kanada";
     return parts.map(countryFromText).find(Boolean) || "";
   }
 
@@ -6708,12 +6767,14 @@
     if (host.endsWith(".pl")) return "Polen";
     if (host.endsWith(".pt")) return "Portugal";
     if (host.endsWith(".it")) return "Italien";
+    if (host.endsWith(".ca") || host.includes("escaparium")) return "Kanada";
     return "";
   }
 
   function countryFromText(value) {
     const normalized = normalize(value);
     if (!normalized) return "";
+    if (/\b(qc|quebec|canada|kanada)\b/.test(normalized)) return "Kanada";
     return Object.entries(COUNTRY_LABELS_DE)
       .find(([english, german]) => normalized.includes(normalize(english)) || normalized.includes(normalize(german)))?.[1] || "";
   }
@@ -7340,9 +7401,13 @@
       const normalizedLine = normalize(line);
       return labels.some((label) => normalizedLine === normalize(label) || normalizedLine.startsWith(`${normalize(label)} `));
     });
+    const streetValue = lines.find(looksLikeStreetAddressLine) || "";
     let value = labeledIndex >= 0
       ? lines[labeledIndex]
-      : lines.find(looksLikeStreetAddressLine) || "";
+      : streetValue;
+    if (labeledIndex >= 0 && streetValue && !extractStreetAddressCandidate(value)) {
+      value = streetValue;
+    }
     const valueIndex = value ? lines.findIndex((line) => line === value) : -1;
 
     if (value.includes("(") && !value.includes(")") && labeledIndex >= 0) {
@@ -7405,13 +7470,18 @@
 
     const latinStreet = text.match(/\b(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,80}?\s+\d+[A-Za-z]?(?:\s*[-,]\s*\d{4,6}\s+[A-Za-zÀ-ÿ.'-]+(?:\s+[A-Za-zÀ-ÿ.'-]+){0,2})?/i)
       || text.match(/\b\d+\s+(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,90}(?:,\s*[A-Za-zÀ-ÿ.'-]+){0,2}\s+\d{4,6}/i);
-    return latinStreet ? trimStreetCandidatePrefix(latinStreet[0]) : "";
+    if (latinStreet) return trimStreetCandidatePrefix(latinStreet[0]);
+
+    const northAmericanStreet = text.match(/\b\d+\s+(?:bd|boul\.?|blvd\.?|boulevard|av\.?|ave\.?|avenue|street|st\.?|road|rd\.?)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,90},\s*[A-Za-zÀ-ÿ.'-]+,\s*(?:QC|Quebec|Québec|ON|Ontario|BC|AB)\s*[A-Z]\d[A-Z]\s*\d[A-Z]\d/i)
+      || text.match(/\b\d+\s+(?:bd|boul\.?|blvd\.?|boulevard|av\.?|ave\.?|avenue|street|st\.?|road|rd\.?)\s+[A-Za-zÀ-ÿ0-9 .'/-]{2,90}(?:,\s*[A-Za-zÀ-ÿ.'-]+){0,2}(?:,\s*(?:QC|Quebec|Québec|ON|Ontario|BC|AB)\s*[A-Z]\d[A-Z]\s*\d[A-Z]\d)?/i);
+    return northAmericanStreet ? trimStreetCandidatePrefix(northAmericanStreet[0]) : "";
   }
 
   function trimStreetCandidatePrefix(value) {
     const text = clean(value);
     const match = text.match(/[A-Za-zÀ-ÿ.'-]+(?:straße|strasse|street|road|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d/i)
-      || text.match(/(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+/i);
+      || text.match(/(?:\d+\s+)?(?:rue|avenue|laan|boulevard|chaussée|chaussee|place|plein|square|quai)\s+/i)
+      || text.match(/\d+\s+(?:bd|boul\.?|blvd\.?|boulevard|av\.?|ave\.?|avenue|street|st\.?|road|rd\.?)\s+/i);
     return match && match.index > 0 ? clean(text.slice(match.index)) : text;
   }
 

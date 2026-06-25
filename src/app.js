@@ -707,6 +707,7 @@
       endDate: clean(trip.endDate),
       destination: clean(trip.destination),
       notes: clean(trip.notes),
+      planningFinalized: Boolean(trip.planningFinalized),
       items: Array.isArray(trip.items) ? trip.items.map(normalizeTripItem) : [],
       planItems: Array.isArray(trip.planItems) ? trip.planItems.map(normalizeTripPlanItem) : [],
       expenses: Array.isArray(trip.expenses) ? trip.expenses.map((expense) => normalizeTripExpense(expense, members)) : [],
@@ -2286,7 +2287,6 @@
 
   function renderTripDetail(trip) {
     const items = [...trip.items].sort(sortTripItems);
-    const dayGroups = tripTimelineGroups(trip);
     const escapeCount = items.filter((item) => item.type === "escape").length;
     const accommodationCount = items.filter((item) => item.type === "accommodation").length;
 
@@ -2296,11 +2296,16 @@
         <div class="trip-title-row">
           <div>
             <span class="trip-status ${escapeHtml(tripStatus(trip).className)}">${escapeHtml(tripStatus(trip).label)}</span>
-            <h2>${escapeHtml(trip.name || "Unbenannter Trip")}</h2>
-            <p>${escapeHtml(formatTripRange(trip))}</p>
+            <div class="trip-title-line">
+              <h2>${escapeHtml(trip.name || "Unbenannter Trip")}</h2>
+              <button class="inline-icon-button" type="button" data-edit-trip-name="${escapeHtml(trip.id)}" aria-label="Tripnamen bearbeiten" title="Tripnamen bearbeiten">✎</button>
+            </div>
+            <div class="trip-date-line">
+              <p>${escapeHtml(formatTripRange(trip))}</p>
+              <button class="inline-icon-button" type="button" data-edit-trip-dates="${escapeHtml(trip.id)}" aria-label="Tripdatum bearbeiten" title="Tripdatum bearbeiten">✎</button>
+            </div>
           </div>
           <div class="trip-detail-actions">
-            <button type="button" data-edit-trip="${escapeHtml(trip.id)}">Trip bearbeiten</button>
             ${pendingShare ? `<button type="button" data-open-shared-booking>Geteilte Buchung öffnen</button>` : ""}
             <button type="button" data-import-trip-item="${escapeHtml(trip.id)}">Buchung importieren</button>
             <button type="button" data-import-room-url="${escapeHtml(trip.id)}">Website importieren</button>
@@ -2317,10 +2322,7 @@
 
       ${renderTripPlanning(trip)}
       ${renderTripExpenses(trip)}
-
-      <section class="trip-timeline">
-        ${dayGroups.length ? dayGroups.map(([date, dayEntries]) => renderTripDay(date, dayEntries, trip.id)).join("") : renderEmptyState("Für diesen Trip sind noch keine Termine eingetragen.")}
-      </section>
+      ${renderTripAccommodations(trip)}
     `;
   }
 
@@ -2330,37 +2332,61 @@
     const unscheduled = candidates.filter((item) => !item.date);
     const analysis = tripPlanAnalysis(trip);
     const warningCount = [...analysis.warningsById.values()].reduce((sum, warnings) => sum + warnings.length, 0);
+    const finalized = Boolean(trip.planningFinalized);
     return `
-      <section class="trip-planning">
+      <section class="trip-planning ${finalized ? "is-finalized" : ""}">
         <header class="trip-section-head">
           <div>
             <span>Tripplanung</span>
-            <h3>Karte & Tagesplan</h3>
+            <h3>${finalized ? "Kompakter Kalender" : "Karte & Tagesplan"}</h3>
           </div>
-          <strong>${candidates.length}</strong>
+          <div class="trip-section-actions">
+            <button type="button" data-toggle-trip-planning="${escapeHtml(trip.id)}">${finalized ? "Trip bearbeiten" : "Planung abgeschlossen"}</button>
+            <strong>${candidates.length}</strong>
+          </div>
         </header>
         <div class="trip-plan-help">
           <span>${escapeHtml(`${unscheduled.length} offen`)}</span>
           <span>${escapeHtml(`${candidates.length - unscheduled.length} im Kalender`)}</span>
           ${warningCount ? `<span class="is-warning">${escapeHtml(`${warningCount} Hinweis${warningCount === 1 ? "" : "e"}`)}</span>` : `<span>Keine Zeitkonflikte</span>`}
         </div>
-        <div class="trip-plan-layout">
-          <div class="trip-plan-left">
-            <div class="trip-plan-map-shell">
-              <div id="trip-plan-map" class="trip-plan-map" data-trip-plan-map="${escapeHtml(trip.id)}"></div>
+        ${finalized
+          ? `
+            <div class="trip-plan-final-layout">
+              <div class="trip-plan-map-shell">
+                <div id="trip-plan-map" class="trip-plan-map" data-trip-plan-map="${escapeHtml(trip.id)}"></div>
+                ${unscheduled.length ? renderTripFinalOpenList(trip, unscheduled, analysis) : ""}
+              </div>
+              <div class="trip-plan-calendar trip-plan-calendar--final">
+                ${dates.map((date) => renderTripFinalBucket(
+                  trip,
+                  date,
+                  formatLongDate(date),
+                  candidates.filter((item) => item.date === date),
+                  analysis,
+                )).join("")}
+              </div>
             </div>
-            ${renderTripPlanBucket(trip, "", "Noch nicht terminiert", unscheduled, analysis)}
-          </div>
-          <div class="trip-plan-calendar">
-            ${dates.map((date) => renderTripPlanBucket(
-              trip,
-              date,
-              formatLongDate(date),
-              candidates.filter((item) => item.date === date),
-              analysis,
-            )).join("")}
-          </div>
-        </div>
+          `
+          : `
+            <div class="trip-plan-layout">
+              <div class="trip-plan-left">
+                <div class="trip-plan-map-shell">
+                  <div id="trip-plan-map" class="trip-plan-map" data-trip-plan-map="${escapeHtml(trip.id)}"></div>
+                </div>
+                ${renderTripPlanBucket(trip, "", "Noch nicht terminiert", unscheduled, analysis)}
+              </div>
+              <div class="trip-plan-calendar">
+                ${dates.map((date) => renderTripPlanBucket(
+                  trip,
+                  date,
+                  formatLongDate(date),
+                  candidates.filter((item) => item.date === date),
+                  analysis,
+                )).join("")}
+              </div>
+            </div>
+          `}
       </section>
     `;
   }
@@ -2386,10 +2412,52 @@
     `;
   }
 
+  function renderTripFinalOpenList(trip, candidates, analysis) {
+    return `
+      <section class="trip-final-open">
+        <header>
+          <span>Offen</span>
+          <strong>${candidates.length} ${candidates.length === 1 ? "Raum" : "Räume"}</strong>
+        </header>
+        <div class="trip-plan-cards">
+          ${candidates.map((item) => renderTripFinalCard(trip, item, analysis, true)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripFinalBucket(trip, date, title, candidates, analysis) {
+    return `
+      <section class="trip-plan-day trip-final-day is-calendar-day">
+        <header>
+          <span>${escapeHtml(formatWeekday(date))}</span>
+          <div>
+            <strong>${escapeHtml(title)}</strong>
+            <small>${candidates.length} ${candidates.length === 1 ? "Raum" : "Räume"}</small>
+          </div>
+        </header>
+        <div class="trip-plan-cards">
+          ${renderTripPlanAccommodationMarker(trip, date, "start", candidates)}
+          ${candidates.length
+            ? renderTripFinalCards(trip, candidates, analysis)
+            : `<p class="trip-plan-empty">Kein Raum geplant</p>`}
+          ${renderTripPlanAccommodationMarker(trip, date, "end", candidates)}
+        </div>
+      </section>
+    `;
+  }
+
   function renderTripPlanCards(trip, candidates, analysis) {
     return candidates.map((item, index) => {
       const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
       return `${leg ? renderTripTravelRow(leg) : ""}${renderTripPlanCard(trip, item, analysis)}`;
+    }).join("");
+  }
+
+  function renderTripFinalCards(trip, candidates, analysis) {
+    return candidates.map((item, index) => {
+      const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
+      return `${leg ? renderTripTravelRow(leg) : ""}${renderTripFinalCard(trip, item, analysis)}`;
     }).join("");
   }
 
@@ -2483,10 +2551,53 @@
           ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
           <button class="primary-action" type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">${escapeHtml(actionLabel)}</button>
           ${renderPaidAction(isPaid, `data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}"`)}
+          ${renderTripPlanPlayedActions(trip, item)}
           <button type="button" data-delete-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Entfernen</button>
         </div>
       </article>
     `;
+  }
+
+  function renderTripFinalCard(trip, item, analysis, open = false) {
+    const routeUrl = mapsRouteUrl(item);
+    const endTime = addMinutesToTime(item.time, item.duration);
+    const warnings = analysis.warningsById.get(item.id) || [];
+    const priceText = item.pricePerPerson ? `${formatCurrency(item.pricePerPerson)} p.P. bei 5` : "";
+    const isPaid = tripPlanItemIsPaid(trip, item);
+    const timeText = item.time
+      ? endTime ? `${item.time} bis ${endTime}` : item.time
+      : "Zeit offen";
+    const durationText = item.duration ? formatDurationLabel(item.duration) : "Dauer offen";
+    return `
+      <article class="trip-plan-card trip-final-card ${warnings.length ? "has-warning" : ""}">
+        <div class="trip-plan-card__head">
+          <h4>${linkedTitle(item.title || "Ohne Titel", item.link, "title-link")}</h4>
+          <p>${escapeHtml(tripPlanSubtitle(item))}</p>
+        </div>
+        <div class="trip-final-time ${open ? "is-open" : ""}">
+          <strong>${escapeHtml(timeText)}</strong>
+          <span>${escapeHtml(durationText)}</span>
+          ${priceText ? `<span>${escapeHtml(priceText)}</span>` : ""}
+        </div>
+        ${warnings.length ? `<div class="trip-plan-warnings">${warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
+        <div class="trip-item__actions trip-final-actions">
+          <button type="button" data-plan-to-trip="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}">Termin bearbeiten</button>
+          ${renderPaidAction(isPaid, `data-pay-plan-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(trip.id)}"`)}
+          ${renderTripPlanPlayedActions(trip, item)}
+          ${routeUrl ? `<a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderTripPlanPlayedActions(trip, item) {
+    if (!item.tripItemId) return "";
+    const tripItem = trip.items.find((entry) => entry.id === item.tripItemId);
+    if (!tripItem || tripItem.type !== "escape") return "";
+    if (tripItem.playedRoomId) {
+      return `<button type="button" data-edit-room="${escapeHtml(tripItem.playedRoomId)}">Bewertung bearbeiten</button>`;
+    }
+    return `<button class="primary-action" type="button" data-complete-trip-item="${escapeHtml(tripItem.id)}" data-trip-id="${escapeHtml(trip.id)}">Gespielt</button>`;
   }
 
   function renderTripAvailableSlots(trip, item) {
@@ -2548,6 +2659,50 @@
             <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
             <button type="button" data-delete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
           </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderTripAccommodations(trip) {
+    const accommodations = (trip.items || [])
+      .filter((item) => item.type === "accommodation")
+      .sort(sortTripItems);
+    return `
+      <section class="trip-accommodations">
+        <header class="trip-section-head">
+          <div>
+            <span>Unterkünfte</span>
+            <h3>Übernachtungen</h3>
+          </div>
+          <strong>${accommodations.length}</strong>
+        </header>
+        <div class="trip-accommodation-list">
+          ${accommodations.length
+            ? accommodations.map((item) => renderTripAccommodationCard(item, trip.id)).join("")
+            : renderEmptyState("Noch keine Unterkunft eingetragen.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTripAccommodationCard(item, tripId) {
+    const routeUrl = mapsRouteUrl(item);
+    const range = item.date
+      ? `${formatDate(item.date)} bis ${formatDate(item.endDate || item.date)}`
+      : "Zeitraum offen";
+    return `
+      <article class="trip-accommodation-card">
+        <div>
+          <h4>${linkedTitle(item.title || "Unterkunft", item.link, "title-link")}</h4>
+          <p>${escapeHtml(range)}</p>
+          ${item.provider ? `<small>${escapeHtml(item.provider)}</small>` : ""}
+          ${item.address || item.city ? `<address>${escapeHtml([item.address, item.city].filter(Boolean).join(", "))}</address>` : ""}
+        </div>
+        <div class="trip-accommodation-actions">
+          ${routeUrl ? `<a class="route-link route-link--small" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
+          <button type="button" data-edit-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Bearbeiten</button>
+          <button type="button" data-delete-trip-item="${escapeHtml(item.id)}" data-trip-id="${escapeHtml(tripId)}">Entfernen</button>
         </div>
       </article>
     `;
@@ -3825,7 +3980,7 @@
     if (!ui.modal) return "";
     if (ui.modal.type === "room") return renderRoomModal(ui.modal.room, ui.modal.wishId, ui.modal.tripId, ui.modal.tripItemId);
     if (ui.modal.type === "wish") return renderWishModal(ui.modal.entry);
-    if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip);
+    if (ui.modal.type === "trip") return renderTripModal(ui.modal.trip, ui.modal.focus);
     if (ui.modal.type === "planCandidate") return renderPlanCandidateModal(ui.modal.sourceType, ui.modal.sourceId);
     if (ui.modal.type === "wishTrip") return renderWishTripModal(ui.modal.wishId);
     if (ui.modal.type === "planningLink") return renderPlanningLinkModal(ui.modal.roomId);
@@ -3941,7 +4096,7 @@
     `;
   }
 
-  function renderTripModal(trip = {}) {
+  function renderTripModal(trip = {}, focus = "") {
     const rangeValue = trip.startDate
       ? [formatDate(trip.startDate), trip.endDate && trip.endDate !== trip.startDate ? formatDate(trip.endDate) : ""].filter(Boolean).join(" bis ")
       : "";
@@ -3957,10 +4112,13 @@
               <button type="button" class="icon-button" data-close-modal aria-label="Schließen">x</button>
             </div>
             <div class="form-grid trip-form-grid">
-              ${field("name", "Name", trip.name, "text", true)}
+              <label>
+                <span>Name</span>
+                <input name="name" type="text" value="${escapeHtml(trip.name || "")}" required ${focus === "name" ? "autofocus" : ""}>
+              </label>
               <label>
                 <span>Von bis</span>
-                <input class="trip-range-input" id="trip-date-range" type="text" value="${escapeHtml(rangeValue)}" placeholder="Zeitraum auswählen" autocomplete="off" required>
+                <input class="trip-range-input" id="trip-date-range" type="text" value="${escapeHtml(rangeValue)}" placeholder="Zeitraum auswählen" autocomplete="off" required ${focus === "dates" ? "autofocus" : ""}>
               </label>
             </div>
             <div class="modal-actions">
@@ -4644,6 +4802,26 @@
         if (!trip) return;
         ui.modal = { type: "trip", trip: clone(trip) };
         render();
+      });
+    });
+
+    app.querySelectorAll("[data-edit-trip-name], [data-edit-trip-dates]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tripId = button.dataset.editTripName || button.dataset.editTripDates;
+        const trip = data.trips.find((entry) => entry.id === tripId);
+        if (!trip) return;
+        ui.modal = {
+          type: "trip",
+          trip: clone(trip),
+          focus: button.dataset.editTripName ? "name" : "dates",
+        };
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-toggle-trip-planning]").forEach((button) => {
+      button.addEventListener("click", () => {
+        toggleTripPlanningFinalized(button.dataset.toggleTripPlanning);
       });
     });
 
@@ -5487,6 +5665,26 @@
     renderPreservingScroll();
   }
 
+  function toggleTripPlanningFinalized(tripId) {
+    const trip = data.trips.find((entry) => entry.id === tripId);
+    if (!trip) return;
+    const closing = !trip.planningFinalized;
+    let notice = closing ? "Planung abgeschlossen." : "Trip wieder bearbeitbar.";
+    if (closing) {
+      const analysis = tripPlanAnalysis(trip);
+      const warningCount = [...analysis.warningsById.values()].reduce((sum, warnings) => sum + warnings.length, 0);
+      const openCount = (trip.planItems || []).filter((item) => !item.date).length;
+      const hints = [
+        openCount ? `${openCount} noch offen` : "",
+        warningCount ? `${warningCount} Hinweis${warningCount === 1 ? "" : "e"}` : "",
+      ].filter(Boolean);
+      if (hints.length) notice = `Planung abgeschlossen. Hinweis: ${hints.join(", ")}.`;
+    }
+    trip.planningFinalized = closing;
+    saveData();
+    setNotice(notice);
+  }
+
   function openTripPlanItemForScheduling(tripId, planItemId) {
     const trip = data.trips.find((entry) => entry.id === tripId);
     const item = trip?.planItems.find((entry) => entry.id === planItemId);
@@ -5715,8 +5913,13 @@
     trip.items = existing
       ? trip.items.map((entry) => (entry.id === id ? item : entry))
       : [...trip.items, item];
-    if (planItem) {
-      Object.assign(planItem, {
+    const linkedPlanItem = planItem || trip.planItems?.find((entry) => entry.tripItemId === item.id);
+    if (item.type !== "accommodation") {
+      const syncedPlanItem = normalizeTripPlanItem({
+        ...(linkedPlanItem || {}),
+        id: linkedPlanItem?.id || makeId("trip-plan"),
+        sourceType: linkedPlanItem?.sourceType || "trip-item",
+        sourceId: linkedPlanItem?.sourceId || item.id,
         tripItemId: item.id,
         title: item.title,
         provider: item.provider,
@@ -5729,6 +5932,11 @@
         pricePerPerson: item.pricePerPerson,
         availableSlots: normalizeTimeSlots(item.availableSlots),
       });
+      trip.planItems = linkedPlanItem
+        ? (trip.planItems || []).map((entry) => (entry.id === linkedPlanItem.id ? syncedPlanItem : entry))
+        : [syncedPlanItem, ...(trip.planItems || [])];
+    } else if (linkedPlanItem) {
+      trip.planItems = (trip.planItems || []).filter((entry) => entry.id !== linkedPlanItem.id);
     }
     expandTripDates(trip, item);
     ui.activeTripId = trip.id;

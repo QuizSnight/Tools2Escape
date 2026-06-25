@@ -669,8 +669,36 @@ h2 {
 }
 
 .trip-title-row h2 {
-  margin: 8px 0 6px;
+  margin: 0;
   font-size: 1.7rem;
+}
+
+.trip-title-line,
+.trip-date-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trip-title-line {
+  margin-top: 8px;
+}
+
+.trip-date-line {
+  margin-top: 6px;
+}
+
+.inline-icon-button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.inline-icon-button:hover {
+  color: var(--accent-strong);
 }
 
 .trip-detail-actions,
@@ -721,6 +749,12 @@ h2 {
   font-size: 1.1rem;
 }
 
+.trip-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .trip-planning {
   display: grid;
   gap: 14px;
@@ -757,6 +791,13 @@ h2 {
   align-items: start;
 }
 
+.trip-plan-final-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.45fr);
+  gap: 14px;
+  align-items: start;
+}
+
 .trip-plan-left {
   display: grid;
   gap: 12px;
@@ -777,6 +818,10 @@ h2 {
 .trip-plan-calendar {
   display: grid;
   gap: 12px;
+}
+
+.trip-plan-calendar--final {
+  gap: 10px;
 }
 
 .trip-plan-day {
@@ -841,6 +886,10 @@ h2 {
   border-radius: 8px;
   background: #fbfcfc;
   cursor: grab;
+}
+
+.trip-final-card {
+  cursor: default;
 }
 
 .trip-plan-card.is-dragging {
@@ -913,6 +962,34 @@ h2 {
   color: var(--text);
 }
 
+.trip-final-open {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.trip-final-open header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.trip-final-open header span {
+  color: var(--warm);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.trip-final-open header strong {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .trip-plan-fields {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.75fr) minmax(100px, 0.65fr);
@@ -975,6 +1052,36 @@ h2 {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.trip-final-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.trip-final-time strong,
+.trip-final-time span {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.trip-final-time strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.trip-final-time.is-open strong {
+  color: var(--muted);
+}
+
+.trip-final-actions .route-link {
+  margin-left: auto;
 }
 
 .trip-plan-warnings {
@@ -1159,6 +1266,50 @@ h2 {
 .trip-item__actions {
   align-items: center;
   margin-top: 4px;
+}
+
+.trip-accommodations {
+  display: grid;
+  gap: 14px;
+  padding: 18px 0 8px;
+  border-top: 1px solid var(--line);
+}
+
+.trip-accommodation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.trip-accommodation-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.trip-accommodation-card h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.trip-accommodation-card p,
+.trip-accommodation-card small,
+.trip-accommodation-card address {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-style: normal;
+}
+
+.trip-accommodation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .route-link {
@@ -2024,7 +2175,8 @@ h2 {
     width: 100%;
   }
 
-  .trip-plan-layout {
+  .trip-plan-layout,
+  .trip-plan-final-layout {
     grid-template-columns: 1fr;
   }
 
@@ -2085,6 +2237,27 @@ h2 {
 
   .trip-plan-fields {
     grid-template-columns: 1fr;
+  }
+
+  .trip-section-head {
+    align-items: flex-start;
+  }
+
+  .trip-section-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .trip-final-actions .route-link {
+    margin-left: 0;
+  }
+
+  .trip-accommodation-card {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-accommodation-actions {
+    justify-content: flex-start;
   }
 
   .expense-member-grid {

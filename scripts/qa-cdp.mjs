@@ -145,7 +145,7 @@ try {
     Boolean,
     "additional country region counts",
   );
-  await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt", "played search placeholder");
+  await assertEval(cdp, "document.querySelector('#played-search').placeholder", (value) => value === "Raum, Anbieter, Stadt, Bewertung", "played search placeholder");
 
   await screenshot(cdp, path.join(qaDir, "desktop.png"));
 
@@ -161,6 +161,24 @@ try {
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
   `);
   await assertEval(cdp, "document.querySelectorAll('.room-card').length", (value) => value === 1, "played search filter");
+  await evalPage(cdp, `
+    document.querySelector('#played-search').value = '6,5';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+    window.__qaPlayedCommaRatingCount = document.querySelectorAll('.room-card').length;
+    document.querySelector('#played-search').value = '6.5';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+    window.__qaPlayedDotRatingCount = document.querySelectorAll('.room-card').length;
+  `);
+  await assertEval(cdp, "window.__qaPlayedCommaRatingCount > 0 && window.__qaPlayedCommaRatingCount === window.__qaPlayedDotRatingCount", Boolean, "played search finds decimal ratings with comma or dot");
+  await evalPage(cdp, `
+    document.querySelector('#played-search').value = 'Sebi 6,5';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+    window.__qaPlayedMemberRatingForward = Array.from(document.querySelectorAll('.room-card')).map((card) => card.querySelector('h2')?.textContent).join('|');
+    document.querySelector('#played-search').value = '6.5 Sebi';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+    window.__qaPlayedMemberRatingReverse = Array.from(document.querySelectorAll('.room-card')).map((card) => card.querySelector('h2')?.textContent).join('|');
+  `);
+  await assertEval(cdp, "window.__qaPlayedMemberRatingForward.includes('Secret Subway') && window.__qaPlayedMemberRatingForward === window.__qaPlayedMemberRatingReverse", Boolean, "played search finds member-specific rating");
   await evalPage(cdp, `
     document.querySelector('#played-search').value = '';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));

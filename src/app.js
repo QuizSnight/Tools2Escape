@@ -1377,7 +1377,26 @@
       room.city,
       room.notes,
       room.tags.join(" "),
+      playedRatingSearchTerms(room).join(" "),
     ].join(" ")).includes(query);
+  }
+
+  function playedRatingSearchTerms(room) {
+    const terms = [];
+    const addScore = (label, value) => {
+      const score = numberOrNull(value);
+      if (score === null) return;
+      const dot = formatScore(score);
+      const comma = dot.replace(".", ",");
+      terms.push(dot, comma, `${label} ${dot}`, `${label} ${comma}`, `${dot} ${label}`, `${comma} ${label}`);
+    };
+
+    addScore("Team", averageFor(room, data.members));
+    addScore("Ø", averageFor(room, data.members));
+    addScore("Durchschnitt", averageFor(room, data.members));
+    addScore("Import", room.importedAverage);
+    alphabeticalMembers().forEach((member) => addScore(member, room.ratings[member]));
+    return terms;
   }
 
   function matchesRegion(room) {
@@ -1865,7 +1884,7 @@
       <section class="toolbar">
         <label class="search-box">
           <span>Suche</span>
-          <input type="search" id="played-search" value="${escapeHtml(ui.search)}" placeholder="Raum, Anbieter, Stadt">
+          <input type="search" id="played-search" value="${escapeHtml(ui.search)}" placeholder="Raum, Anbieter, Stadt, Bewertung">
         </label>
         <label>
           <span>Gebiet</span>

@@ -165,20 +165,37 @@ try {
     document.querySelector('#played-search').value = '6,5';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
     window.__qaPlayedCommaRatingCount = document.querySelectorAll('.room-card').length;
+    window.__qaPlayedCommaRatingAllAverages = Array.from(document.querySelectorAll('.room-card .score-badge')).every((badge) => badge.textContent.trim() === '6.5');
     document.querySelector('#played-search').value = '6.5';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
     window.__qaPlayedDotRatingCount = document.querySelectorAll('.room-card').length;
+    window.__qaPlayedDotRatingAllAverages = Array.from(document.querySelectorAll('.room-card .score-badge')).every((badge) => badge.textContent.trim() === '6.5');
   `);
-  await assertEval(cdp, "window.__qaPlayedCommaRatingCount > 0 && window.__qaPlayedCommaRatingCount === window.__qaPlayedDotRatingCount", Boolean, "played search finds decimal ratings with comma or dot");
+  await assertEval(cdp, "window.__qaPlayedCommaRatingCount > 0 && window.__qaPlayedCommaRatingCount === window.__qaPlayedDotRatingCount && window.__qaPlayedCommaRatingAllAverages && window.__qaPlayedDotRatingAllAverages", Boolean, "played search finds decimal average ratings with comma or dot");
   await evalPage(cdp, `
     document.querySelector('#played-search').value = 'Sebi 6,5';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
     window.__qaPlayedMemberRatingForward = Array.from(document.querySelectorAll('.room-card')).map((card) => card.querySelector('h2')?.textContent).join('|');
+    window.__qaPlayedMemberRatingForwardPills = Array.from(document.querySelectorAll('.room-card')).every((card) => Array.from(card.querySelectorAll('.rating-pill')).some((pill) => pill.textContent.trim() === 'Sebi 6.5'));
     document.querySelector('#played-search').value = '6.5 Sebi';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
     window.__qaPlayedMemberRatingReverse = Array.from(document.querySelectorAll('.room-card')).map((card) => card.querySelector('h2')?.textContent).join('|');
   `);
-  await assertEval(cdp, "window.__qaPlayedMemberRatingForward.includes('Secret Subway') && window.__qaPlayedMemberRatingForward === window.__qaPlayedMemberRatingReverse", Boolean, "played search finds member-specific rating");
+  await assertEval(cdp, "window.__qaPlayedMemberRatingForward.includes('Secret Subway') && window.__qaPlayedMemberRatingForward === window.__qaPlayedMemberRatingReverse && window.__qaPlayedMemberRatingForwardPills", Boolean, "played search finds member-specific rating");
+  await evalPage(cdp, `
+    document.querySelector('#played-search').value = '6,5';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('[data-member-filter="Sebi"]').click();
+    window.__qaPlayedSelectedMemberRating = Array.from(document.querySelectorAll('.room-card')).map((card) => card.querySelector('h2')?.textContent).sort().join('|');
+    window.__qaPlayedSelectedMemberRatingPills = Array.from(document.querySelectorAll('.room-card')).every((card) => Array.from(card.querySelectorAll('.rating-pill')).some((pill) => pill.textContent.trim() === 'Sebi 6.5'));
+    document.querySelector('[data-member-filter="team"]').click();
+  `);
+  await assertEval(cdp, "window.__qaPlayedSelectedMemberRating === window.__qaPlayedMemberRatingForward.split('|').sort().join('|') && window.__qaPlayedSelectedMemberRatingPills", Boolean, "played search uses selected member filter for bare rating query");
+  await evalPage(cdp, `
+    document.querySelector('#played-search').value = 'Cosmos 05';
+    document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));
+  `);
+  await assertEval(cdp, "Array.from(document.querySelectorAll('.room-card h2')).map((node) => node.textContent).join('|') === 'Cosmos 05'", Boolean, "played text search with integer keeps normal number search");
   await evalPage(cdp, `
     document.querySelector('#played-search').value = '';
     document.querySelector('#played-search').dispatchEvent(new Event('input', { bubbles: true }));

@@ -1371,32 +1371,60 @@
   function matchesSearch(room) {
     const query = normalize(ui.search);
     if (!query) return true;
+    const ratingQuery = playedRatingQuery(ui.search);
+    if (ratingQuery) {
+      const textMatches = !ratingQuery.textQuery || playedTextSearchIndex(room).includes(ratingQuery.textQuery);
+      if (!textMatches) return false;
+      if (ratingQuery.members.length) {
+        return ratingQuery.members.some((member) => scoreMatchesSearch(room.ratings[member], ratingQuery.score));
+      }
+      return scoreMatchesSearch(averageFor(room, data.members), ratingQuery.score);
+    }
+    return playedTextSearchIndex(room).includes(query);
+  }
+
+  function playedTextSearchIndex(room) {
     return normalize([
       room.title,
       room.provider,
       room.city,
       room.notes,
       room.tags.join(" "),
-      playedRatingSearchTerms(room).join(" "),
-    ].join(" ")).includes(query);
+    ].join(" "));
   }
 
-  function playedRatingSearchTerms(room) {
-    const terms = [];
-    const addScore = (label, value) => {
-      const score = numberOrNull(value);
-      if (score === null) return;
-      const dot = formatScore(score);
-      const comma = dot.replace(".", ",");
-      terms.push(dot, comma, `${label} ${dot}`, `${label} ${comma}`, `${dot} ${label}`, `${comma} ${label}`);
-    };
+  function playedRatingQuery(value) {
+    const raw = clean(value);
+    const match = raw.match(/(^|[^\d])(\d{1,2}(?:[,.]\d{1,2})?)(?=$|[^\d])/);
+    if (!match) return null;
+    const score = numberOrNull(match[2]);
+    if (score === null || score < 0 || score > 10) return null;
 
-    addScore("Team", averageFor(room, data.members));
-    addScore("Ø", averageFor(room, data.members));
-    addScore("Durchschnitt", averageFor(room, data.members));
-    addScore("Import", room.importedAverage);
-    alphabeticalMembers().forEach((member) => addScore(member, room.ratings[member]));
-    return terms;
+    const tokenStart = match.index + match[1].length;
+    const tokenEnd = tokenStart + match[2].length;
+    let text = clean(`${raw.slice(0, tokenStart)} ${raw.slice(tokenEnd)}`);
+    const mentionedMembers = data.members.filter((member) =>
+      new RegExp(`\\b${escapeRegExp(member)}\\b`, "i").test(text));
+    mentionedMembers.forEach((member) => {
+      text = clean(text.replace(new RegExp(`\\b${escapeRegExp(member)}\\b`, "ig"), " "));
+    });
+    text = clean(text.replace(/\b(?:team|durchschnitt|schnitt|avg|average|ø|oe)\b/ig, " "));
+
+    const hasDecimal = /[,.]/.test(match[2]);
+    const members = mentionedMembers.length ? mentionedMembers : [...ui.selectedMembers];
+    if (!hasDecimal && text && !members.length) return null;
+
+    return {
+      score,
+      members,
+      textQuery: normalize(text),
+    };
+  }
+
+  function scoreMatchesSearch(value, queryScore) {
+    const score = numberOrNull(value);
+    if (score === null) return false;
+    return normalize(formatScore(score)) === normalize(formatScore(queryScore));
   }
 
   function matchesRegion(room) {

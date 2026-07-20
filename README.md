@@ -111,6 +111,19 @@ Die Tabellen werden automatisch nach denselben Regionen wie in der App aufgeteil
 
 Neue Orte werden automatisch geocodiert. Dadurch können App und Google-Sheets-Sync auch Städte zuordnen, die noch nicht in den bisherigen Stadtlisten stehen; für Deutschland wird zusätzlich NRW bzw. Hamburg (HH) erkannt, wenn der Geocoder das Bundesland liefert.
 
+### Apps-Script per clasp aktualisieren
+
+Das Repo ist über `.clasp.json` mit dem bestehenden Apps-Script-Projekt verbunden. Wenn `integrations/google-sheets-sync.gs` geändert wurde, kann der Google-Sheets-Sync ohne manuelles Kopieren aktualisiert werden:
+
+```powershell
+clasp login
+.\scripts\deploy-google-sheets-sync.ps1
+```
+
+`clasp login` ist nur einmal pro Rechner nötig. Falls Google beim Deploy meldet, dass die Apps Script API nicht aktiviert ist, öffne `https://script.google.com/home/usersettings`, aktiviere die API und führe den Deploy-Befehl danach erneut aus.
+
+Das Deploy-Skript führt anschließend `clasp push` aus und redeployt die bestehende Web-App-URL.
+
 ## Datengrundlage
 
 - `src/seed-data.js` enthält den Import aus `Ksch Spiele.xlsx`.

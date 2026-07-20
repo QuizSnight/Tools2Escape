@@ -514,6 +514,8 @@
     lastSyncedAt: "",
     channel: null,
     basePayload: null,
+    retryTimer: null,
+    retryDelayMs: 2000,
   };
 
   let saveQueued = false;
@@ -888,6 +890,78 @@
     }).filter(Boolean);
   }
 
+  function mergeRatings(baseRatings = {}, remoteRatings = {}, localRatings = {}) {
+    const members = unique([
+      ...data.members,
+      ...Object.keys(baseRatings || {}),
+      ...Object.keys(remoteRatings || {}),
+      ...Object.keys(localRatings || {}),
+    ]);
+
+    return Object.fromEntries(members.map((member) => {
+      const baseValue = numberOrNull(baseRatings?.[member]);
+      const remoteValue = numberOrNull(remoteRatings?.[member]);
+      const localValue = numberOrNull(localRatings?.[member]);
+      const remoteChanged = valueChangedFromBase(remoteValue, baseValue);
+      const localChanged = valueChangedFromBase(localValue, baseValue);
+
+      if (localChanged && !remoteChanged) return [member, localValue];
+      if (!localChanged && remoteChanged) return [member, remoteValue];
+      if (localChanged && remoteChanged && valueChangedFromBase(localValue, remoteValue)) return [member, localValue];
+      return [member, remoteValue];
+    }));
+  }
+
+  function memberMarkedPlayed(room, member) {
+    return typeof numberOrNull(room?.ratings?.[member]) === "number" || (room?.playedBy || []).includes(member);
+  }
+
+  function mergePlayedBy(baseRoom = {}, remoteRoom = {}, localRoom = {}, ratings = {}) {
+    return unique([
+      ...data.members,
+      ...(baseRoom.playedBy || []),
+      ...(remoteRoom.playedBy || []),
+      ...(localRoom.playedBy || []),
+    ]).filter((member) => {
+      if (typeof ratings[member] === "number") return true;
+      const baseValue = memberMarkedPlayed(baseRoom, member);
+      const remoteValue = memberMarkedPlayed(remoteRoom, member);
+      const localValue = memberMarkedPlayed(localRoom, member);
+      const remoteChanged = remoteValue !== baseValue;
+      const localChanged = localValue !== baseValue;
+
+      if (localChanged && !remoteChanged) return localValue;
+      if (!localChanged && remoteChanged) return remoteValue;
+      if (localChanged && remoteChanged && localValue !== remoteValue) return localValue;
+      return remoteValue;
+    });
+  }
+
+  function mergePlayedRoom(baseRoom = {}, remoteRoom = {}, localRoom = {}) {
+    const room = mergeRecord(baseRoom, remoteRoom, localRoom, ["ratings", "playedBy", "tags", "sourceSheets", "regions"]);
+    room.ratings = mergeRatings(baseRoom.ratings, remoteRoom.ratings, localRoom.ratings);
+    room.playedBy = mergePlayedBy(baseRoom, remoteRoom, localRoom, room.ratings);
+    room.tags = unique([...(remoteRoom.tags || []), ...(localRoom.tags || [])].map(clean));
+    room.sourceSheets = unique([...(remoteRoom.sourceSheets || []), ...(localRoom.sourceSheets || [])].map(clean));
+    room.regions = unique([...(remoteRoom.regions || []), ...(localRoom.regions || [])].map(clean));
+    const ratingValues = Object.values(room.ratings).filter((value) => typeof value === "number");
+    room.average = ratingValues.length
+      ? Number((ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length).toFixed(2))
+      : null;
+    return room;
+  }
+
+  function tripPlanMergeKey(item) {
+    if (item?.sourceType && item?.sourceId) return `source:${normalize(item.sourceType)}:${normalize(item.sourceId)}`;
+    if (item?.tripItemId) return `trip-item:${normalize(item.tripItemId)}`;
+    return sharedItemKey(item, "trip-plan", ["title", "provider", "city", "country"]);
+  }
+
+  function tripExpenseMergeKey(expense) {
+    if (expense?.sourceType && expense?.sourceId) return `source:${normalize(expense.sourceType)}:${normalize(expense.sourceId)}`;
+    return sharedItemKey(expense, "trip-expense", ["title", "amount", "payer", "date"]);
+  }
+
   function mergeTrip(baseTrip = {}, remoteTrip = {}, localTrip = {}) {
     const trip = mergeRecord(baseTrip, remoteTrip, localTrip, ["items", "planItems", "expenses"]);
     trip.items = mergeCollection(
@@ -901,14 +975,14 @@
       baseTrip.planItems || [],
       remoteTrip.planItems || [],
       localTrip.planItems || [],
-      (item) => sharedItemKey(item, "trip-plan", ["title", "provider", "sourceId"]),
+      tripPlanMergeKey,
       mergeRecord,
     );
     trip.expenses = mergeCollection(
       baseTrip.expenses || [],
       remoteTrip.expenses || [],
       localTrip.expenses || [],
-      (expense) => sharedItemKey(expense, "trip-expense", ["title", "amount", "payer", "date"]),
+      tripExpenseMergeKey,
       mergeRecord,
     );
     return trip;
@@ -934,7 +1008,7 @@
       "planningLinks",
     ]);
 
-    merged.played = mergeCollection(baseData.played, remoteData.played, localData.played, playedMergeKey, mergeRecord);
+    merged.played = mergeCollection(baseData.played, remoteData.played, localData.played, playedMergeKey, mergePlayedRoom);
     merged.wishList = mergeCollection(baseData.wishList, remoteData.wishList, localData.wishList, wishMergeKey, mergeRecord);
     merged.trips = mergeCollection(
       baseData.trips,
@@ -1105,6 +1179,29 @@
     void flushCloudSave();
   }
 
+  function resetCloudRetry() {
+    if (cloud.retryTimer) {
+      window.clearTimeout(cloud.retryTimer);
+      cloud.retryTimer = null;
+    }
+    cloud.retryDelayMs = 2000;
+  }
+
+  function scheduleCloudRetry(error) {
+    if (!cloud.enabled || !cloud.client || !localDirty || saveQueued || cloud.retryTimer || !retryableCloudError(error)) return;
+    const delay = cloud.retryDelayMs;
+    cloud.retryDelayMs = Math.min(delay * 2, 30000);
+    cloud.retryTimer = window.setTimeout(() => {
+      cloud.retryTimer = null;
+      if (localDirty) queueCloudSave();
+    }, delay);
+  }
+
+  function retryableCloudError(error) {
+    const message = error?.message || String(error);
+    return !/(team_not_found|row-level security|permission|JWT|JSON object requested|0 rows|Team-Datensatz fehlt|Kein Zugriff)/i.test(message);
+  }
+
   async function flushCloudSave() {
     if (cloud.saving) return;
 
@@ -1163,8 +1260,10 @@
       cloud.basePayload = clone(data);
       localDirty = false;
       cloud.lastSyncedAt = savedRow.updated_at || new Date().toISOString();
+      resetCloudRetry();
     } catch (error) {
       cloud.error = readableCloudError(error);
+      scheduleCloudRetry(error);
     } finally {
       cloud.saving = false;
       render();
@@ -1364,7 +1463,7 @@
   }
 
   function memberPlayedRoom(room, member) {
-    return (room.playedBy || []).includes(member) || typeof room.ratings[member] === "number";
+    return (room?.playedBy || []).includes(member) || typeof room?.ratings?.[member] === "number";
   }
 
   function playedCountsByMember(rooms = data.played) {
@@ -5787,36 +5886,92 @@
     });
   }
 
+  function unchangedFormValue(submitted, originalValue) {
+    return !valueChangedFromBase(submitted, originalValue);
+  }
+
+  function roomTextFromForm(form, field, originalRoom, existingRoom) {
+    const submitted = clean(form.get(field));
+    const originalValue = clean(originalRoom?.[field]);
+    const existingValue = clean(existingRoom?.[field]);
+    if (existingRoom && unchangedFormValue(submitted, originalValue) && valueChangedFromBase(existingValue, originalValue)) {
+      return existingValue;
+    }
+    return submitted;
+  }
+
+  function roomNumberFromForm(form, field, originalRoom, existingRoom) {
+    const submitted = numberOrNull(form.get(field));
+    const originalValue = numberOrNull(originalRoom?.[field]);
+    const existingValue = numberOrNull(existingRoom?.[field]);
+    if (existingRoom && unchangedFormValue(submitted, originalValue) && valueChangedFromBase(existingValue, originalValue)) {
+      return existingValue;
+    }
+    return submitted;
+  }
+
+  function roomTagsFromForm(form, originalRoom, existingRoom) {
+    const submitted = splitTags(form.get("tags"));
+    const originalValue = Array.isArray(originalRoom?.tags) ? originalRoom.tags.map(clean).filter(Boolean) : splitTags(originalRoom?.tags);
+    const existingValue = Array.isArray(existingRoom?.tags) ? existingRoom.tags.map(clean).filter(Boolean) : splitTags(existingRoom?.tags);
+    if (existingRoom && unchangedFormValue(submitted, originalValue) && valueChangedFromBase(existingValue, originalValue)) {
+      return existingValue;
+    }
+    return submitted;
+  }
+
+  function roomRatingFromForm(form, member, originalRoom, existingRoom) {
+    const submitted = ratingFromForm(form, member);
+    const originalValue = numberOrNull(originalRoom?.ratings?.[member]);
+    const existingValue = numberOrNull(existingRoom?.ratings?.[member]);
+    if (existingRoom && unchangedFormValue(submitted, originalValue) && valueChangedFromBase(existingValue, originalValue)) {
+      return existingValue;
+    }
+    return submitted;
+  }
+
+  function roomPlayedMemberFromForm(form, member, rating, originalRoom, existingRoom) {
+    if (typeof rating === "number") return true;
+    const submitted = form.get(`unrated-${member}`) === "on";
+    const originalValue = memberPlayedRoom(originalRoom || { ratings: {}, playedBy: [] }, member);
+    const existingValue = memberPlayedRoom(existingRoom || { ratings: {}, playedBy: [] }, member);
+    if (existingRoom && submitted === originalValue && existingValue !== originalValue) return existingValue;
+    return submitted;
+  }
+
   function saveRoomFromForm(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const id = clean(form.get("id")) || makeId("room");
+    const existing = data.played.find((room) => room.id === id);
+    const originalRoom = ui.modal?.type === "room" && ui.modal.room?.id === id
+      ? ui.modal.room
+      : existing || {};
     const ratings = Object.fromEntries(
-      data.members.map((member) => [member, ratingFromForm(form, member)]),
+      data.members.map((member) => [member, roomRatingFromForm(form, member, originalRoom, existing)]),
     );
     const playedBy = data.members.filter((member) => (
-      typeof ratings[member] === "number" || form.get(`unrated-${member}`) === "on"
+      roomPlayedMemberFromForm(form, member, ratings[member], originalRoom, existing)
     ));
     const values = Object.values(ratings).filter((value) => typeof value === "number");
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-    const existing = data.played.find((room) => room.id === id);
     const countsBeforeSave = playedCountsByMember();
-    const city = clean(form.get("city"));
+    const city = roomTextFromForm(form, "city", originalRoom, existing);
     const room = {
       ...(existing || {}),
       id,
-      title: clean(form.get("title")),
-      provider: clean(form.get("provider")),
+      title: roomTextFromForm(form, "title", originalRoom, existing),
+      provider: roomTextFromForm(form, "provider", originalRoom, existing),
       city,
-      date: clean(form.get("date")),
-      difficulty: numberOrNull(form.get("difficulty")),
-      scare: numberOrNull(form.get("scare")),
+      date: roomTextFromForm(form, "date", originalRoom, existing),
+      difficulty: roomNumberFromForm(form, "difficulty", originalRoom, existing),
+      scare: roomNumberFromForm(form, "scare", originalRoom, existing),
       ratings,
       playedBy,
       average: average === null ? null : Number(average.toFixed(2)),
       importedAverage: existing?.importedAverage ?? null,
-      notes: clean(form.get("notes")),
-      tags: splitTags(form.get("tags")),
+      notes: roomTextFromForm(form, "notes", originalRoom, existing),
+      tags: roomTagsFromForm(form, originalRoom, existing),
       sourceSheets: existing?.sourceSheets || ["App"],
       regions: detectedRegionNamesForCity(city),
     };

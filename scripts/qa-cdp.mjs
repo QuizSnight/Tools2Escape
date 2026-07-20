@@ -1163,7 +1163,10 @@ try {
   await waitForApp(cdp);
   await evalPage(cdp, `
     (() => {
-      document.querySelector('[data-open-room]').click();
+      document.querySelector('[data-view="played"]')?.click();
+      const openButton = document.querySelector('[data-open-room]');
+      if (!openButton) throw new Error('Raum-eintragen button missing in played view');
+      openButton.click();
       const form = document.querySelector('#room-form');
       form.querySelector('[name="title"]').value = 'QA Jubiläum';
       form.querySelector('[name="provider"]').value = 'QA';
@@ -1179,7 +1182,7 @@ try {
     Boolean,
     "room milestone celebration appears",
   );
-  await evalPage(cdp, "document.querySelector('[data-close-celebration]').click()");
+  await evalPage(cdp, "document.querySelector('[data-close-celebration]')?.click()");
 
   await cdp.close();
 } finally {

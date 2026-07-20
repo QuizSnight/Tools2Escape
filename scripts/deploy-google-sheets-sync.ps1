@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $deploymentId = $env:T2E_GOOGLE_SCRIPT_DEPLOYMENT_ID
 if (-not $deploymentId) {
-  $deploymentId = "AKfycbw-Rle9iDQqPiCmy-IShSG8zGcAszW2GqVBsj3VSA4"
+  $deploymentId = "AKfycbzpJLJv2SjzXJcPHpircVRHXQJcFk4n3V9uterXn3Cc92XQ1x7qGjazdypFLyEIFhmw"
 }
 
 Write-Host "Pushing Google Sheets sync code to Apps Script..."

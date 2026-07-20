@@ -6,6 +6,7 @@
   const SHARE_DB_VERSION = 1;
   const SHARE_STORE_NAME = "shares";
   const SHARE_PENDING_KEY = "pending";
+  const MAX_CLOUD_SAVE_RETRIES = 3;
   const config = window.T2E_CONFIG || {};
   const planningData = window.T2E_PLANNING_DATA || {
     updatedAt: "",
@@ -512,9 +513,11 @@
     error: "",
     lastSyncedAt: "",
     channel: null,
+    basePayload: null,
   };
 
   let saveQueued = false;
+  let localDirty = false;
   let sheetsSyncTimer = null;
   let applyingRemoteData = false;
   let ocrScriptPromise = null;
@@ -813,6 +816,168 @@
     };
   }
 
+  function sharedItemKey(item, prefix, fields = []) {
+    const id = clean(item?.id);
+    if (id) return id;
+    return `${prefix}:${fields.map((field) => normalize(item?.[field])).join("|")}`;
+  }
+
+  function playedMergeKey(room) {
+    return sharedItemKey(room, "room", ["title", "provider", "city"]);
+  }
+
+  function wishMergeKey(entry) {
+    return sharedItemKey(entry, "wish", ["title", "provider", "city"]);
+  }
+
+  function otherMergeKey(entry) {
+    return sharedItemKey(entry, "other", ["title", "provider", "city"]);
+  }
+
+  function valueChangedFromBase(value, baseValue) {
+    return JSON.stringify(value ?? null) !== JSON.stringify(baseValue ?? null);
+  }
+
+  function mergeRecord(base = {}, remote = {}, local = {}, exclude = []) {
+    const excluded = new Set(exclude);
+    const result = { ...(remote || {}) };
+    const keys = new Set([
+      ...Object.keys(base || {}),
+      ...Object.keys(remote || {}),
+      ...Object.keys(local || {}),
+    ]);
+
+    keys.forEach((key) => {
+      if (excluded.has(key)) return;
+      const baseValue = base ? base[key] : undefined;
+      const remoteValue = remote ? remote[key] : undefined;
+      const localValue = local ? local[key] : undefined;
+      const remoteChanged = valueChangedFromBase(remoteValue, baseValue);
+      const localChanged = valueChangedFromBase(localValue, baseValue);
+
+      if (localValue === undefined && remoteValue !== undefined) result[key] = remoteValue;
+      else if (remoteValue === undefined && localValue !== undefined) result[key] = localValue;
+      else if (localChanged && !remoteChanged) result[key] = localValue;
+      else if (!localChanged && remoteChanged) result[key] = remoteValue;
+      else if (localChanged && remoteChanged && valueChangedFromBase(localValue, remoteValue)) result[key] = localValue;
+      else result[key] = remoteValue;
+    });
+
+    return result;
+  }
+
+  function mergeCollection(baseItems = [], remoteItems = [], localItems = [], keyFn, mergeItem = mergeRecord) {
+    const baseMap = new Map((baseItems || []).map((item) => [keyFn(item), item]).filter(([key]) => key));
+    const remoteMap = new Map((remoteItems || []).map((item) => [keyFn(item), item]).filter(([key]) => key));
+    const localMap = new Map((localItems || []).map((item) => [keyFn(item), item]).filter(([key]) => key));
+    const keys = unique([
+      ...baseMap.keys(),
+      ...remoteMap.keys(),
+      ...localMap.keys(),
+    ]);
+
+    return keys.map((key) => {
+      const baseItem = baseMap.get(key);
+      const remoteItem = remoteMap.get(key);
+      const localItem = localMap.get(key);
+
+      if (baseItem && !localItem && remoteItem && !valueChangedFromBase(remoteItem, baseItem)) return null;
+      if (baseItem && !remoteItem && localItem && !valueChangedFromBase(localItem, baseItem)) return null;
+      if (remoteItem && localItem) return mergeItem(baseItem || {}, remoteItem, localItem);
+      return clone(localItem || remoteItem);
+    }).filter(Boolean);
+  }
+
+  function mergeTrip(baseTrip = {}, remoteTrip = {}, localTrip = {}) {
+    const trip = mergeRecord(baseTrip, remoteTrip, localTrip, ["items", "planItems", "expenses"]);
+    trip.items = mergeCollection(
+      baseTrip.items || [],
+      remoteTrip.items || [],
+      localTrip.items || [],
+      (item) => sharedItemKey(item, "trip-item", ["type", "title", "date", "time"]),
+      mergeRecord,
+    );
+    trip.planItems = mergeCollection(
+      baseTrip.planItems || [],
+      remoteTrip.planItems || [],
+      localTrip.planItems || [],
+      (item) => sharedItemKey(item, "trip-plan", ["title", "provider", "sourceId"]),
+      mergeRecord,
+    );
+    trip.expenses = mergeCollection(
+      baseTrip.expenses || [],
+      remoteTrip.expenses || [],
+      localTrip.expenses || [],
+      (expense) => sharedItemKey(expense, "trip-expense", ["title", "amount", "payer", "date"]),
+      mergeRecord,
+    );
+    return trip;
+  }
+
+  function mergePlanningLinks(remoteLinks = {}, localLinks = {}) {
+    return {
+      ...(remoteLinks && typeof remoteLinks === "object" ? remoteLinks : {}),
+      ...(localLinks && typeof localLinks === "object" ? localLinks : {}),
+    };
+  }
+
+  function mergeSharedData(basePayload, remotePayload, localPayload) {
+    const baseData = basePayload ? normalizeData(basePayload) : normalizeData({});
+    const remoteData = remotePayload ? normalizeData(remotePayload) : normalizeData({});
+    const localData = localPayload ? normalizeData(localPayload) : normalizeData({});
+    const merged = mergeRecord(baseData, remoteData, localData, [
+      "played",
+      "wishList",
+      "trips",
+      "other",
+      "regionPresets",
+      "planningLinks",
+    ]);
+
+    merged.played = mergeCollection(baseData.played, remoteData.played, localData.played, playedMergeKey, mergeRecord);
+    merged.wishList = mergeCollection(baseData.wishList, remoteData.wishList, localData.wishList, wishMergeKey, mergeRecord);
+    merged.trips = mergeCollection(
+      baseData.trips,
+      remoteData.trips,
+      localData.trips,
+      (trip) => sharedItemKey(trip, "trip", ["name", "startDate", "endDate"]),
+      mergeTrip,
+    );
+    merged.other = mergeCollection(baseData.other, remoteData.other, localData.other, otherMergeKey, mergeRecord);
+    merged.regionPresets = mergeCollection(
+      baseData.regionPresets,
+      remoteData.regionPresets,
+      localData.regionPresets,
+      (region) => sharedItemKey(region, "region", ["key", "name", "label"]),
+      mergeRecord,
+    );
+    merged.planningLinks = mergePlanningLinks(remoteData.planningLinks, localData.planningLinks);
+    merged.updatedAt = new Date().toISOString();
+    return normalizeData(merged);
+  }
+
+  function applyCloudPayload(payload, updatedAt = "") {
+    const remote = normalizeData(payload);
+    const hasLocalChanges = localDirty || saveQueued || cloud.saving;
+
+    applyingRemoteData = true;
+    if (hasLocalChanges) {
+      data = mergeSharedData(cloud.basePayload, remote, data);
+      cloud.basePayload = clone(remote);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      applyingRemoteData = false;
+      cloud.lastSyncedAt = updatedAt || cloud.lastSyncedAt;
+      queueCloudSave();
+      return;
+    }
+
+    data = remote;
+    cloud.basePayload = clone(remote);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    applyingRemoteData = false;
+    cloud.lastSyncedAt = updatedAt || cloud.lastSyncedAt;
+  }
+
   function normalizeRatings(ratings, members) {
     const source = ratings && typeof ratings === "object" ? ratings : {};
     return Object.fromEntries(members.map((member) => [member, numberOrNull(source[member])]));
@@ -835,6 +1000,7 @@
     data.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     if (!applyingRemoteData) {
+      localDirty = true;
       queueCloudSave();
       queueGoogleSheetsSync();
     }
@@ -889,12 +1055,9 @@
       if (error) throw error;
 
       if (row?.payload && Array.isArray(row.payload.played)) {
-        applyingRemoteData = true;
-        data = normalizeData(row.payload);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        applyingRemoteData = false;
-        cloud.lastSyncedAt = row.updated_at || "";
+        applyCloudPayload(row.payload, row.updated_at || "");
       } else {
+        localDirty = true;
         await saveCloudState();
       }
     } catch (error) {
@@ -921,10 +1084,7 @@
         },
         (payload) => {
           if (!payload.new?.payload || !Array.isArray(payload.new.payload.played)) return;
-          applyingRemoteData = true;
-          data = normalizeData(payload.new.payload);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-          applyingRemoteData = false;
+          applyCloudPayload(payload.new.payload, payload.new.updated_at || "");
           cloud.lastSyncedAt = payload.new.updated_at || "";
           cloud.error = "";
           render();
@@ -961,17 +1121,48 @@
     cloud.error = "";
     render();
 
-    const payload = clone(data);
     try {
-      const { data: row, error } = await cloud.client
-        .from("team_state")
-        .update({ payload })
-        .eq("id", config.teamId)
-        .select("updated_at")
-        .single();
+      let savedRow = null;
+      for (let attempt = 0; attempt < MAX_CLOUD_SAVE_RETRIES; attempt += 1) {
+        const { data: currentRow, error: fetchError } = await cloud.client
+          .from("team_state")
+          .select("payload,updated_at")
+          .eq("id", config.teamId)
+          .single();
 
-      if (error) throw error;
-      cloud.lastSyncedAt = row?.updated_at || new Date().toISOString();
+        if (fetchError) throw fetchError;
+        const remotePayload = currentRow?.payload && Array.isArray(currentRow.payload.played)
+          ? currentRow.payload
+          : {};
+        const payload = mergeSharedData(cloud.basePayload, remotePayload, data);
+
+        const { data: row, error } = await cloud.client
+          .from("team_state")
+          .update({ payload })
+          .eq("id", config.teamId)
+          .eq("updated_at", currentRow.updated_at)
+          .select("payload,updated_at")
+          .maybeSingle();
+
+        if (error) throw error;
+        if (row) {
+          savedRow = row;
+          break;
+        }
+      }
+
+      if (!savedRow) {
+        saveQueued = true;
+        throw new Error("Der Datenstand wurde parallel geändert. Ich versuche den Sync gleich erneut.");
+      }
+
+      applyingRemoteData = true;
+      data = normalizeData(savedRow.payload);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      applyingRemoteData = false;
+      cloud.basePayload = clone(data);
+      localDirty = false;
+      cloud.lastSyncedAt = savedRow.updated_at || new Date().toISOString();
     } catch (error) {
       cloud.error = readableCloudError(error);
     } finally {
@@ -2587,15 +2778,15 @@
   }
 
   function renderTripPlanCards(trip, candidates, analysis) {
-    return candidates.map((item, index) => {
-      const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
+    return candidates.map((item) => {
+      const leg = analysis.legsByTargetId.get(item.id) || null;
       return `${leg ? renderTripTravelRow(leg) : ""}${renderTripPlanCard(trip, item, analysis)}`;
     }).join("");
   }
 
   function renderTripFinalCards(trip, candidates, analysis) {
-    return candidates.map((item, index) => {
-      const leg = index > 0 ? analysis.legsByTargetId.get(item.id) : null;
+    return candidates.map((item) => {
+      const leg = analysis.legsByTargetId.get(item.id) || null;
       return `${leg ? renderTripTravelRow(leg) : ""}${renderTripFinalCard(trip, item, analysis)}`;
     }).join("");
   }
@@ -3152,6 +3343,7 @@
     const warningsById = new Map();
     const legsByTargetId = new Map();
     const routeLegs = [];
+    const dayItemsByDate = new Map();
     const datedItems = [
       ...tripPlanStartWaypoints(trip),
       ...(trip.planItems || []),
@@ -3200,9 +3392,41 @@
           );
         }
       }
+      dayItemsByDate.set(date, dayItems);
     });
 
+    addCrossDayTripPlanLegs(trip, dayItemsByDate, legsByTargetId, routeLegs);
+
     return { warningsById, legsByTargetId, routeLegs };
+  }
+
+  function addCrossDayTripPlanLegs(trip, dayItemsByDate, legsByTargetId, routeLegs) {
+    const dates = tripDateValues(trip);
+    for (let index = 1; index < dates.length; index += 1) {
+      const previousDate = dates[index - 1];
+      const currentDate = dates[index];
+      if (tripAccommodationEndForDate(trip, previousDate) || tripAccommodationStartForDate(trip, currentDate)) continue;
+
+      const previous = lastRoutablePlanItem(dayItemsByDate.get(previousDate) || []);
+      const current = firstRoutablePlanItem(dayItemsByDate.get(currentDate) || []);
+      const leg = previous && current ? tripPlanLeg(previous, current) : null;
+      if (!leg) continue;
+
+      routeLegs.push(leg);
+      if (!legsByTargetId.has(current.id)) legsByTargetId.set(current.id, leg);
+    }
+  }
+
+  function routableTripPlanItem(item) {
+    return item && item.type !== "start" && item.type !== "accommodation" && tripPlanItemCoords(item);
+  }
+
+  function firstRoutablePlanItem(items) {
+    return items.find(routableTripPlanItem) || null;
+  }
+
+  function lastRoutablePlanItem(items) {
+    return [...items].reverse().find(routableTripPlanItem) || null;
   }
 
   function tripPlanStartWaypoints(trip) {
@@ -5941,10 +6165,10 @@
         type: tripItem?.type || "escape",
         title: tripItem?.title || item.title,
         provider: tripItem?.provider || item.provider,
-        date: tripItem?.date || item.date,
-        time: tripItem?.time || item.time,
-        duration: tripItem?.duration || item.duration,
-        address: tripItem?.address || item.address || [item.city, item.country].filter(Boolean).join(", "),
+        date: Object.prototype.hasOwnProperty.call(item, "date") ? item.date : tripItem?.date,
+        time: Object.prototype.hasOwnProperty.call(item, "time") ? item.time : tripItem?.time,
+        duration: Object.prototype.hasOwnProperty.call(item, "duration") ? item.duration : tripItem?.duration,
+        address: item.address || tripItem?.address || [item.city, item.country].filter(Boolean).join(", "),
         link: tripItem?.link || item.link,
         notes: tripItem?.notes || item.notes,
         sourceName: tripItem?.sourceName || "Tripplanung",

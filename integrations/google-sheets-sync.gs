@@ -413,14 +413,45 @@ function fetchCurrentPayload_() {
 }
 
 function updateSupabase_(payload) {
+  const latestPayload = fetchCurrentPayload_();
+  const mergedPayload = mergeSheetPayloadWithLatest_(payload, latestPayload);
   const response = UrlFetchApp.fetch(`${SUPABASE_URL}/rest/v1/team_state?id=eq.${encodeURIComponent(TEAM_ID)}`, {
     method: "patch",
     headers: { ...supabaseHeaders_(), Prefer: "return=minimal" },
     contentType: "application/json",
-    payload: JSON.stringify({ payload }),
+    payload: JSON.stringify({ payload: mergedPayload }),
     muteHttpExceptions: true,
   });
   if (response.getResponseCode() >= 300) throw new Error(response.getContentText());
+}
+
+function mergeSheetPayloadWithLatest_(sheetPayload, latestPayload) {
+  const latest = latestPayload || {};
+  const sheet = sheetPayload || {};
+  return {
+    ...latest,
+    ...sheet,
+    played: mergeArrayByKey_(latest.played || [], sheet.played || [], roomKey_),
+    wishList: mergeArrayByKey_(latest.wishList || [], sheet.wishList || [], wishKey_),
+    other: mergeArrayByKey_(latest.other || [], sheet.other || [], otherKey_),
+    trips: latest.trips || sheet.trips || [],
+    planningLinks: latest.planningLinks || sheet.planningLinks || {},
+    regionPresets: latest.regionPresets || sheet.regionPresets || [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function mergeArrayByKey_(latestItems, sheetItems, keyFn) {
+  const merged = {};
+  (latestItems || []).forEach((item) => {
+    const key = keyFn(item);
+    if (key) merged[key] = item;
+  });
+  (sheetItems || []).forEach((item) => {
+    const key = keyFn(item);
+    if (key) merged[key] = item;
+  });
+  return Object.keys(merged).map((key) => merged[key]);
 }
 
 function supabaseHeaders_() {

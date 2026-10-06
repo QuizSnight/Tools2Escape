@@ -3801,7 +3801,7 @@
 
   function tripPlanItemCoords(item) {
     if (Array.isArray(item.coords) && item.coords.length === 2 && item.coords.every(Number.isFinite)) return item.coords;
-    return coordsForCity(tripPlanPlace(item));
+    return coordsForCity(tripPlanPlace(item)) || coordsForCity(item.city);
   }
 
   function tripPlanRouteKey(from, to) {
@@ -3926,6 +3926,7 @@
 
   function isAddressRegionTail(value) {
     return /^(?:qc|quebec|québec|on|ontario|bc|british columbia|ab|alberta)\b/i.test(clean(value))
+      || /^ile de france\b/.test(normalize(value))
       || /\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/i.test(clean(value));
   }
 
@@ -4200,13 +4201,14 @@
 
   function renderTripPlanMap() {
     const canvas = app.querySelector("#trip-plan-map");
-    if (!canvas) return;
-    const trip = data.trips.find((entry) => entry.id === canvas.dataset.tripPlanMap);
+    const tripId = canvas?.dataset.tripPlanMap || (ui.view === "trips" ? ui.activeTripId : "");
+    const trip = data.trips.find((entry) => entry.id === tripId);
     if (!trip) return;
     const groups = tripPlanGroups(trip);
     queueMissingGeocodes(groups);
     const analysis = tripPlanAnalysis(trip);
     queueTripPlanRoutes(analysis.routeLegs);
+    if (!canvas) return;
     const preservedView = tripPlanMapState.tripId === trip.id
       ? rememberTripPlanMapView(trip.id) || tripPlanMapState.viewByTripId.get(trip.id)
       : tripPlanMapState.viewByTripId.get(trip.id);
@@ -4338,7 +4340,7 @@
         distanceKm: Math.round((route.distance / 1000) * 10) / 10,
         geometry: route.geometry || null,
       });
-      if (ui.view === "trips") render();
+      if (ui.view === "trips") renderPreservingScroll();
     } catch (error) {
       console.warn("Route lookup failed", error);
       tripPlanMapState.routeCache.set(leg.key, {
@@ -4346,7 +4348,7 @@
         distanceKm: leg.distanceKm,
         geometry: null,
       });
-      if (ui.view === "trips") renderTripPlanMap();
+      if (ui.view === "trips") renderPreservingScroll();
     } finally {
       tripPlanMapState.pendingRoutes.delete(leg.key);
     }
@@ -4374,7 +4376,11 @@
   }
 
   function tripPlanPlace(item) {
-    if ((item.type === "start" || item.type === "accommodation") && clean(item.address)) return clean(item.address);
+    if ((item.type === "start" || item.type === "accommodation") && clean(item.address)) {
+      const parts = item.address.split(",").map(clean).filter(Boolean);
+      if (parts.length > 2 && isAddressRegionTail(parts[parts.length - 1])) parts.pop();
+      return parts.join(", ");
+    }
     return clean(item.city || extractCityFromAddress(item.address) || item.address || item.country);
   }
 
@@ -4409,7 +4415,7 @@
         saveGeocodeCache();
         updateRegionsForCity(key, regions);
         if (ui.view === "map") render();
-        if (ui.view === "trips") renderTripPlanMap();
+        if (ui.view === "trips") renderPreservingScroll();
       }
     } catch (error) {
       console.warn("Geocoding failed", city, error);

@@ -23,7 +23,7 @@ const trip = {
   id: "trip", startDate: "2026-10-09", endDate: "2026-10-13",
   items: [
     { id: "start", type: "start", title: "Startadresse", date: "2026-10-09", address: "Home", coords: [50.94, 6.96] },
-    { id: "stay", type: "accommodation", title: "Airbnb Paris", date: "2026-10-11", endDate: "2026-10-13", coords: [48.86, 2.43] },
+    { id: "stay", type: "accommodation", title: "Airbnb Paris", date: "2026-10-11", endDate: "2026-10-13", address: "25 Rue des Deux Communes, Montreuil", coords: [48.86, 2.43] },
     { id: "home", type: "start", title: "Lari", date: "2026-10-13", address: "Home", coords: [50.94, 6.96] },
   ], planItems: [], expenses: [],
 };
@@ -31,6 +31,7 @@ const snapshot = JSON.stringify(trip);
 assert.ok(api.tripPlanGroups(trip).some((group) => group.items.some((item) => item.id === "stay")), "Geocoding includes accommodation");
 assert.ok(api.tripPlanGroups(trip).some((group) => group.items.some((item) => item.id === "home")), "Geocoding includes return address");
 assert.equal(api.tripPlanPlace({ type: "accommodation", address: "25 Rue des Deux Communes, Montreuil", city: "Ile-de-France" }), "25 Rue des Deux Communes, Montreuil", "Look up street address instead of a broad region");
+assert.equal(api.tripPlanPlace({ type: "accommodation", address: "25 Rue des Deux Communes, Montreuil, \u00cele-de-France 93100", city: "Ile-de-France" }), "25 Rue des Deux Communes, Montreuil", "Broad regional suffix must not prevent street lookup");
 assert.equal(api.tripStartForDate(trip, trip.startDate).id, "start");
 assert.equal(api.tripStartForDate(trip, trip.endDate), null);
 const destination = api.tripPlanStartWaypoints(trip).find((item) => item.isDestination);

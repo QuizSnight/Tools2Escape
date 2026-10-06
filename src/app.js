@@ -2975,6 +2975,7 @@
             ? renderTripPlanCards(trip, candidates, analysis)
             : `<p class="trip-plan-empty">${date ? "Raum hier hineinziehen" : "Keine offenen Kandidaten"}</p>`}
           ${date ? renderTripPlanAccommodationMarker(trip, date, "end", candidates) : ""}
+          ${date ? renderTripPlanDestinationMarker(trip, date, analysis) : ""}
         </div>
       </section>
     `;
@@ -3011,6 +3012,7 @@
             ? renderTripFinalCards(trip, candidates, analysis)
             : `<p class="trip-plan-empty">Kein Raum geplant</p>`}
           ${renderTripPlanAccommodationMarker(trip, date, "end", candidates)}
+          ${renderTripPlanDestinationMarker(trip, date, analysis)}
         </div>
       </section>
     `;
@@ -3083,6 +3085,25 @@
           <strong>${escapeHtml(title)}</strong>
           <span>${escapeHtml(accommodation.title || accommodation.provider || "Unterkunft")}</span>
           ${details ? `<small>${escapeHtml(details)}</small>` : ""}
+        </div>
+        ${routeUrl ? `<a class="route-link route-link--small" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
+      </div>
+    `;
+  }
+
+  function renderTripPlanDestinationMarker(trip, date, analysis) {
+    const destination = tripPlanStartWaypoints(trip).find((item) => item.isDestination && item.date === date);
+    if (!destination) return "";
+    const leg = analysis.legsByTargetId.get(destination.id);
+    const details = leg ? tripTravelSummary(leg) : "Fahrzeit konnte noch nicht berechnet werden.";
+    const routeUrl = mapsRouteUrl(destination);
+    return `
+      <div class="trip-plan-stay-marker trip-plan-destination-marker">
+        <div>
+          <strong>Zieladresse</strong>
+          <span>${escapeHtml(destination.title)}</span>
+          ${destination.address ? `<small>${escapeHtml(destination.address)}</small>` : ""}
+          <small>${escapeHtml([leg ? `von ${leg.sourceTitle}` : "", details].filter(Boolean).join(" - "))}</small>
         </div>
         ${routeUrl ? `<a class="route-link route-link--small" href="${escapeHtml(routeUrl)}" target="_blank" rel="noreferrer">Route</a>` : ""}
       </div>
@@ -3595,10 +3616,11 @@
     tripDateValues(trip).forEach((date) => {
       const dayItems = datedItems
         .filter((item) => item.date === date)
-        .sort((a, b) => `${a.time || "99:99"} ${tripPlanTimelineOrder(a)} ${a.title}`.localeCompare(`${b.time || "99:99"} ${tripPlanTimelineOrder(b)} ${b.title}`, "de"));
+        .sort((a, b) => Number(Boolean(a.isDestination)) - Number(Boolean(b.isDestination))
+          || `${a.time || "99:99"} ${tripPlanTimelineOrder(a)} ${a.title}`.localeCompare(`${b.time || "99:99"} ${tripPlanTimelineOrder(b)} ${b.title}`, "de"));
 
       dayItems.forEach((item) => {
-        if (item.type !== "accommodation" && item.time && !item.duration) addTripPlanWarning(warningsById, item.id, "Dauer fehlt für die Zeitplanung.");
+        if (item.type !== "accommodation" && item.type !== "start" && item.time && !item.duration) addTripPlanWarning(warningsById, item.id, "Dauer fehlt für die Zeitplanung.");
       });
 
       for (let index = 1; index < dayItems.length; index += 1) {
@@ -3610,7 +3632,7 @@
           legsByTargetId.set(current.id, leg);
         }
 
-        if (previous.type === "accommodation" || current.type === "accommodation") continue;
+        if (previous.type === "accommodation" || current.type === "accommodation" || previous.type === "start" || current.type === "start") continue;
         if (!previous.time || !current.time || !previous.duration) continue;
 
         const previousEnd = timeToMinutes(previous.time) + Number(previous.duration);
@@ -3635,6 +3657,18 @@
     });
 
     addCrossDayTripPlanLegs(trip, dayItemsByDate, legsByTargetId, routeLegs);
+
+    // A return day may have no rooms or accommodation of its own.
+    datedItems.filter((item) => item.isDestination && !legsByTargetId.has(item.id)).forEach((destination) => {
+      if ((dayItemsByDate.get(destination.date) || []).length > 1) return;
+      const previousDates = [...dayItemsByDate.keys()].filter((date) => date < destination.date).sort().reverse();
+      const previous = previousDates.map((date) => [...dayItemsByDate.get(date)].reverse().find((item) => !item.isDestination)).find(Boolean);
+      const leg = previous ? tripPlanLeg(previous, destination) : null;
+      if (leg) {
+        routeLegs.push(leg);
+        legsByTargetId.set(destination.id, leg);
+      }
+    });
 
     return { warningsById, legsByTargetId, routeLegs };
   }
@@ -3671,15 +3705,17 @@
   function tripPlanStartWaypoints(trip) {
     return tripStartItems(trip).map((item) => ({
       ...item,
-      id: `${item.id}:start:${item.date || trip.startDate || ""}`,
+      id: `${item.id}:${tripStartIsDestination(trip, item) ? "destination" : "start"}:${item.date || trip.startDate || ""}`,
       date: item.date || trip.startDate,
-      time: "00:00",
+      time: tripStartIsDestination(trip, item) ? "23:59" : "00:00",
       duration: 0,
-      title: item.title || "Startadresse",
+      isDestination: tripStartIsDestination(trip, item),
+      title: tripStartIsDestination(trip, item) && (!item.title || item.title === "Startadresse") ? "Zieladresse" : item.title || "Startadresse",
     })).filter((item) => item.date);
   }
 
   function tripPlanTimelineOrder(item) {
+    if (item.isDestination) return 10;
     if (item.type === "start") return 0;
     if (item.type === "accommodation" && String(item.id || "").includes(":start:")) return 1;
     if (item.type === "accommodation" && String(item.id || "").includes(":end:")) return 9;
@@ -3845,7 +3881,11 @@
 
   function tripStartForDate(trip, date) {
     const starts = tripStartItems(trip);
-    return starts.find((item) => (item.date || trip.startDate) === date) || null;
+    return starts.find((item) => (item.date || trip.startDate) === date && !tripStartIsDestination(trip, item)) || null;
+  }
+
+  function tripStartIsDestination(trip, item) {
+    return Boolean(trip.startDate && trip.endDate && trip.endDate > trip.startDate && item.date === trip.endDate);
   }
 
   function findMatchingWish(item) {

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 
 const source = fs.readFileSync("src/app.js", "utf8").replace(
   /\}\(\)\);\s*$/,
-  "window.__test = { tripStartForDate, tripPlanStartWaypoints, tripPlanAnalysis, renderTripPlanBucket, renderTripFinalBucket };}());",
+  "window.__test = { tripStartForDate, tripPlanStartWaypoints, tripPlanAnalysis, renderTripPlanBucket, renderTripFinalBucket, tripPlanGroups, tripPlanPlace };}());",
 );
 const context = {
   window: {
@@ -28,6 +28,9 @@ const trip = {
   ], planItems: [], expenses: [],
 };
 const snapshot = JSON.stringify(trip);
+assert.ok(api.tripPlanGroups(trip).some((group) => group.items.some((item) => item.id === "stay")), "Geocoding includes accommodation");
+assert.ok(api.tripPlanGroups(trip).some((group) => group.items.some((item) => item.id === "home")), "Geocoding includes return address");
+assert.equal(api.tripPlanPlace({ type: "accommodation", address: "25 Rue des Deux Communes, Montreuil", city: "Ile-de-France" }), "25 Rue des Deux Communes, Montreuil", "Look up street address instead of a broad region");
 assert.equal(api.tripStartForDate(trip, trip.startDate).id, "start");
 assert.equal(api.tripStartForDate(trip, trip.endDate), null);
 const destination = api.tripPlanStartWaypoints(trip).find((item) => item.isDestination);

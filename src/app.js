@@ -4204,7 +4204,7 @@
     const trip = data.trips.find((entry) => entry.id === canvas.dataset.tripPlanMap);
     if (!trip) return;
     const groups = tripPlanGroups(trip);
-    queueMissingGeocodes(groups.slice(0, 6));
+    queueMissingGeocodes(groups);
     const analysis = tripPlanAnalysis(trip);
     queueTripPlanRoutes(analysis.routeLegs);
     const preservedView = tripPlanMapState.tripId === trip.id
@@ -4354,7 +4354,10 @@
 
   function tripPlanGroups(trip) {
     const groups = new Map();
-    (trip.planItems || []).forEach((item) => {
+    [
+      ...(trip.planItems || []),
+      ...(trip.items || []).filter((item) => item.type === "start" || item.type === "accommodation"),
+    ].forEach((item) => {
       const city = tripPlanPlace(item);
       const key = normalizeCity(city);
       if (!key) return;
@@ -4371,6 +4374,7 @@
   }
 
   function tripPlanPlace(item) {
+    if ((item.type === "start" || item.type === "accommodation") && clean(item.address)) return clean(item.address);
     return clean(item.city || extractCityFromAddress(item.address) || item.address || item.country);
   }
 

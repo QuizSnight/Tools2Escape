@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tools2EscApp - Datensicherung</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <h1>Tools2EscApp</h1>
+      <h2>Datensicherung</h2>
+      <p id="status" role="status"></p>
+      <button id="download" type="button" class="primary-action" disabled>Backup herunterladen</button>
+      <p><a href="./">Zur App</a></p>
+    </main>
+    <script>
+      // This page never connects to the database or replaces the device's app data.
+      const status = document.getElementById("status");
+      try {
+        const payload = JSON.parse(localStorage.getItem("tools2escape:v2") || "null");
+        const recovery = JSON.parse(localStorage.getItem("tools2escape:recovery:v1") || "null");
+        const sync = JSON.parse(localStorage.getItem("tools2escape:sync:v1") || "null");
+        const trips = sync?.localPayload?.trips || payload?.trips || [];
+        if (!payload && !recovery) {
+          status.textContent = "Auf diesem Browser sind keine App-Daten gespeichert. Öffne die Sicherung auf dem Gerät und im Browser, auf dem dein Trip sichtbar ist.";
+        } else {
+          const backup = { exportedAt: new Date().toISOString(), payload, recovery, sync };
+          const serialized = JSON.stringify(backup, null, 2);
+          const key = "tools2escape:backup:" + backup.exportedAt;
+          try { localStorage.setItem(key, serialized); } catch (error) { console.warn(error); }
+          status.textContent = trips.length
+            ? `${trips.length} Trips vorhanden: ${trips.map((trip) => trip.name).join(", ")}.`
+            : "Keine Trips im aktuellen Stand. Das Backup enthält auch vorhandene lokale Sicherungen.";
+          const button = document.getElementById("download");
+          button.disabled = false;
+          button.addEventListener("click", () => {
+            const url = URL.createObjectURL(new Blob([serialized], { type: "application/json" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Tools2EscApp-Backup-${backup.exportedAt.slice(0, 10)}.json`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+          });
+        }
+      } catch (error) {
+        status.textContent = "Die Daten konnten nicht gelesen werden. Bitte keine Browser- oder App-Daten löschen.";
+      }
+    </script>
+  </body>
+</html>

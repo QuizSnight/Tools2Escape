@@ -224,6 +224,18 @@ h2 {
   box-shadow: var(--shadow);
 }
 
+.sync-warning {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-left: 4px solid #bd881d;
+  background: #fff6e3;
+  color: #38372f;
+}
+
+.sync-warning p {
+  margin: 0 0 10px;
+}
+
 .toolbar {
   display: grid;
   grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 0.7fr) minmax(160px, 0.7fr) auto;

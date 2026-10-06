@@ -91,6 +91,16 @@ Der GitHub-Workflow `.github/workflows/supabase-ping.yml` pingt Supabase täglic
 
 Testen kannst du ihn in GitHub unter `Actions -> Supabase Ping -> Run workflow`. Standardmäßig nutzt der Workflow die Werte aus `src/config.js`. Optional können stattdessen Repository-Secrets mit den Namen `SUPABASE_URL`, `SUPABASE_ANON_KEY` und `SUPABASE_TEAM_ID` gesetzt werden.
 
+Zusätzlich ruft Vercel täglich `/api/health` auf (`vercel.json`). Dieser Check liest nur die Existenz des Team-Datensatzes und verändert keine Daten. Er läuft unabhängig von GitHub-Actions, deren Zeitpläne bei längerer Repository-Inaktivität deaktiviert werden können.
+
+### Sicherung und Verbindungsprobleme
+
+Unter Trips gibt es `Backup herunterladen`. Die JSON-Datei enthält den aktuellen lokalen Datenstand und vorhandene Wiederherstellungskopien. `backup.html` kann den gespeicherten Stand außerdem sichern, ohne die App oder eine Datenbankverbindung zu starten. Backups enthalten private Trip- und Ausgabendaten und gehören nicht ins öffentliche Repository.
+
+Nicht synchronisierte Änderungen und ihr Ausgangsstand bleiben über App-Neustarts erhalten. Bei Verbindungsproblemen erscheint ein Hinweis; die App lädt beim Wiederöffnen und während der Nutzung regelmäßig den gemeinsamen Datenstand. Trips aus alten lokalen Speicherständen, die online fehlen, können über den Wiederherstellungshinweis zurückgebracht werden.
+
+Die Synchronisierung lässt sich mit `node scripts/sync-safety-check.mjs` und `node scripts/cloud-sync-check.mjs` prüfen. Letzteres simuliert zwei Schreibende, Änderungen während laufender Uploads, einen Offline-Neustart, verspätete Ereignisse und die Wiederherstellung eines lokalen Trips.
+
 ## Google-Sheets-Sync
 
 Die App kann nach jedem Speichern zusätzlich eine Google-Sheets-Datei im alten Tabellenformat aktualisieren. Änderungen in Google Sheets können über einen installierbaren Trigger zurück in die App/Supabase synchronisiert werden.

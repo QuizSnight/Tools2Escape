@@ -2,6 +2,8 @@
   "use strict";
 
   const STORAGE_KEY = "tools2escape:v2";
+  const SYNC_STORAGE_KEY = "tools2escape:sync:v1";
+  const BACKUP_STORAGE_KEY = "tools2escape:recovery:v1";
   const SHARE_DB_NAME = "tools2escape-share-target";
   const SHARE_DB_VERSION = 1;
   const SHARE_STORE_NAME = "shares";
@@ -514,17 +516,22 @@
     lastSyncedAt: "",
     channel: null,
     basePayload: null,
+    initialPayload: null,
     retryTimer: null,
     retryDelayMs: 2000,
+    refreshing: false,
+    recoveryTrips: [],
   };
 
   let saveQueued = false;
   let localDirty = false;
+  let localChangeVersion = 0;
   let sheetsSyncTimer = null;
   let applyingRemoteData = false;
   let ocrScriptPromise = null;
   let pdfJsPromise = null;
   let data = loadData();
+  cloud.initialPayload = clone(data);
   let pendingShare = null;
   const mapState = {
     map: null,
@@ -556,6 +563,17 @@
   async function init() {
     render();
     if (cloud.enabled) await initCloud();
+    if (cloud.enabled) {
+      const refresh = () => {
+        if (document.visibilityState === "hidden") return;
+        if (cloud.client) void loadCloudState(true);
+        else void initCloud();
+      };
+      window.addEventListener("online", refresh);
+      window.addEventListener("focus", refresh);
+      document.addEventListener("visibilitychange", refresh);
+      window.setInterval(refresh, 20000);
+    }
     await openSharedBooking();
   }
 
@@ -634,14 +652,60 @@
   function loadData() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      const sync = JSON.parse(localStorage.getItem(SYNC_STORAGE_KEY) || "null");
+      if (cloud.enabled && sync && sync.teamId === config.teamId && sync.supabaseUrl === config.supabaseUrl) {
+        cloud.basePayload = sync.basePayload || null;
+        cloud.lastSyncedAt = sync.updatedAt || "";
+        localDirty = Boolean(sync.pending);
+        if (localDirty && sync.localPayload) {
+          preserveLocalBackup(sync.localPayload);
+          return normalizeData(sync.localPayload);
+        }
+      }
       if (stored) {
         const parsed = JSON.parse(stored);
+        preserveLocalBackup(parsed);
         if (parsed.version === seed.version) return normalizeData(parsed);
       }
     } catch (error) {
       console.warn(error);
     }
     return normalizeData(clone(seed));
+  }
+
+  function preserveLocalBackup(payload) {
+    if (!payload?.trips?.length) return;
+    try {
+      const backup = JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY) || "null") || {
+        savedAt: new Date().toISOString(), payload: clone(payload),
+      };
+      // Keep the first copy and the latest copy, even before the first successful connection.
+      backup.latestPayload = clone(payload);
+      backup.latestSavedAt = new Date().toISOString();
+      localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backup));
+    } catch (error) {
+      console.warn("Trip backup could not be stored", error);
+    }
+  }
+
+  function persistLocalState() {
+    if (cloud.enabled) localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify({
+      teamId: config.teamId, supabaseUrl: config.supabaseUrl,
+      basePayload: cloud.basePayload, updatedAt: cloud.lastSyncedAt,
+      pending: localDirty, localPayload: localDirty ? data : null,
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function downloadLocalBackup() {
+    const recovery = JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY) || "null");
+    const backup = { exportedAt: new Date().toISOString(), payload: data, recovery, pending: localDirty };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Tools2EscApp-Backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
   function loadGeocodeCache() {
@@ -1031,6 +1095,7 @@
   }
 
   function applyCloudPayload(payload, updatedAt = "") {
+    if (updatedAt && cloud.lastSyncedAt && updatedAt < cloud.lastSyncedAt) return;
     const remote = normalizeData(payload);
     const hasLocalChanges = localDirty || saveQueued || cloud.saving;
 
@@ -1038,18 +1103,18 @@
     if (hasLocalChanges) {
       data = mergeSharedData(cloud.basePayload, remote, data);
       cloud.basePayload = clone(remote);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       applyingRemoteData = false;
       cloud.lastSyncedAt = updatedAt || cloud.lastSyncedAt;
-      queueCloudSave();
+      persistLocalState();
+      if (!cloud.saving) queueCloudSave();
       return;
     }
 
     data = remote;
     cloud.basePayload = clone(remote);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     applyingRemoteData = false;
     cloud.lastSyncedAt = updatedAt || cloud.lastSyncedAt;
+    persistLocalState();
   }
 
   function normalizeRatings(ratings, members) {
@@ -1072,12 +1137,14 @@
 
   function saveData() {
     data.updatedAt = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     if (!applyingRemoteData) {
+      if (cloud.enabled && !cloud.basePayload) cloud.basePayload = clone(cloud.initialPayload);
       localDirty = true;
+      localChangeVersion += 1;
+      persistLocalState();
       queueCloudSave();
-      queueGoogleSheetsSync();
-    }
+      if (!cloud.enabled) queueGoogleSheetsSync();
+    } else persistLocalState();
   }
 
   function hasSupabaseConfig() {
@@ -1086,17 +1153,19 @@
       && config.supabaseUrl
       && config.supabaseAnonKey
       && config.teamId
-      && window.supabase?.createClient,
     );
   }
 
   async function initCloud() {
+    if (cloud.loading) return;
     cloud.loading = true;
     cloud.error = "";
     render();
 
     try {
+      if (!window.supabase?.createClient) throw new Error("Die Verbindung konnte nicht geladen werden. Bitte erneut versuchen.");
       cloud.client = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+        global: { fetch: cloudFetch },
         auth: {
           persistSession: false,
           autoRefreshToken: false,
@@ -1113,11 +1182,24 @@
     }
   }
 
-  async function loadCloudState() {
-    if (!cloud.client) return;
-    cloud.loading = true;
-    cloud.error = "";
-    render();
+  async function cloudFetch(url, options = {}) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (options.signal?.aborted) controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    const timer = window.setTimeout(abort, 15000);
+    try { return await fetch(url, { ...options, signal: controller.signal }); }
+    finally {
+      window.clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
+    }
+  }
+
+  async function loadCloudState(silent = false) {
+    if (!cloud.client || cloud.refreshing) return;
+    let needsRender = !silent || Boolean(cloud.error);
+    cloud.refreshing = true;
+    if (!silent) { cloud.loading = true; renderPreservingScroll(); }
 
     try {
       const { data: row, error } = await cloud.client
@@ -1129,17 +1211,32 @@
       if (error) throw error;
 
       if (row?.payload && Array.isArray(row.payload.played)) {
-        applyCloudPayload(row.payload, row.updated_at || "");
+        if (!cloud.lastSyncedAt) {
+          preserveLocalBackup(data);
+          const recovery = JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY) || "null");
+          cloud.recoveryTrips = mergeCollection([], recovery?.latestPayload?.trips || [], data.trips,
+            (trip) => trip.id, mergeTrip).filter((trip) =>
+              (!localDirty || cloud.basePayload?.trips?.some((entry) => entry.id === trip.id))
+              && !row.payload.trips?.some((entry) => entry.id === trip.id));
+        }
+        if (localDirty || row.updated_at !== cloud.lastSyncedAt || !cloud.basePayload) {
+          applyCloudPayload(row.payload, row.updated_at || "");
+          cloud.recoveryTrips = cloud.recoveryTrips.filter((trip) => !data.trips.some((entry) => entry.id === trip.id));
+          needsRender = true;
+        }
+        cloud.error = "";
+        resetCloudRetry();
+        if (localDirty) queueCloudSave();
       } else {
-        localDirty = true;
-        await saveCloudState();
+        throw new Error("Team-Datensatz fehlt. Der lokale Datenstand bleibt erhalten.");
       }
     } catch (error) {
       cloud.error = readableCloudError(error);
     } finally {
       applyingRemoteData = false;
+      cloud.refreshing = false;
       cloud.loading = false;
-      render();
+      if (needsRender || cloud.error || cloud.recoveryTrips.length) renderPreservingScroll();
     }
   }
 
@@ -1159,12 +1256,13 @@
         (payload) => {
           if (!payload.new?.payload || !Array.isArray(payload.new.payload.played)) return;
           applyCloudPayload(payload.new.payload, payload.new.updated_at || "");
-          cloud.lastSyncedAt = payload.new.updated_at || "";
           cloud.error = "";
-          render();
+          renderPreservingScroll();
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void loadCloudState(true);
+      });
   }
 
   function unsubscribeFromCloudChanges() {
@@ -1176,6 +1274,7 @@
   function queueCloudSave() {
     if (!cloud.enabled || !cloud.client) return;
     saveQueued = true;
+    resetCloudRetry();
     void flushCloudSave();
   }
 
@@ -1208,11 +1307,12 @@
     while (saveQueued) {
       saveQueued = false;
       await saveCloudState();
+      if (cloud.error) break;
     }
   }
 
   async function saveCloudState() {
-    if (!cloud.client) return;
+    if (!cloud.client || cloud.saving) return;
 
     cloud.saving = true;
     cloud.error = "";
@@ -1220,6 +1320,8 @@
 
     try {
       let savedRow = null;
+      let submittedLocal = null;
+      let submittedVersion = localChangeVersion;
       for (let attempt = 0; attempt < MAX_CLOUD_SAVE_RETRIES; attempt += 1) {
         const { data: currentRow, error: fetchError } = await cloud.client
           .from("team_state")
@@ -1231,7 +1333,9 @@
         const remotePayload = currentRow?.payload && Array.isArray(currentRow.payload.played)
           ? currentRow.payload
           : {};
-        const payload = mergeSharedData(cloud.basePayload, remotePayload, data);
+        submittedLocal = clone(data);
+        submittedVersion = localChangeVersion;
+        const payload = mergeSharedData(cloud.basePayload, remotePayload, submittedLocal);
 
         const { data: row, error } = await cloud.client
           .from("team_state")
@@ -1249,24 +1353,28 @@
       }
 
       if (!savedRow) {
-        saveQueued = true;
         throw new Error("Der Datenstand wurde parallel geändert. Ich versuche den Sync gleich erneut.");
       }
 
       applyingRemoteData = true;
-      data = normalizeData(savedRow.payload);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const acknowledgedPayload = cloud.lastSyncedAt > savedRow.updated_at ? cloud.basePayload : savedRow.payload;
+      data = mergeSharedData(submittedLocal, acknowledgedPayload, data);
       applyingRemoteData = false;
-      cloud.basePayload = clone(data);
-      localDirty = false;
-      cloud.lastSyncedAt = savedRow.updated_at || new Date().toISOString();
+      cloud.basePayload = clone(acknowledgedPayload);
+      localDirty = localChangeVersion !== submittedVersion;
+      cloud.lastSyncedAt = cloud.lastSyncedAt > savedRow.updated_at ? cloud.lastSyncedAt : savedRow.updated_at;
+      persistLocalState();
       resetCloudRetry();
+      if (localDirty) saveQueued = true;
+      else queueGoogleSheetsSync();
     } catch (error) {
       cloud.error = readableCloudError(error);
-      scheduleCloudRetry(error);
+      saveQueued = false;
+      persistLocalState();
     } finally {
       cloud.saving = false;
-      render();
+      if (cloud.error) scheduleCloudRetry(cloud.error);
+      renderPreservingScroll();
     }
   }
 
@@ -1284,6 +1392,7 @@
 
   async function syncGoogleSheetsState() {
     if (!hasGoogleSheetsSyncConfig()) return;
+    if (cloud.enabled && (localDirty || cloud.saving || cloud.error || !cloud.basePayload)) return;
     const payload = {
       updatedAt: new Date().toISOString(),
       source: "Tools2EscApp",
@@ -1314,6 +1423,9 @@
 
   function readableCloudError(error) {
     const message = error?.message || String(error);
+    if (/(fetch|network|aborted|timeout|load failed)/i.test(message)) {
+      return "Gemeinsame Daten gerade nicht erreichbar. Angezeigt wird der Stand dieses Geräts; Änderungen warten auf die Synchronisierung.";
+    }
     if (message.includes("team_not_found")) return "Team nicht gefunden. Prüfe die Team-ID in src/config.js.";
     if (message.includes("JWT") || message.includes("row-level security") || message.includes("permission")) {
       return "Kein Zugriff. Bitte database/supabase.sql in Supabase ausführen.";
@@ -2131,6 +2243,7 @@
     app.innerHTML = `
       <div class="app-shell">
         ${renderHeader()}
+        ${renderSyncWarning()}
         ${ui.notice ? `<div class="notice">${escapeHtml(ui.notice)}</div>` : ""}
         <main class="main-panel">
           ${ui.view === "played" ? renderPlayedView(rooms) : ""}
@@ -2187,6 +2300,31 @@
         </div>
       </header>
     `;
+  }
+
+  function renderSyncWarning() {
+    if (!cloud.enabled) return "";
+    const message = cloud.error || (localDirty && !cloud.loading && !cloud.saving
+      ? "Änderungen sind auf diesem Gerät gespeichert und warten auf die Synchronisierung." : "");
+    const recoveryMessage = cloud.recoveryTrips.length
+      ? `${cloud.recoveryTrips.length} lokal gespeicherte Trips fehlen im gemeinsamen Datenstand.` : "";
+    if (!message && !recoveryMessage) return "";
+    return `<section class="sync-warning" role="status">
+      <p>${escapeHtml([message, recoveryMessage].filter(Boolean).join(" "))}</p>
+      <div class="card-actions">
+        <button type="button" data-refresh-cloud>Erneut verbinden</button>
+        <button type="button" data-download-backup>Backup herunterladen</button>
+        ${recoveryMessage ? '<button type="button" data-restore-local-trips>Lokal gespeicherte Trips wiederherstellen</button>' : ""}
+      </div>
+    </section>`;
+  }
+
+  function restoreLocalTrips() {
+    const existingIds = new Set(data.trips.map((trip) => trip.id));
+    data.trips = [...data.trips, ...cloud.recoveryTrips.filter((trip) => !existingIds.has(trip.id))];
+    cloud.recoveryTrips = [];
+    saveData();
+    renderPreservingScroll();
   }
 
   function tabButton(view, label) {
@@ -2667,9 +2805,10 @@
         </label>
         ${pendingShare ? `<button type="button" data-open-shared-booking>Geteilte Buchung öffnen</button>` : ""}
         <button class="primary-action" data-open-trip type="button">Trip anlegen</button>
+        <button type="button" data-download-backup>Backup herunterladen</button>
       </section>
       <section class="trip-grid">
-        ${trips.length ? trips.map(renderTripCard).join("") : renderEmptyState("Noch kein Trip geplant.")}
+        ${trips.length ? trips.map(renderTripCard).join("") : renderEmptyState(cloud.loading ? "Trips werden geladen..." : "Noch kein Trip geplant.")}
       </section>
     `;
   }
@@ -2727,6 +2866,7 @@
             <button type="button" data-import-trip-item="${escapeHtml(trip.id)}">Buchung importieren</button>
             <button type="button" data-import-room-url="${escapeHtml(trip.id)}">Website importieren</button>
             <button class="primary-action" type="button" data-open-trip-item="${escapeHtml(trip.id)}">Termin ergänzen</button>
+            <button type="button" data-download-backup>Backup herunterladen</button>
           </div>
         </div>
       </section>
@@ -5193,8 +5333,16 @@
 
     app.querySelectorAll("[data-refresh-cloud]").forEach((button) => {
       button.addEventListener("click", () => {
-        void loadCloudState();
+        if (cloud.client) void loadCloudState();
+        else void initCloud();
       });
+    });
+
+    app.querySelectorAll("[data-download-backup]").forEach((button) => {
+      button.addEventListener("click", downloadLocalBackup);
+    });
+    app.querySelectorAll("[data-restore-local-trips]").forEach((button) => {
+      button.addEventListener("click", restoreLocalTrips);
     });
 
     app.querySelectorAll("[data-save-cloud]").forEach((button) => {
